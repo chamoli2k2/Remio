@@ -41,4 +41,18 @@ export function requireMethod(id) {
   return method;
 }
 
+/**
+ * A gateway with no webhook secret is the worst shape this can take: orders are accepted, money is
+ * taken, and every webhook then fails its signature check, so the purchase is never granted. It
+ * looks like a working server right up until a customer is out of pocket, so say so at boot.
+ *
+ * Returns the warnings rather than logging them so the caller decides how loud to be.
+ */
+export function configWarnings() {
+  const warnings = [];
+  if (!razorpay.isConfigured()) warnings.push('No payment gateway keys, so nothing can be bought on this server.');
+  else if (!process.env.RAZORPAY_WEBHOOK_SECRET) warnings.push('RAZORPAY_WEBHOOK_SECRET is not set. Payments will be taken but no webhook can be verified, so Premium will never be granted.');
+  return warnings;
+}
+
 export { razorpay };

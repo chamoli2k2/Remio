@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import * as razorpay from '../src/services/payments/razorpay.js';
-import { availableMethods, methodById, requireMethod } from '../src/services/payments/index.js';
+import { availableMethods, configWarnings, methodById, requireMethod } from '../src/services/payments/index.js';
 
 const hmac = (payload, secret) => crypto.createHmac('sha256', secret).update(payload).digest('hex');
 const withEnv = (vars, fn) => {
@@ -38,6 +38,27 @@ test('readWebhook survives an envelope with no payment in it', () => {
   const raw = Buffer.from('{"event":"order.paid"}');
   assert.deepEqual(razorpay.readWebhook(raw), { event: 'order.paid', orderId: null, paymentId: null, status: null });
   assert.throws(() => razorpay.readWebhook(Buffer.from('not json')), /valid JSON/);
+});
+
+test('a gateway that can take money but cannot verify a webhook is called out at boot', () => {
+  const keys = { RAZORPAY_KEY_ID: 'rzp_test_key', RAZORPAY_KEY_SECRET: 's' };
+  // The dangerous shape: orders go through, the money leaves the buyer, and every webhook then
+  // fails its signature check, so nobody is ever granted what they paid for.
+  withEnv({ ...keys, RAZORPAY_WEBHOOK_SECRET: undefined }, () => {
+    assert.match(configWarnings().join(' '), /RAZORPAY_WEBHOOK_SECRET/);
+  });
+  withEnv({ ...keys, RAZORPAY_WEBHOOK_SECRET: '' }, () => {
+    // An empty string is what a value starting with # parses to, which is silent otherwise.
+    assert.match(configWarnings().join(' '), /RAZORPAY_WEBHOOK_SECRET/, 'blank counts as missing');
+  });
+  withEnv({ ...keys, RAZORPAY_WEBHOOK_SECRET: 'whsec' }, () => {
+    assert.deepEqual(configWarnings(), [], 'fully configured, so nothing to say');
+  });
+  withEnv({ RAZORPAY_KEY_ID: '', RAZORPAY_KEY_SECRET: '', RAZORPAY_WEBHOOK_SECRET: undefined }, () => {
+    const warnings = configWarnings().join(' ');
+    assert.match(warnings, /nothing can be bought/);
+    assert.doesNotMatch(warnings, /WEBHOOK/, 'no point naming the webhook when the gateway is off entirely');
+  });
 });
 
 test('only usable methods are advertised, and the retired transfer flow stays retired', () => {
