@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavLink, Link, Outlet, useNavigate } from 'react-router-dom';
-import { LibraryBig, Compass, Users, ChartNoAxesCombined, Plus, ArrowUpRight, Settings2, Menu as MenuIcon, Search, Archive, LogOut, Layers, Swords, FolderOpen, UserPlus, LayoutDashboard, Crown, GraduationCap } from 'lucide-react';
-import { Avatar, Button, Modal } from './ui';
+import { LibraryBig, Compass, Users, ChartNoAxesCombined, Plus, Settings2, Menu as MenuIcon, Search, Archive, LogOut, Swords, FolderOpen, UserPlus, LayoutDashboard, Crown, GraduationCap } from 'lucide-react';
+import { Avatar, Button } from './ui';
 import { useApp, useQuery } from '../hooks/useApp';
 import { api } from '../services/api';
 import { reportError } from '../services/errors';
@@ -42,10 +42,22 @@ function useSidebarWidth() {
 }
 export default function Layout() {
   const { user, isDemo, setUser } = useApp(); const navigate = useNavigate();
-  const [create, setCreate] = useState(false), [mobile, setMobile] = useState(false), [help, setHelp] = useState(false), [query, setQuery] = useState(''), [people, setPeople] = useState([]);
+  const [create, setCreate] = useState(false), [mobile, setMobile] = useState(false), [query, setQuery] = useState(''), [people, setPeople] = useState([]);
   const { data } = useQuery('/folders');
   const sidebar = useSidebarWidth();
-  const nav = [['/', LibraryBig, 'My library', false], ['/projects', FolderOpen, 'Projects', true], ['/teams', GraduationCap, 'Classrooms', false], ['/friends', UserPlus, 'Friends', false], ['/shared', Users, 'Shared with me', false], ['/explore', Compass, 'Explore', false], ['/progress', ChartNoAxesCombined, 'My progress', false], ...(isDemo ? [] : [['/rooms', Swords, 'Live quiz', true]]), ...(hasDashboard(user) ? [['/dashboard', LayoutDashboard, 'Dashboard', false]] : [])];
+  /**
+   * Grouped by how far a destination sits from your own material: the folders you own, then what
+   * you do with them, then the people you do it with. Twelve flat links all looked equally likely,
+   * which made the list something to read rather than something to aim at.
+   *
+   * Anything about the account rather than the learning is left out and sits below, past the folder
+   * list, where it is out of the way of everything reached daily.
+   */
+  const groups = [
+    ['WORKSPACE', [['/', LibraryBig, 'My library'], ['/projects', FolderOpen, 'Projects', true], ['/archive', Archive, 'Archived folders']]],
+    ['STUDY', [['/progress', ChartNoAxesCombined, 'My progress'], ...(isDemo ? [] : [['/rooms', Swords, 'Live quiz', true]])]],
+    ['PEOPLE', [['/teams', GraduationCap, 'Classrooms'], ['/shared', Users, 'Shared with me'], ['/friends', UserPlus, 'Friends'], ['/explore', Compass, 'Explore']]],
+  ];
   async function signOut() {
     try { if (!isDemo) await api('/auth/logout', { method: 'POST' }); setUser(null); setMobile(false); navigate('/'); }
     catch (e) { reportError(e); }
@@ -59,13 +71,21 @@ export default function Layout() {
     {mobile && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobile(false)}/>}
     <aside className={`sidebar ${mobile ? 'open' : ''}`}>
       <Link className="brand" to="/" onClick={() => setMobile(false)}><img src="/favicon.svg" alt=""/><span className="brand-word">{BRAND.name}<span className="brand-period">.</span></span></Link>
-      <Button className="primary sidebar-create" onClick={() => setCreate(true)}><Plus size={19}/> Create a folder</Button>
+      <Button className="primary sidebar-create" onClick={() => setCreate(true)}><span className="sidebar-create-icon"><Plus size={16}/></span> Create a folder</Button>
       <div className="sidebar-scroll">
-      <div className="nav-caption">WORKSPACE</div>
-      <nav>{nav.map(([to, Icon, title, premium]) => <NavLink key={to} to={to} end onClick={() => setMobile(false)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={19}/><span>{title}</span>{premium && <PremiumMark/>}{to === '/' && <span className="nav-count">{data?.folders?.length || 0}</span>}</NavLink>)}</nav>
-      <div className="nav-caption folder-caption">YOUR FOLDERS <button className="icon-button" aria-label="Create another folder" onClick={() => setCreate(true)}><Plus size={15}/></button></div>
-      <div className="sidebar-folders">{data?.folders?.filter(f => f.role === 'owner').slice(0, 5).map(f => <NavLink key={f.id} to={`/folders/${f.id}`} onClick={() => setMobile(false)} className="folder-link"><span className={`folder-dot ${f.color}`}/><span>{f.title}</span></NavLink>)}</div>
-      <div className="sidebar-bottom"><button className="small-tip" onClick={() => setHelp(true)}><span className="tip-icon"><Layers size={20}/></span><strong>A little learning, every day.</strong><span>Your future self will thank you.</span><span className="tip-link">Make it a habit <ArrowUpRight size={14}/></span></button><NavLink to="/archive" className="nav-link"><Archive size={18}/> Archived folders</NavLink><NavLink to="/premium" className="nav-link"><Crown size={18}/> {hasPremium(user) ? 'Premium' : 'Buy Premium'}</NavLink><NavLink to="/settings" className="nav-link"><Settings2 size={18}/> Settings</NavLink></div>
+        {groups.map(([caption, items]) => <div className="nav-group" key={caption}>
+          <div className="nav-caption">{caption}</div>
+          <nav>{items.map(([to, Icon, title, premium]) => <NavLink key={to} to={to} end onClick={() => setMobile(false)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={18}/><span>{title}</span>{premium && <PremiumMark/>}{to === '/' && <span className="nav-count">{data?.folders?.length || 0}</span>}</NavLink>)}</nav>
+        </div>)}
+        <div className="nav-group">
+          <div className="nav-caption folder-caption">YOUR FOLDERS <button className="icon-button" aria-label="Create another folder" onClick={() => setCreate(true)}><Plus size={15}/></button></div>
+          <div>{data?.folders?.filter(f => f.role === 'owner').slice(0, 5).map(f => <NavLink key={f.id} to={`/folders/${f.id}`} onClick={() => setMobile(false)} className="folder-link"><span className={`folder-dot ${f.color}`}/><span>{f.title}</span></NavLink>)}</div>
+        </div>
+        <div className="sidebar-bottom">
+          {hasDashboard(user) && <NavLink to="/dashboard" onClick={() => setMobile(false)} className="nav-link"><LayoutDashboard size={18}/> Dashboard</NavLink>}
+          <NavLink to="/premium" onClick={() => setMobile(false)} className="nav-link"><Crown size={18}/> {hasPremium(user) ? 'Premium' : 'Buy Premium'}</NavLink>
+          <NavLink to="/settings" onClick={() => setMobile(false)} className="nav-link"><Settings2 size={18}/> Settings</NavLink>
+        </div>
       </div>
       <div className="account"><Link className="account-id" to={`/u/${user?.username || ''}`} onClick={() => setMobile(false)}><Avatar user={user} small/><span><strong>{user?.name || 'Guest'}</strong><span>@{user?.username || 'guest'}</span></span></Link><button className="account-out" onClick={signOut} title={isDemo ? 'Leave preview' : 'Sign out'}><LogOut size={15}/><span>{isDemo ? 'Leave' : 'Sign out'}</span></button></div>
     </aside>
@@ -75,6 +95,5 @@ export default function Layout() {
       <main className="main-content"><Outlet/></main><SiteFooter/>
     </div>
     {create && <FolderModal onClose={() => setCreate(false)}/>}
-    <Modal open={help} onClose={() => setHelp(false)} title="Make room for a little learning" description="A small routine is easier to keep."><div className="help-copy"><p>Choose a daily goal you can comfortably finish. Start with a short review, try to recall the answer, then flip the card.</p><p>Rate each answer honestly. {BRAND.name} will bring difficult cards back sooner and give familiar cards more space.</p><Button className="primary" onClick={() => { setHelp(false); navigate('/settings'); }}>Set your daily goal <ArrowUpRight size={17}/></Button></div></Modal>
   </div>;
 }
