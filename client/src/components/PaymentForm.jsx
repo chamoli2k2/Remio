@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Crown, ImageUp, ImageOff, ShieldCheck, Zap, Banknote, MailCheck } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Crown, ImageUp, ImageOff, ShieldCheck, Zap, Banknote, MailCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 import { messageFor, ApiError } from '../services/errors';
@@ -12,6 +12,8 @@ import { COUNTRIES, DEFAULT_COUNTRY, countryByCode, dialFor, composePhone } from
 
 const METHOD_ICONS = { razorpay: Zap, manual: Banknote };
 const money = n => `₹${(n || 0).toLocaleString('en-IN')}`;
+/** The gateway finds its container by selector, so the id has to be stable and only ever appear once. */
+const EMBED_ID = 'gateway-embed';
 
 /**
  * The one checkout form. Whatever is being bought, the difference is only which endpoints it posts
@@ -26,6 +28,8 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
   const [form, setForm] = useState({ name: user?.name || '', country: DEFAULT_COUNTRY, phone: '', address: '' });
   const [proof, setProof] = useState(null), [preview, setPreview] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [embedded, setEmbedded] = useState(false);
+  const gateway = useRef(null);
 
   useEffect(() => { if (methods.length && !methods.some(m => m.id === method)) setMethod(methods[0].id); }, [methods, method]);
   const active = methods.find(m => m.id === method) || null;
@@ -64,15 +68,38 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
     await api(manualPath, { method: 'POST', body });
   }
 
+  /**
+   * Tears the gateway down and frees the order it reserved, so the next attempt is not blocked by
+   * an abandoned one. Closing may itself trigger the gateway's dismiss callback, and our own close
+   * button has to work even if it does not, so both routes lead here and only the first does the
+   * work. Without that, one cancellation would fire two deletes.
+   */
+  function closeEmbed({ cancel = false } = {}) {
+    const rz = gateway.current;
+    gateway.current = null;
+    setEmbedded(false);
+    if (!rz) return;
+    if (cancel && cancelPath) api(cancelPath, { method: 'DELETE' }).catch(() => {});
+    rz.close?.();
+  }
+
   /** The gateway owns the card form; we only hand it an order and verify the signature it returns. */
   async function payOnline() {
     const { checkout } = await api(checkoutPath, { method: 'POST', body: { ...billing(), ...extra, method: 'razorpay' } });
     const Razorpay = await loadCheckout();
+    // The container is found by selector at open time, so it has to be painted before we ask.
+    setEmbedded(true);
+    await new Promise(paint => requestAnimationFrame(() => requestAnimationFrame(paint)));
     await new Promise((resolve, reject) => {
       const rz = new Razorpay({
         key: checkout.key, order_id: checkout.orderId, amount: checkout.amount, currency: checkout.currency,
         name: BRAND.name, description: checkout.description, image: checkout.image,
         prefill: checkout.prefill, theme: { color: '#5b53e8' },
+        // Embedded rather than the default overlay. Left to itself the gateway covers the viewport
+        // with an opaque backdrop of its own, which reads as being sent off to another site midway
+        // through buying something. Handed a container, it renders inside ours instead, so the
+        // order summary stays visible behind a dimmed page and paying stays a step within our own.
+        parent: `#${EMBED_ID}`,
         handler: response => api('/premium/checkout/confirm', {
           method: 'POST',
           body: { orderId: response.razorpay_order_id, paymentId: response.razorpay_payment_id, signature: response.razorpay_signature },
@@ -82,12 +109,17 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
           if (me?.user) setUser(me.user);
           resolve();
         }, reject),
-        modal: { ondismiss: () => { if (cancelPath) api(cancelPath, { method: 'DELETE' }).catch(() => {}); reject(new ApiError('Payment cancelled. You were not charged.', { code: 'CHECKOUT_CANCELLED' })); } },
+        modal: { ondismiss: () => { closeEmbed({ cancel: true }); reject(cancelled()); } },
       });
+      gateway.current = rz;
       rz.on('payment.failed', r => reject(new ApiError(r?.error?.description || 'The payment did not go through. You were not charged.', { code: 'PAYMENT_FAILED' })));
       rz.open();
-    });
+    }).finally(() => closeEmbed());
   }
+
+  const cancelled = () => new ApiError('Payment cancelled. You were not charged.', { code: 'CHECKOUT_CANCELLED' });
+  // Embedded, the gateway has no dismiss button of its own, so ours stands in for it.
+  const giveUp = () => { closeEmbed({ cancel: true }); setError(messageFor(cancelled())); setBusy(false); };
 
   // The server refuses a purchase until the address is confirmed. Say so before the billing
   // details are typed out rather than rejecting them afterwards.
@@ -96,6 +128,15 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
   </ConfirmEmailFirst>;
 
   return <form className="premium-form" onSubmit={submit}>
+    {embedded && <div className="pay-embed-backdrop" role="dialog" aria-modal="true" aria-label="Payment">
+      <div className="pay-embed">
+        <div className="pay-embed-head">
+          <span><ShieldCheck size={15}/> Secure payment</span>
+          <button type="button" className="icon-button" onClick={giveUp} aria-label="Cancel payment"><X size={16}/></button>
+        </div>
+        <div id={EMBED_ID} className="pay-embed-frame"/>
+      </div>
+    </div>}
     {methods.length > 1 && <>
       <div className="premium-card-head premium-card-head-inline"><h2>How would you like to pay?</h2></div>
       <div className="pay-picker" role="radiogroup" aria-label="Payment method">{methods.map(m => {

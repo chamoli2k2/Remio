@@ -316,6 +316,15 @@ html[data-theme=dark] .search-people,html[data-theme=dark] .people-list li,html[
 .pay-receipt{display:flex;align-items:center;gap:8px;margin:0;padding:11px 13px;border:1px solid #cfe9da;border-radius:10px;background:#f1faf5;font-size:13px;line-height:1.5;color:#2c7a4f}
 .pay-receipt strong{font-weight:600}
 .pay-receipt svg{flex:none}
+/* The gateway rendered inside our own popup, so the page stays visible and dimmed behind it rather
+   than being replaced wholesale. The frame height is fixed because the gateway sizes itself to the
+   container, and a container that grows with its content would jump as payment methods change. */
+.pay-embed-backdrop{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(26,18,40,.55);backdrop-filter:blur(2px)}
+.pay-embed{width:min(420px,100%);max-height:100%;display:flex;flex-direction:column;border-radius:16px;background:#fff;box-shadow:0 24px 60px rgba(26,18,40,.35);overflow:hidden}
+.pay-embed-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 10px 10px 16px;border-bottom:1px solid var(--border)}
+.pay-embed-head span{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:#594665}
+.pay-embed-frame{flex:1;min-height:0;height:540px}
+@media(max-height:620px){.pay-embed-frame{height:420px}}
 /* The dialling code is display, not input: it follows the country and cannot be mistyped. */
 .pay-phone{display:flex;align-items:stretch}
 .pay-dial{display:inline-flex;align-items:center;padding:0 12px;border:1px solid #e2ddee;border-right:0;border-radius:9px 0 0 9px;background:#f6f3fb;font-size:14px;font-weight:600;color:#594665;font-variant-numeric:tabular-nums}
@@ -408,6 +417,10 @@ html[data-theme=dark] .pay-lines dd{color:var(--ink)}
 html[data-theme=dark] .pay-total{border-color:var(--border)}
 html[data-theme=dark] .pay-receipt{background:#22382e;border-color:#2f5544;color:#94c9bb}
 html[data-theme=dark] .pay-dial{background:var(--surface-2);border-color:var(--border);color:var(--text-2)}
+/* The gateway's own frame is always light, so only our chrome around it follows the theme. */
+html[data-theme=dark] .pay-embed{background:var(--surface)}
+html[data-theme=dark] .pay-embed-head{border-color:var(--border)}
+html[data-theme=dark] .pay-embed-head span{color:var(--text-2)}
 html[data-theme=dark] .premium-pay-card small{color:var(--text-4)}
 html[data-theme=dark] .premium-required{background:#4a2630;color:#ffa8b9}html[data-theme=dark] .premium-pending-icon{background:#3d3020;color:#e8b063}
 html[data-theme=dark] .order-card{background:var(--surface);border-color:var(--border)}html[data-theme=dark] .order-card:hover{border-color:#6a6380;box-shadow:0 6px 18px #1a163035}
