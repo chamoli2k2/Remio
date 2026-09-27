@@ -98,7 +98,14 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
       const rz = new Razorpay({
         key: checkout.key, order_id: checkout.orderId, amount: checkout.amount, currency: checkout.currency,
         name: BRAND.name, description: checkout.description, image: logo,
-        prefill: checkout.prefill, theme: { color: '#5b53e8' },
+        prefill: checkout.prefill,
+        // Marked read-only because prefill on its own is only a suggestion: the gateway remembers
+        // the last contact used on a device and shows that instead, so a number left over from
+        // somebody else's checkout ends up on the payment. Both of these are already settled
+        // before we get here — the phone came from the form and the address is the confirmed one on
+        // the account — so there is nothing here for the buyer to decide, and one fewer step.
+        readonly: { contact: true, email: true },
+        theme: { color: '#5b53e8' },
         // Embedded rather than the default overlay. Left to itself the gateway covers the viewport
         // with an opaque backdrop of its own, which reads as being sent off to another site midway
         // through buying something. Handed a container, it renders inside ours instead, so the
