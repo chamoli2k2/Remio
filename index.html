@@ -3,10 +3,21 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the page reach under the notch and the home indicator, which is what
+         an installed app should do. The CSS then keeps content clear of both with env(safe-area-inset-*). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#5a45e0" />
     <meta name="description" content="%BRAND_DESCRIPTION%" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- iOS reads none of the manifest except the icons, so the installed name and icon are
+         repeated here. The status bar is left opaque rather than translucent: translucent draws its
+         text in white over the page, which would disappear against the light theme. -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="%BRAND_SHORT_NAME%" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <script src="/theme.js" data-theme-keys="%BRAND_THEME_KEYS%"></script>
     <title>%BRAND_TITLE%</title>
 </head>
