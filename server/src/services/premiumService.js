@@ -101,9 +101,12 @@ async function newOrder(user, body, method, { proof = null } = {}) {
   assert(!open, 400, 'You already have a payment in progress. Finish or cancel it first.', 'ORDER_IN_PROGRESS');
   const money = team ? { plan: team.plan.id, amount: team.rupees * 100, team: team.team.id, seats: team.seats, kind: team.kind }
     : { plan: planById(body.plan).id, amount: planById(body.plan).price * 100, kind: 'personal' };
+  // The receipt goes to the confirmed address on the account, never to one typed at checkout, so a
+  // slip of the keyboard cannot send somebody's invoice to a stranger.
+  const { email } = await User.findById(user.id).select('+email');
   return PremiumOrder.create({
     user: user.id, method, currency: 'INR', ...money,
-    name: body.name, email: body.email, phone: body.phone, country: body.country, address: body.address,
+    name: body.name, email, phone: body.phone, country: body.country, address: body.address,
     ...(proof ? { proof, proofType: 'image/webp' } : {}),
     status: 'pending',
   });

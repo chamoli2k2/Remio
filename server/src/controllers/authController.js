@@ -8,7 +8,11 @@ import * as account from '../services/accountService.js';
 export const signup = async (req, res) => { const { password, ...body } = req.body; const user = await User.create({ ...body, passwordHash: await bcrypt.hash(password, 12), ...(process.env.NODE_ENV === 'test' ? { account: 'premium' } : {}) }); await createSession(res, user); account.sendVerification(user).catch(() => {}); res.status(201).json({ user: await User.findById(user.id) }); };
 export const login = async (req, res) => { const identifier = String(req.body.identifier).toLowerCase().trim(); const user = await User.findOne({ $or: [{ username: identifier }, { email: identifier }] }).select('+passwordHash'); assert(user && await bcrypt.compare(req.body.password, user.passwordHash), 401, 'Username or password is incorrect.'); await createSession(res, user); res.json({ user: await User.findById(user.id) }); };
 export const logout = async (req, res) => { const token = sessionToken(req); if (token) await Session.deleteOne({ tokenHash: hashToken(token) }); const { maxAge, ...options } = cookieOptions(); for (const n of sessionCookieNames) res.clearCookie(n, options); res.json({ ok: true }); };
-export const me = async (req, res) => res.json({ user: req.user ?? null });
+/**
+ * Includes the address, which `select: false` hides everywhere else. Only ever your own, and it
+ * saves asking people to retype something we already know at checkout and in Settings.
+ */
+export const me = async (req, res) => res.json({ user: req.user ? await User.findById(req.user.id).select('+email') : null });
 export const profile = async (req, res) => { const user = await User.findByIdAndUpdate(req.user.id, { $set: req.body }, { new: true }); res.json({ user }); };
 export const publicProfile = async (req, res) => res.json(await loadProfile(req.params.username, req.user));
 export const searchPeople = async (req, res) => res.json({ users: await searchUsers(req.query.q, req.user?.id) });

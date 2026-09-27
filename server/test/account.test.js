@@ -1,6 +1,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canAssign, hasPremium, hasDashboard, planById, premiumDaysLeft, premiumExpiryAfter, PREMIUM_PLANS } from '../../shared/account.js';
+import { premiumOrderSchema } from '../src/middleware/validate.js';
+import { COUNTRIES, composePhone, dialFor } from '../../shared/countries.js';
+
+const order = (over = {}) => ({ plan: 'monthly', name: 'A Buyer', phone: '+919999999999', country: 'India', address: '1 Somewhere Street', ...over });
+
+test('checkout never accepts an email, so a receipt cannot be aimed at someone else', () => {
+  // `validate` replaces req.body with what this returns, so a stripped key cannot reach the service
+  // even if the client sends it. The address on the confirmed account is the only one used.
+  const parsed = premiumOrderSchema.parse(order({ email: 'attacker@example.test' }));
+  assert.equal('email' in parsed, false);
+  assert.deepEqual(Object.keys(parsed).sort(), ['address', 'country', 'name', 'phone', 'plan']);
+});
+test('a phone number is only accepted with a dialling code in front of it', () => {
+  assert.equal(premiumOrderSchema.safeParse(order()).success, true);
+  for (const bad of ['9999999999', '+0999999999', '+91 99999 99999', '+91', 'not-a-number', '']) {
+    assert.equal(premiumOrderSchema.safeParse(order({ phone: bad })).success, false, `${bad} should be refused`);
+  }
+});
+test('the country has to be one we actually offer, and every one of them dials', () => {
+  assert.equal(premiumOrderSchema.safeParse(order({ country: 'Atlantis' })).success, false);
+  assert.equal(premiumOrderSchema.safeParse(order({ country: 'india' })).success, false, 'the list is exact, not fuzzy');
+  for (const c of COUNTRIES) {
+    assert.match(c.dial, /^\+[1-9]\d{0,3}$/, `${c.name} needs a dialling code`);
+    assert.equal(premiumOrderSchema.safeParse(order({ country: c.name })).success, true, `${c.name} should be offered`);
+  }
+});
+test('composing a phone number strips whatever the buyer typed around the digits', () => {
+  assert.equal(composePhone('IN', '98765 43210'), '+919876543210');
+  assert.equal(composePhone('US', '(555) 010-9999'), '+15550109999');
+  assert.equal(dialFor('GB'), '+44');
+  assert.equal(dialFor('ZZ'), '', 'an unknown code contributes nothing rather than throwing');
+  assert.equal(premiumOrderSchema.safeParse(order({ phone: composePhone('US', '555 010 9999') })).success, true);
+});
 test('premium and dashboard flags follow account type', () => {
   assert.equal(hasPremium({ account: 'normal' }), false);
   assert.equal(hasPremium({ account: 'premium' }), true);

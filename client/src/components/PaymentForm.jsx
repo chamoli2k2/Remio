@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Crown, ImageUp, ImageOff, ShieldCheck, Zap, Banknote } from 'lucide-react';
+import { Crown, ImageUp, ImageOff, ShieldCheck, Zap, Banknote, MailCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 import { messageFor, ApiError } from '../services/errors';
@@ -8,6 +8,7 @@ import { useApp } from '../hooks/useApp';
 import { Button, Field, ErrorState } from './ui';
 import ConfirmEmailFirst from './ConfirmEmailFirst';
 import { BRAND } from '../../../shared/brand.js';
+import { COUNTRIES, DEFAULT_COUNTRY, countryByCode, dialFor, composePhone } from '../../../shared/countries.js';
 
 const METHOD_ICONS = { razorpay: Zap, manual: Banknote };
 const money = n => `₹${(n || 0).toLocaleString('en-IN')}`;
@@ -20,7 +21,9 @@ const money = n => `₹${(n || 0).toLocaleString('en-IN')}`;
 export default function PaymentForm({ methods = [], amount, summary, label = 'Submit request', instantLabel = 'Pay', manualPath, checkoutPath, cancelPath, extra = {}, onDone, onMethodChange }) {
   const { user, setUser, refresh } = useApp();
   const [method, setMethod] = useState('');
-  const [form, setForm] = useState({ name: user?.name || '', email: '', phone: '', country: '', address: '' });
+  // Name comes from the account and the email is never asked for at all, so what is left is only
+  // what we genuinely do not already know: how to ring them, and where they are.
+  const [form, setForm] = useState({ name: user?.name || '', country: DEFAULT_COUNTRY, phone: '', address: '' });
   const [proof, setProof] = useState(null), [preview, setPreview] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
 
@@ -46,16 +49,24 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
     } catch (err) { setError(messageFor(err)); } finally { setBusy(false); }
   }
 
+  /** What the server wants: a country name it recognises and one unbroken dialling string. */
+  const billing = () => ({
+    name: form.name,
+    country: countryByCode(form.country)?.name || '',
+    phone: composePhone(form.country, form.phone),
+    address: form.address,
+  });
+
   async function payManual() {
     const body = new FormData();
-    Object.entries({ ...form, ...extra, method: 'manual' }).forEach(([k, v]) => body.append(k, v));
+    Object.entries({ ...billing(), ...extra, method: 'manual' }).forEach(([k, v]) => body.append(k, v));
     body.append('proof', proof);
     await api(manualPath, { method: 'POST', body });
   }
 
   /** The gateway owns the card form; we only hand it an order and verify the signature it returns. */
   async function payOnline() {
-    const { checkout } = await api(checkoutPath, { method: 'POST', body: { ...form, ...extra, method: 'razorpay' } });
+    const { checkout } = await api(checkoutPath, { method: 'POST', body: { ...billing(), ...extra, method: 'razorpay' } });
     const Razorpay = await loadCheckout();
     await new Promise((resolve, reject) => {
       const rz = new Razorpay({
@@ -96,14 +107,19 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
         </label>;
       })}</div>
     </>}
-    <div className="premium-card-head premium-card-head-inline"><h2>Your details</h2>{summary && <span className="plan-total">{summary}</span>}</div>
+    <div className="premium-card-head premium-card-head-inline"><h2>Billing details</h2>{summary && <span className="plan-total">{summary}</span>}</div>
+    {user?.email && <p className="pay-receipt"><MailCheck size={15}/><span>Your receipt goes to <strong>{user.email}</strong>, the confirmed address on your account.</span></p>}
     <div className="premium-grid">
-      <Field label="Full name"><input required maxLength={80} placeholder="Your name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}/></Field>
-      <Field label="Email"><input required type="email" placeholder="you@example.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}/></Field>
-      <Field label="Phone number"><input required type="tel" minLength={8} maxLength={20} placeholder="+91 98765 43210" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}/></Field>
-      <Field label="Country"><input required maxLength={56} placeholder="India" value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))}/></Field>
+      <Field label="Full name" hint="As it should read on the invoice."><input required maxLength={80} autoComplete="name" placeholder="Your name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}/></Field>
+      <Field label="Country"><select required autoComplete="country" value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))}>{COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
     </div>
-    <Field label="Address"><textarea required minLength={6} maxLength={300} rows={3} placeholder="Street, city, and postal code" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))}/></Field>
+    <Field label="Phone number" hint="The dialling code follows the country you picked.">
+      <div className="pay-phone">
+        <span className="pay-dial">{dialFor(form.country)}</span>
+        <input required type="tel" inputMode="numeric" autoComplete="tel-national" minLength={6} maxLength={15} placeholder="98765 43210" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/[^\d\s]/g, '') }))}/>
+      </div>
+    </Field>
+    <Field label="Billing address" hint="Needed on the invoice for tax purposes."><textarea required minLength={6} maxLength={300} rows={2} autoComplete="street-address" placeholder="Street, city, and postal code" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))}/></Field>
     {active?.requiresProof && <>
       <div className="premium-card-head premium-card-head-inline"><h2>Proof of payment</h2><span className="premium-required">Required</span></div>
       <label className={`dropzone proof-dropzone ${proof ? 'has-file' : ''}`} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); pickProof(e.dataTransfer.files[0]); }}>

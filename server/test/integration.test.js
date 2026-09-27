@@ -15,6 +15,9 @@ let mongo, app, owner, editor, outsider, folderId, cardId;
 const password = 'Integration-only-password-2026';
 before(async () => {
   if (!enabled) return;
+  // The UPI-transfer flow is retired in the product but still has to work for the old orders an
+  // admin can be asked to settle, so these tests keep exercising it.
+  process.env.MANUAL_PAYMENT = 'on';
   const dbName = `${BRAND.slug}_test_${crypto.randomBytes(6).toString('hex')}`;
   if (!process.env.TEST_MONGODB_URI) mongo = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
   await mongoose.connect(process.env.TEST_MONGODB_URI || mongo.getUri(), { dbName });
@@ -26,7 +29,7 @@ before(async () => {
   const f = await owner.post('/api/folders').send({ title: 'Concurrency', visibility: 'private' }); assert.equal(f.status, 201); folderId = f.body.folder.id;
   const c = await owner.post(`/api/folders/${folderId}/cards`).send({ front: { text: 'Q' }, back: { text: 'A' } }); assert.equal(c.status, 201); cardId = c.body.card.id;
 });
-after(async () => { if (mongoose.connection.readyState) { await mongoose.connection.dropDatabase(); await mongoose.disconnect(); } if (mongo) await mongo.stop(); });
+after(async () => { if (mongoose.connection.readyState) { await mongoose.connection.dropDatabase(); await mongoose.disconnect(); } if (mongo) await mongo.stop(); delete process.env.MANUAL_PAYMENT; });
 const integration = (name, fn) => test(name, { skip: !enabled }, fn);
 integration('private folders and media stay private, public access is revoked immediately', async () => {
   assert.equal((await outsider.get(`/api/folders/${folderId}`)).status, 404);
@@ -115,13 +118,13 @@ integration('dashboard is staff-only; premium routes reject a normal account', a
   await owner.patch(`/api/admin/users/${outsiderId}`).send({ account: 'normal' });
   assert.equal((await outsider.get('/api/projects')).status, 402);
   const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#22aa66' } }).png().toBuffer();
-  const order = () => outsider.post('/api/premium/order').field('name', 'Out Sider').field('email', 'out@example.test').field('phone', '9999999999').field('country', 'India').field('address', '1 Demo Street');
+  const order = () => outsider.post('/api/premium/order').field('name', 'Out Sider').field('phone', '+919999999999').field('country', 'India').field('address', '1 Demo Street');
   assert.equal((await order().field('plan', 'galactic').attach('proof', png, 'upi.png')).status, 400, 'an unknown plan is rejected');
   const buy = await order().field('plan', 'monthly').attach('proof', png, 'upi.png');
   assert.equal(buy.status, 201, JSON.stringify(buy.body));
   assert.equal(buy.body.order.plan, 'monthly');
   assert.equal((await outsider.get(`/api/premium/orders/${buy.body.order.id}/proof`)).status, 200);
-  assert.equal((await outsider.post('/api/premium/order').send({ plan: 'monthly', name: 'No Photo', email: 'a@b.co', phone: '9999999999', country: 'India', address: '1 Demo Street' })).status, 400);
+  assert.equal((await outsider.post('/api/premium/order').send({ plan: 'monthly', name: 'No Photo', phone: '+919999999999', country: 'India', address: '1 Demo Street' })).status, 400);
   const orders = await owner.get('/api/admin/orders');
   assert.equal(orders.status, 200);
   assert.equal((await owner.patch(`/api/admin/orders/${orders.body.orders[0].id}`).send({ status: 'approved' })).status, 200);
@@ -199,7 +202,7 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
   const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#4455cc' } }).png().toBuffer();
   const buy = await teacher.post(`/api/teams/${teamId}/order`)
     .field('plan', 'team-monthly').field('seats', '6').field('name', 'Teach Er').field('email', 'teach@example.test')
-    .field('phone', '9999999999').field('country', 'India').field('address', '1 School Road').attach('proof', png, 'upi.png');
+    .field('phone', '+919999999999').field('country', 'India').field('address', '1 School Road').attach('proof', png, 'upi.png');
   assert.equal(buy.status, 201, JSON.stringify(buy.body));
   assert.equal(buy.body.order.seats, 6);
   assert.equal(buy.body.order.amount, teamPlanById('team-monthly').perSeat * 6 * 100, 'stored in paise');

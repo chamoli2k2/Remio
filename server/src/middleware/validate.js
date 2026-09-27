@@ -3,6 +3,7 @@ import { hasCloze } from '../../../shared/cloze.js';
 import { PLAN_IDS } from '../../../shared/account.js';
 import { TEAM_PLAN_IDS, SEATS } from '../../../shared/teams.js';
 import { BRAND } from '../../../shared/brand.js';
+import { COUNTRY_NAMES, PHONE_PATTERN } from '../../../shared/countries.js';
 export const idSchema = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid identifier');
 export const usernameSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/, 'Use 3–24 letters, numbers, or underscores');
 /**
@@ -20,8 +21,18 @@ export const forgotPasswordSchema = z.object({ email: z.email().toLowerCase() })
 export const resetPasswordSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, 'That reset link is not valid.'), newPassword: z.string().min(10).max(128) });
 export const folderSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), color: z.enum(['violet', 'blue', 'orange', 'green', 'pink', 'slate']).default('violet'), icon: z.enum(['layers', 'code', 'globe', 'brain', 'book', 'flask', 'terminal', 'palette']).default('layers'), visibility: z.enum(['private', 'global']).default('private'), thumbnail: idSchema.nullable().optional() });
 export const projectSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), visibility: z.enum(['private', 'global']).default('private') });
-// The billing fields are shared, because seats and a personal plan are bought through one pipeline.
-const billing = z.object({ method: z.enum(['manual', 'razorpay']).optional(), name: z.string().trim().min(1).max(80), email: z.email().toLowerCase(), phone: z.string().trim().min(8).max(20), country: z.string().trim().min(2).max(56), address: z.string().trim().min(6).max(300) });
+/**
+ * The billing fields are shared, because seats and a personal plan are bought through one pipeline.
+ * There is no email here on purpose: the receipt has to go to the confirmed address on the account,
+ * which the server already knows, so asking for it again would only invite a typo.
+ */
+const billing = z.object({
+  method: z.enum(['manual', 'razorpay']).optional(),
+  name: z.string().trim().min(1).max(80),
+  phone: z.string().trim().regex(PHONE_PATTERN, 'Enter a phone number we could actually reach you on.'),
+  country: z.enum(COUNTRY_NAMES, 'Choose your country from the list.'),
+  address: z.string().trim().min(6).max(300),
+});
 export const premiumOrderSchema = billing.extend({ plan: z.enum(PLAN_IDS) });
 const seats = z.coerce.number().int().min(SEATS.min).max(SEATS.max);
 export const seatQuoteSchema = z.object({ plan: z.enum(TEAM_PLAN_IDS), seats });

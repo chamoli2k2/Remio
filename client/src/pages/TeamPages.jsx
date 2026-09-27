@@ -329,7 +329,6 @@ export function TeamCheckoutPage() {
   const [params] = useSearchParams();
   const plan = params.get('plan') || 'team-yearly';
   const seats = clampSeats(params.get('seats'));
-  const [method, setMethod] = useState(null);
   const { data, loading, error } = useQuery(`team-checkout:${id}:${plan}:${seats}`, () => Promise.all([
     api(`/teams/${id}/quote`, { method: 'POST', body: { plan, seats } }),
     api(`/teams/${id}/billing`),
@@ -359,18 +358,18 @@ export function TeamCheckoutPage() {
           manualPath={`/teams/${id}/order`}
           checkoutPath={`/teams/${id}/checkout`}
           cancelPath={`/teams/${id}/order`}
-          onMethodChange={setMethod}
           onDone={() => navigate(`/teams/${id}`)}
         />
       </div>
-      <PaymentAside method={method} amount={quote.amount} steps={SEAT_STEPS}/>
+      <PaymentAside
+        amount={quote.amount}
+        lines={[[`${quote.seats} seat${quote.seats === 1 ? '' : 's'}`, `${money(quote.perSeat)} each`], ['Plan', quote.planLabel], ['Purchase', KIND[quote.kind]]]}
+        steps={SEAT_STEPS}
+      />
     </div>
   </>;
 }
-const SEAT_STEPS = {
-  manual: ['Pay the amount to the UPI ID.', 'Screenshot the success screen.', 'Fill the form and attach it.', 'An admin confirms and the seats open.'],
-  online: ['Fill in your billing details.', 'Pay in the secure window.', 'Invite people right away.'],
-};
+const SEAT_STEPS = ['Confirm your billing details.', 'Pay in the secure Razorpay window.', 'Invite people to their seats right away.'];
 
 /** The teacher's read on the class. It reports the learners' own progress rather than a copy of it. */
 export function TeamProgressPage() {

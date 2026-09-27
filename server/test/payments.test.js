@@ -40,17 +40,20 @@ test('readWebhook survives an envelope with no payment in it', () => {
   assert.throws(() => razorpay.readWebhook(Buffer.from('not json')), /valid JSON/);
 });
 
-test('only usable methods are advertised, so hiding the manual flow is one env var', () => {
+test('only usable methods are advertised, and the retired transfer flow stays retired', () => {
+  withEnv({ RAZORPAY_KEY_ID: 'rzp_test_key', RAZORPAY_KEY_SECRET: 's', MANUAL_PAYMENT: undefined }, () => {
+    assert.deepEqual(availableMethods().map(m => m.id), ['razorpay'], 'the gateway alone, because the transfer flow is off by default now');
+    assert.throws(() => requireMethod('manual'), /not available/);
+  });
   withEnv({ RAZORPAY_KEY_ID: '', RAZORPAY_KEY_SECRET: '', MANUAL_PAYMENT: undefined }, () => {
-    assert.deepEqual(availableMethods().map(m => m.id), ['manual'], 'with no gateway keys, only the transfer is offered');
+    // Nothing is offered rather than falling back to the transfer, so a server missing its keys
+    // cannot quietly start collecting screenshots again.
+    assert.deepEqual(availableMethods().map(m => m.id), [], 'no keys means nothing is on sale');
     assert.throws(() => requireMethod('razorpay'), /not available/);
+    assert.throws(() => requireMethod('manual'), /not available/);
   });
   withEnv({ RAZORPAY_KEY_ID: 'rzp_test_key', RAZORPAY_KEY_SECRET: 's', MANUAL_PAYMENT: 'on' }, () => {
-    assert.deepEqual(availableMethods().map(m => m.id), ['razorpay', 'manual'], 'both are offered and the buyer picks');
-  });
-  withEnv({ RAZORPAY_KEY_ID: 'rzp_test_key', RAZORPAY_KEY_SECRET: 's', MANUAL_PAYMENT: 'off' }, () => {
-    assert.deepEqual(availableMethods().map(m => m.id), ['razorpay'], 'turning the old flow off removes it from the picker');
-    assert.throws(() => requireMethod('manual'), /not available/);
+    assert.deepEqual(availableMethods().map(m => m.id), ['razorpay', 'manual'], 'the old flow can still be brought back for a stranded order');
   });
   assert.throws(() => requireMethod('bitcoin'), /how you want to pay/);
   assert.equal(methodById('manual').requiresProof, true, 'the transfer needs a screenshot; the gateway does not');

@@ -351,7 +351,7 @@ acct('the usernames that would pass for staff cannot be registered', async () =>
 
 acct('money cannot change hands until the address is confirmed', async () => {
   const { agent, id, email } = await signUp('buyer');
-  const billing = { plan: 'monthly', name: 'A Buyer', email: 'buyer@example.test', phone: '9999999999', country: 'India', address: '1 Somewhere Street' };
+  const billing = { plan: 'monthly', name: 'A Buyer', phone: '+919999999999', country: 'India', address: '1 Somewhere Street' };
 
   const blocked = await agent.post('/api/premium/checkout').send(billing);
   assert.equal(blocked.status, 403);

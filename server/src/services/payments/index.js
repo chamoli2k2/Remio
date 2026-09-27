@@ -6,7 +6,9 @@ import { badRequest } from '../../utils/errors.js';
  * the product off the manual flow is an environment change (MANUAL_PAYMENT=off) rather than a deploy
  * of new UI. A method only appears if it is actually usable on this server.
  */
-const manualEnabled = () => (process.env.MANUAL_PAYMENT || 'on').toLowerCase() !== 'off';
+// Retired now that the gateway is live. The code stays because old orders still carry a screenshot
+// an admin may need to open, and MANUAL_PAYMENT=on brings it back without a deploy.
+const manualEnabled = () => (process.env.MANUAL_PAYMENT || 'off').toLowerCase() !== 'off';
 
 export const METHODS = [
   {
