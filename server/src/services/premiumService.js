@@ -6,7 +6,6 @@ import { notify, notifyStaff } from './notificationService.js';
 import { availableMethods, requireMethod, razorpay } from './payments/index.js';
 import { logger } from '../utils/logger.js';
 import { assert, badRequest, notFound } from '../utils/errors.js';
-import { publicOrigin } from '../utils/origin.js';
 import { BRAND } from '../../../shared/brand.js';
 
 const presentOrder = order => ({
@@ -139,8 +138,6 @@ export async function startCheckout(user, body) {
       checkout: {
         key: razorpay.keyId(), orderId: gateway.id, amount: gateway.amount, currency: gateway.currency,
         name: BRAND.name, description: describe(order),
-        // The gateway loads this from its own page, so it has to be absolute rather than a path.
-        image: `${publicOrigin()}/checkout-logo.png`,
         prefill: { name: order.name, email: order.email, contact: order.phone },
       },
     };

@@ -9,6 +9,10 @@ import { Button, Field, ErrorState } from './ui';
 import ConfirmEmailFirst from './ConfirmEmailFirst';
 import { BRAND } from '../../../shared/brand.js';
 import { COUNTRIES, DEFAULT_COUNTRY, countryByCode, dialFor, composePhone } from '../../../shared/countries.js';
+// Inlined rather than linked. The gateway loads this from its own HTTPS page, so a hosted file has
+// to be absolute, reachable, and already deployed, and it is silently dropped if any of those slip:
+// over plain HTTP in development it is refused as mixed content. Carrying the bytes along cannot fail.
+import logo from '../assets/checkout-logo.png?inline';
 
 const METHOD_ICONS = { razorpay: Zap, manual: Banknote };
 const money = n => `₹${(n || 0).toLocaleString('en-IN')}`;
@@ -93,7 +97,7 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
     await new Promise((resolve, reject) => {
       const rz = new Razorpay({
         key: checkout.key, order_id: checkout.orderId, amount: checkout.amount, currency: checkout.currency,
-        name: BRAND.name, description: checkout.description, image: checkout.image,
+        name: BRAND.name, description: checkout.description, image: logo,
         prefill: checkout.prefill, theme: { color: '#5b53e8' },
         // Embedded rather than the default overlay. Left to itself the gateway covers the viewport
         // with an opaque backdrop of its own, which reads as being sent off to another site midway
