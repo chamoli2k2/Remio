@@ -12,8 +12,8 @@ import { requestContext, notFoundHandler, errorHandler } from './middleware/erro
 import { webhook as premiumWebhook } from './controllers/premiumController.js';
 import { isConfigured as razorpayConfigured } from './services/payments/razorpay.js';
 import { asyncHandler } from './utils/errors.js';
-// Browsers never send a trailing slash on Origin, so one in the config would silently match nothing.
-export const trustedOrigins = () => (process.env.CLIENT_ORIGIN || 'http://localhost:4173').split(',').map(v => v.trim().replace(/\/+$/, '')).filter(Boolean);
+export { trustedOrigins } from './utils/origin.js';
+import { trustedOrigins } from './utils/origin.js';
 export function createApp() {
   const app = express(); app.disable('x-powered-by'); if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
   app.use(requestContext);

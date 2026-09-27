@@ -6,6 +6,7 @@ import { notify, notifyStaff } from './notificationService.js';
 import { availableMethods, requireMethod, razorpay } from './payments/index.js';
 import { logger } from '../utils/logger.js';
 import { assert, badRequest, notFound } from '../utils/errors.js';
+import { publicOrigin } from '../utils/origin.js';
 import { BRAND } from '../../../shared/brand.js';
 
 const presentOrder = order => ({
@@ -133,7 +134,16 @@ export async function startCheckout(user, body) {
     const gateway = await razorpay.createOrder({ amount: order.amount, currency: order.currency, receipt: order.id, notes: { plan: order.plan, username: user.username } });
     order.gatewayOrderId = gateway.id;
     await order.save();
-    return { order: presentOrder(order), checkout: { key: razorpay.keyId(), orderId: gateway.id, amount: gateway.amount, currency: gateway.currency, name: BRAND.name, description: describe(order), prefill: { name: order.name, email: order.email, contact: order.phone } } };
+    return {
+      order: presentOrder(order),
+      checkout: {
+        key: razorpay.keyId(), orderId: gateway.id, amount: gateway.amount, currency: gateway.currency,
+        name: BRAND.name, description: describe(order),
+        // The gateway loads this from its own page, so it has to be absolute rather than a path.
+        image: `${publicOrigin()}/checkout-logo.png`,
+        prefill: { name: order.name, email: order.email, contact: order.phone },
+      },
+    };
   } catch (e) {
     // Never strand a pending order the buyer cannot retry past.
     await PremiumOrder.deleteOne({ _id: order.id, status: 'pending' });

@@ -8,7 +8,7 @@ import {
 import { assert } from '../utils/errors.js';
 import { hashToken } from '../middleware/auth.js';
 import { send, verificationEmail, passwordResetEmail, passwordChangedEmail, accountDeletedEmail } from './mailService.js';
-import { BRAND } from '../../../shared/brand.js';
+import { publicOrigin } from '../utils/origin.js';
 
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 /** A reset link hands out an account, so it is worth far less time than a confirmation link. */
@@ -16,9 +16,7 @@ const RESET_TTL_MS = 60 * 60 * 1000;
 /** Resending is rate limited at the route; this stops a second link being minted needlessly. */
 const RESEND_GAP_MS = 60 * 1000;
 
-// A host pasted from a browser bar usually carries a trailing slash, which would double up against
-// the paths below and leave every emailed link subtly wrong.
-const origin = () => (process.env.CLIENT_ORIGIN || '').split(',')[0].trim().replace(/\/+$/, '') || `https://${BRAND.domain}`;
+const origin = publicOrigin;
 
 /**
  * Issues a fresh verification link and emails it. Previous unused links for the address are

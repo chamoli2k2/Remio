@@ -5,6 +5,28 @@ import { schedule } from '../src/services/studyService.js';
 import { roleOf } from '../src/services/accessService.js';
 import { cardSchema, usernameSchema } from '../src/middleware/validate.js';
 import { createApp } from '../src/app.js';
+import { publicOrigin, trustedOrigins } from '../src/utils/origin.js';
+import { BRAND } from '../../shared/brand.js';
+test('a trailing slash on the configured origin never reaches an allow-list or a link', () => {
+  const before = process.env.CLIENT_ORIGIN;
+  const withOrigin = (v, fn) => { if (v === undefined) delete process.env.CLIENT_ORIGIN; else process.env.CLIENT_ORIGIN = v; try { fn(); } finally { if (before === undefined) delete process.env.CLIENT_ORIGIN; else process.env.CLIENT_ORIGIN = before; } };
+  withOrigin('https://remio.example.com/', () => {
+    // Browsers never send the slash on Origin, so leaving it here would match nothing at all, and
+    // it would also double against the path of every link we email or hand to a gateway.
+    assert.deepEqual(trustedOrigins(), ['https://remio.example.com']);
+    assert.equal(`${publicOrigin()}/verify-email`, 'https://remio.example.com/verify-email');
+  });
+  withOrigin(' https://a.example.com//, https://b.example.com ,, ', () => {
+    assert.deepEqual(trustedOrigins(), ['https://a.example.com', 'https://b.example.com'], 'spaces and empty entries are dropped');
+    assert.equal(publicOrigin(), 'https://a.example.com', 'the first one is the canonical one');
+  });
+  // An absolute URL outlives the request that made it, so pointing it at a developer's laptop is
+  // worse than pointing it at a host that is merely not deployed yet.
+  withOrigin(undefined, () => {
+    assert.equal(publicOrigin(), `https://${BRAND.domain}`);
+    assert.deepEqual(trustedOrigins(), ['http://localhost:4173'], 'but local development still works out of the box');
+  });
+});
 test('a forgotten card returns after ten minutes; intervals never drop below one day and grow with repeated success', () => {
   const now = new Date('2026-01-01T00:00:00Z');
   const again = schedule({ interval: 30, repetitions: 5, ease: 1.3, lastReviewedAt: new Date('2025-12-02T00:00:00Z') }, 'again', now);
