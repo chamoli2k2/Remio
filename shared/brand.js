@@ -8,10 +8,7 @@
  * are the vocabulary of spaced repetition rather than the brand, so they stay as they are.
  */
 const name = 'Remio';
-const domain = 'remio.app';
-
-/** Where everything written to the product actually lands today. */
-const contact = 'gauravprakash.dev@gmail.com';
+const domain = 'remio.in';
 
 /** Lowercase and safe for cookie names, storage keys, log prefixes, and filenames. */
 const slug = name.toLowerCase();
@@ -27,21 +24,27 @@ export const BRAND = {
   city: 'Bengaluru',
   country: 'India',
   /**
-   * Addresses printed on the contact and legal pages. They all point at one inbox for now, so the
-   * split is about telling the reader what a message is for rather than about routing. Give each
-   * one its own address on the domain once that inbox is worth splitting up.
+   * Addresses printed on the contact and legal pages. Four real addresses on the domain rather than
+   * one inbox wearing four hats: they are read by different people for different reasons, a payment
+   * gateway checks that the address on the refund policy actually accepts mail, and a security
+   * researcher should not have to file a vulnerability through a general support queue. Alias them
+   * onto a single mailbox if the volume does not yet justify four.
    */
   email: {
-    general: contact,
-    billing: contact,
-    privacy: contact,
-    security: contact,
+    general: `support@${domain}`,
+    billing: `billing@${domain}`,
+    privacy: `privacy@${domain}`,
+    security: `security@${domain}`,
   },
   /** Shown as the "last updated" date on the terms and privacy pages. */
   policyUpdated: '25 September 2026',
 
-  /** From header on anything the server sends. MAIL_FROM overrides it per environment. */
-  mailFrom: `${name} <${contact}>`,
+  /**
+   * From header on anything the server sends. MAIL_FROM overrides it per environment.
+   * Deliberately an address nobody reads: a reply to a verification email belongs in support, and
+   * sending from the domain rather than a personal mailbox is what lets SPF and DKIM vouch for it.
+   */
+  mailFrom: `${name} <noreply@${domain}>`,
 
   sessionCookie: `${slug}_session`,
   /** Keys this app owns in localStorage. */
