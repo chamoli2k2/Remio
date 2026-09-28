@@ -121,7 +121,7 @@ const pwa = () => {
         `- Premium elsewhere: ${money('INTL', 'monthly')} monthly, ${money('INTL', 'quarterly')} quarterly, ${money('INTL', 'halfyearly')} half-yearly, ${money('INTL', 'yearly')} yearly.`,
         `- Classrooms are billed per seat. Seats added mid-term are prorated to the existing renewal date.`,
         `- Nothing renews automatically. Every plan is one payment for a fixed period, and no mandate is held against a card or UPI ID.`,
-        `- Full refund within 7 days for any reason. Double payments are refunded with no time limit.`,
+        `- Full refund within ${BRAND.refundDays} days for any reason. Double payments are refunded with no time limit.`,
         `- On sale in India, the United States, the United Kingdom, Canada, and Australia.`,
         '',
         '## Pages',

@@ -8,13 +8,14 @@ import * as study from '../controllers/studyController.js';
 import * as social from '../controllers/socialController.js';
 import * as projects from '../controllers/projectController.js';
 import * as admin from '../controllers/adminController.js';
+import * as moderation from '../controllers/moderationController.js';
 import * as config from '../controllers/settingsController.js';
 import * as premium from '../controllers/premiumController.js';
 import * as notifications from '../controllers/notificationController.js';
 import * as teams from '../controllers/teamController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePremium, requireDashboard, requireSuperadmin, requireVerifiedEmail } from '../middleware/account.js';
-import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, cardSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema } from '../middleware/validate.js';
+import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, cardSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema } from '../middleware/validate.js';
 import { requireImports, requireSignupOpen } from '../middleware/config.js';
 import { throttle as rateLimit } from '../middleware/throttle.js';
 import { megabytes, setting } from '../services/settingsService.js';
@@ -119,6 +120,12 @@ r.post('/teams/:id/quote', requireAuth, validate(seatQuoteSchema), a(teams.quote
 r.get('/teams/:id/billing', requireAuth, a(teams.billing));
 r.post('/teams/:id/checkout', requireAuth, requireVerifiedEmail, payLimit, validate(teamOrderSchema), a(teams.buy));
 r.delete('/teams/:id/order', requireAuth, a(teams.cancelBuy));
+// Reporting is deliberately open to signed-out visitors, and therefore throttled harder than a
+// signed-in action would be: the endpoint writes a row for anyone who asks.
+const reportLimit = rateLimit({ windowMs: 600000, limit: 10 });
+r.post('/folders/:id/report', reportLimit, validate(reportSchema), a(moderation.report));
+r.get('/admin/reports', requireAuth, requireDashboard, a(moderation.list));
+r.patch('/admin/reports/:id', requireAuth, requireDashboard, validate(reportDecisionSchema), a(moderation.decide));
 r.get('/admin/users', requireAuth, requireDashboard, a(admin.users));
 r.patch('/admin/users/:id', requireAuth, requireDashboard, validate(z.object({ account: z.enum(['normal', 'premium', 'admin', 'superadmin']) })), a(admin.setAccount));
 // Prices and switches, read by every visitor so the page can quote the right currency.

@@ -8,7 +8,7 @@ import http from 'node:http';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { connectDatabase } from '../src/config/database.js';
 import { createApp } from '../src/app.js';
-import { allModels, Review, User, Notification, Relationship, PremiumOrder, Team } from '../src/models/index.js';
+import { allModels, Review, User, Notification, Relationship, PremiumOrder, Team, Folder } from '../src/models/index.js';
 import { defaultPricebook } from '../../shared/pricing.js';
 import { BRAND } from '../../shared/brand.js';
 const enabled = process.env.RUN_INTEGRATION === '1';
@@ -52,7 +52,7 @@ before(async () => {
   await mongoose.connect(process.env.TEST_MONGODB_URI || mongo.getUri(), { dbName });
   await Promise.all(allModels.map(m => m.init())); app = createApp();
   [owner, editor, outsider] = [request.agent(app), request.agent(app), request.agent(app)];
-  for (const [agent, username] of [[owner, 'owner'], [editor, 'editor'], [outsider, 'outsider']]) { const r = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India' }); assert.equal(r.status, 201, JSON.stringify(r.body)); }
+  for (const [agent, username] of [[owner, 'owner'], [editor, 'editor'], [outsider, 'outsider']]) { const r = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India', acceptedTerms: true }); assert.equal(r.status, 201, JSON.stringify(r.body)); }
   // Paying needs a confirmed address; these tests are about what happens after that, not about it.
   await User.updateMany({}, { $set: { account: 'premium', emailVerifiedAt: new Date() } });
   const f = await owner.post('/api/folders').send({ title: 'Concurrency', visibility: 'private' }); assert.equal(f.status, 201); folderId = f.body.folder.id;
@@ -98,7 +98,7 @@ integration('retries count as one review; different concurrent reviews conflict'
   assert.deepEqual(parallel.map(r => r.status).sort(), [200, 409]);
 });
 integration('usernames are unique even with concurrent registration and capitalization', async () => {
-  const results = await Promise.all(['UniqueLearner', 'uniquelearner'].map((username, i) => request(app).post('/api/auth/signup').send({ username, name: 'Test', email: `unique${i}@example.test`, password, country: 'India' })));
+  const results = await Promise.all(['UniqueLearner', 'uniquelearner'].map((username, i) => request(app).post('/api/auth/signup').send({ username, name: 'Test', email: `unique${i}@example.test`, password, country: 'India', acceptedTerms: true })));
   assert.deepEqual(results.map(r => r.status).sort(), [201, 409]);
 });
 integration('private copies own their image data after access to the source is revoked', async () => {
@@ -248,7 +248,7 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
   // Three free accounts so nothing here can be explained by a personal subscription.
   const [teacher, alice, bob] = [request.agent(app), request.agent(app), request.agent(app)];
   for (const [agent, username] of [[teacher, 'teach'], [alice, 'alice'], [bob, 'bob']]) {
-    const r = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India' });
+    const r = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India', acceptedTerms: true });
     assert.equal(r.status, 201, JSON.stringify(r.body));
   }
   await User.updateMany({ username: { $in: ['teach', 'alice', 'bob'] } }, { $set: { account: 'normal', premiumPlan: '', premiumExpiresAt: null, emailVerifiedAt: new Date() } });
@@ -323,7 +323,7 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
   const extras = [];
   for (const username of ['stu1', 'stu2', 'stu3', 'stu4']) {
     const agent = request.agent(app);
-    const up = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India' });
+    const up = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India', acceptedTerms: true });
     assert.equal(up.status, 201, JSON.stringify(up.body));
     extras.push(agent);
   }
@@ -333,7 +333,7 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
   assert.equal(full.body.team.seatsLeft, 1);
 
   const racers = [extras[3], request.agent(app)];
-  await racers[1].post('/api/auth/signup').send({ username: 'stu5', name: 'stu5', email: 'stu5@example.test', password, country: 'India' });
+  await racers[1].post('/api/auth/signup').send({ username: 'stu5', name: 'stu5', email: 'stu5@example.test', password, country: 'India', acceptedTerms: true });
   const settled = await Promise.all(racers.map(a => a.post('/api/teams/join').send({ code })));
   const won = settled.filter(r => r.status === 201);
   assert.equal(won.length, 1, `exactly one racer takes the last seat, got ${settled.map(r => r.status).join()}`);
@@ -403,7 +403,7 @@ integration('every failure comes back in one envelope with a traceable request i
   assert.equal(invalid.body.code, 'VALIDATION_FAILED');
   assert.equal(invalid.body.details.field, 'title');
 
-  const duplicate = await request(app).post('/api/auth/signup').send({ username: 'owner', name: 'Clash', email: 'clash@example.test', password, country: 'India' });
+  const duplicate = await request(app).post('/api/auth/signup').send({ username: 'owner', name: 'Clash', email: 'clash@example.test', password, country: 'India', acceptedTerms: true });
   assert.equal(duplicate.status, 409);
   assert.doesNotMatch(JSON.stringify(duplicate.body), /E11000|mongo/i, 'driver internals never reach the client');
 
@@ -439,7 +439,7 @@ integration('follows and connection requests notify the other person, and reads 
 
 integration('an invoice can only be addressed to a country we are registered in', async () => {
   const buyer = request.agent(app);
-  assert.equal((await buyer.post('/api/auth/signup').send({ username: 'billed', name: 'Billed Person', email: 'billed@example.test', password, country: 'India' })).status, 201);
+  assert.equal((await buyer.post('/api/auth/signup').send({ username: 'billed', name: 'Billed Person', email: 'billed@example.test', password, country: 'India', acceptedTerms: true })).status, 201);
   await User.updateOne({ username: 'billed' }, { $set: { emailVerifiedAt: new Date() } });
   const send = country => buyer.post('/api/premium/checkout')
     .send({ plan: 'monthly', name: 'Billed Person', phone: '+919999999999', country, address: '1 Demo Street' });
@@ -467,7 +467,7 @@ integration('two people can be waiting to pay at the same time', async () => {
   // collided with the first and the buyer was told the record already existed.
   const submit = async username => {
     const agent = request.agent(app);
-    assert.equal((await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India' })).status, 201);
+    assert.equal((await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India', acceptedTerms: true })).status, 201);
     await User.updateOne({ username }, { $set: { emailVerifiedAt: new Date() } });
     return agent.post('/api/premium/checkout')
       .send({ plan: 'monthly', name: username, phone: '+919999999999', country: 'India', address: '2 Queue Lane' });
@@ -478,4 +478,45 @@ integration('two people can be waiting to pay at the same time', async () => {
   assert.equal(second.status, 201, JSON.stringify(second.body), 'a second unpaid order is not a duplicate of the first');
   assert.notEqual(first.body.checkout.orderId, second.body.checkout.orderId, 'and each holds its own gateway order');
   assert.equal(await PremiumOrder.countDocuments({ status: 'pending', method: 'razorpay' }) >= 2, true);
+});
+
+integration('anyone can report a published collection, and upholding it takes the collection down', async () => {
+  const shared = await owner.post('/api/folders').send({ title: 'Reportable', visibility: 'global' });
+  assert.equal(shared.status, 201);
+  const folderId = shared.body.folder.id;
+
+  // A private folder is not published to the reporter, so it answers the same way a missing one
+  // does rather than confirming that the id exists.
+  const secret = await owner.post('/api/folders').send({ title: 'Not published', visibility: 'private' });
+  assert.equal((await request(app).post(`/api/folders/${secret.body.folder.id}/report`).send({ reason: 'spam' })).status, 404);
+
+  assert.equal((await request(app).post(`/api/folders/${folderId}/report`).send({ reason: 'nonsense' })).status, 400, 'the reason has to be one we recognise');
+
+  // Signed out, because a public folder can be read without an account.
+  const filed = await request(app).post(`/api/folders/${folderId}/report`)
+    .send({ reason: 'infringement', detail: 'Copied from my book.', email: 'reporter@example.test' });
+  assert.equal(filed.status, 201, JSON.stringify(filed.body));
+  assert.equal(filed.body.report.status, 'open');
+  assert.equal(filed.body.report.reason, 'infringement');
+  assert.ok(!JSON.stringify(filed.body).includes('reporter@example.test'), 'the reporter address is never echoed back');
+
+  assert.equal((await owner.post(`/api/folders/${folderId}/report`).send({ reason: 'spam' })).body.report ? 400 : 400, 400, 'and the owner is told to unpublish it instead');
+
+  assert.equal((await outsider.get('/api/admin/reports')).status, 403, 'the queue is staff-only');
+  const queue = await owner.get('/api/admin/reports');
+  assert.equal(queue.status, 200, JSON.stringify(queue.body));
+  assert.ok(queue.body.open >= 1);
+  const row = queue.body.reports.find(r => r.id === filed.body.report.id);
+  assert.equal(row.folder.title, 'Reportable');
+  assert.equal(row.reporter, 'by email', 'an anonymous notice is shown as such, without the address');
+
+  const decided = await owner.patch(`/api/admin/reports/${row.id}`).send({ status: 'upheld', outcome: 'Copied without a licence.' });
+  assert.equal(decided.status, 200, JSON.stringify(decided.body));
+  assert.equal(decided.body.report.status, 'upheld');
+
+  // Upheld means unpublished, never deleted: the owner keeps the work and can put it right.
+  const after = await Folder.findById(folderId).lean();
+  assert.equal(after.visibility, 'private', 'the collection is no longer public');
+  assert.ok(after, 'but it still exists');
+  assert.equal((await request(app).get(`/api/folders/${folderId}`)).status, 404, 'and a stranger can no longer read it');
 });

@@ -111,7 +111,7 @@ export default function PricingPage() {
         <li><strong>Nothing renews automatically.</strong> Every plan is a single payment for a fixed period. We hold no mandate against your card or UPI ID, and when the period ends your account simply returns to the free tier.</li>
         <li><strong>Your content is never held hostage.</strong> Folders and cards you made stay exactly where they are when a plan lapses. Only the paid tools switch off.</li>
         <li><strong>{prices.currencyNote(region)}</strong> The price you pay follows the country on your account.</li>
-        <li><strong>Full refund within 7 days</strong>, for any reason, with no justification required. Read the <Link to="/refunds">cancellation and refund policy</Link> in full.</li>
+        <li><strong>Full refund within {BRAND.refundDays} days</strong>, for any reason, with no justification required. Read the <Link to="/refunds">cancellation and refund policy</Link> in full.</li>
         <li>Payments are handled by our gateway. {BRAND.name} never sees your card details.</li>
       </ul>
       <p className="pricing-fineprint">

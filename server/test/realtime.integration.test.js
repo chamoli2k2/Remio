@@ -27,7 +27,7 @@ before(async () => {
   server = http.createServer(createApp()); await new Promise(r => server.listen(0, '127.0.0.1', r)); url = `http://127.0.0.1:${server.address().port}`;
   io = attachRealtime(server, ['http://trusted.example']);
   [owner, editor, outsider] = [request.agent(url), request.agent(url), request.agent(url)];
-  for (const [agent, username] of [[owner, 'owner'], [editor, 'editor'], [outsider, 'outsider']]) { const r = await agent.post('/api/auth/signup').send({ username, name: `${username} person`, email: `${username}@example.test`, password, country: 'India' }); assert.equal(r.status, 201, JSON.stringify(r.body)); }
+  for (const [agent, username] of [[owner, 'owner'], [editor, 'editor'], [outsider, 'outsider']]) { const r = await agent.post('/api/auth/signup').send({ username, name: `${username} person`, email: `${username}@example.test`, password, country: 'India', acceptedTerms: true }); assert.equal(r.status, 201, JSON.stringify(r.body)); }
   await User.updateMany({}, { $set: { account: 'premium' } });
   const f = await owner.post('/api/folders').send({ title: 'Live', visibility: 'private' }); folderId = f.body.folder.id;
   const c = await owner.post(`/api/folders/${folderId}/cards`).send({ front: { text: 'Hello' }, back: { text: 'World' } }); cardId = c.body.card.id;

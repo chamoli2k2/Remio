@@ -780,3 +780,36 @@ html[data-theme=dark] .home-guide-tabs>button.is-open{background:var(--accent);b
 html[data-theme=dark] .home-guide-panel{background:var(--surface);border-color:var(--border)}
 html[data-theme=dark] .home-guide-blurb{color:var(--ink)}
 html[data-theme=dark] .home-guide-foot a{color:#b3a2f7}
+
+/* Signup consent. A real checkbox rather than a line of small print under the button: the tick is
+   the record that the account holder agreed, so it has to be something they actually did. */
+.auth-consent{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;line-height:1.6;color:var(--muted);cursor:pointer}
+.auth-consent input{flex:none;width:17px;height:17px;margin:1px 0 0;accent-color:var(--accent);cursor:pointer}
+.auth-consent a{color:var(--accent-dark);text-decoration:underline}
+html[data-theme=dark] .auth-consent{color:var(--text-2)}
+html[data-theme=dark] .auth-consent a{color:#b3a2f7}
+
+/* Reporting. Findable without competing with the cards: a quiet line under the grid, which is
+   where somebody who has read enough to object will already be looking. */
+.public-report{display:flex;justify-content:center;margin:28px 0 8px}
+.public-report .text-button{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+.public-report .text-button:hover{color:var(--accent-dark)}
+.report-note{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;line-height:1.6;color:var(--muted);background:var(--soft);border-radius:11px;padding:13px 14px;margin:0}
+.report-note svg{flex:none;margin-top:1px;color:var(--accent)}
+html[data-theme=dark] .report-note{color:var(--text-2)}
+
+/* The moderation queue. One card per notice, with the decision and the reason for it side by side,
+   because a decision recorded without its reasoning cannot be explained to the person who appeals. */
+.report-queue{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column;gap:12px}
+.report-queue>li{border:1px solid var(--border);border-radius:14px;background:#fff;padding:16px 18px}
+.report-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.report-head strong{font-size:14px}
+.report-head a{text-decoration:underline;text-decoration-color:var(--border)}
+.report-reason{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border-radius:20px;padding:4px 9px;background:var(--soft);color:var(--accent-dark)}
+.report-reason.is-illegal,.report-reason.is-harmful{background:#fde9e9;color:#a4343a}
+.report-detail{font-size:13px;line-height:1.65;color:#4d4459;margin:11px 0 0;white-space:pre-wrap}
+.report-actions{display:flex;gap:9px;margin-top:14px;flex-wrap:wrap}
+.report-actions input{flex:1;min-width:200px;font-size:13px;padding:9px 11px}
+html[data-theme=dark] .report-queue>li{background:var(--surface);border-color:var(--border)}
+html[data-theme=dark] .report-detail{color:var(--text-2)}
+html[data-theme=dark] .report-reason.is-illegal,html[data-theme=dark] .report-reason.is-harmful{background:#4a2327;color:#f0a9ad}

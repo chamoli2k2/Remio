@@ -103,6 +103,10 @@ const demoCountries = [
 const demoMethods = [
   { id: 'razorpay', label: 'Pay online', blurb: 'UPI, card, net banking, or wallet. It turns on the moment the payment clears.', instant: true },
 ];
+const demoReports = [
+  { id: 'demo-report-1', reason: 'infringement', detail: 'These cards are copied word for word from my paid course handbook, including the typos. I own the material and did not license it.', status: 'open', createdAt: new Date(Date.now() - 6 * 36e5).toISOString(), reviewedAt: null, outcome: '', folder: { id: 'folder-2', title: 'Everyday Spanish', visibility: 'global', owner: 'maya' }, reporter: 'by email' },
+  { id: 'demo-report-2', reason: 'other', detail: 'I think the answer on card 4 is wrong and it is misleading people.', status: 'open', createdAt: new Date(Date.now() - 30 * 36e5).toISOString(), reviewedAt: null, outcome: '', folder: { id: 'folder-0', title: 'System design', visibility: 'global', owner: 'alex' }, reporter: 'linus' },
+];
 let demoOrders = [{ id: 'demo-order-1', plan: 'quarterly', method: 'razorpay', name: 'Sara Iyer', email: 'sara@demo.test', phone: '+91 98765 43210', country: 'India', address: '221B Baker Street, Mumbai 400001', status: 'pending', user: { username: 'sara' }, createdAt: new Date().toISOString() }];
 let folders = sampleFolders.map((f, i) => ({ ...f, cards: undefined, id: `folder-${i}`, owner: i === 4 ? collaborators[1] : user, role: i === 4 ? 'viewer' : 'owner', version: 0, members: i === 0 ? [{ user: collaborators[0], role: 'editor' }] : [], memberCount: i === 0 ? 2 : 1, archived: false, cardCount: f.cards.length, createdAt: new Date().toISOString(), updatedAt: new Date(Date.now() - i * 3600000).toISOString() }));
 let cards = sampleFolders.flatMap((f, i) => f.cards.map(([front, back, tags], j) => ({ id: `card-${i}-${j}`, folder: `folder-${i}`, front: { text: front }, back: { text: back }, tags, hint: '', source: '', version: 0, progress: { version: 0, repetitions: 0, interval: 0, bookmarked: false, dueAt: null } })));
@@ -205,6 +209,10 @@ export async function demoRequest(path, options = {}) {
     }
     if (id === 'settings') error('Changing configuration needs a signed-in superadmin outside the preview.');
     if (id === 'audit') return { entries: clone(demoAudit) };
+    // Two open notices, deliberately not both obvious: one is a clear copyright claim and the
+    // other is somebody who simply dislikes a deck, because telling those apart is the job.
+    if (id === 'reports' && method === 'GET') return { open: demoReports.length, reports: clone(demoReports) };
+    if (id === 'reports') error('Deciding a report needs a signed-in admin outside the preview.');
     if (id === 'analytics') return demoAnalytics(Number(new URLSearchParams(path.split('?')[1] || '').get('days')) || 30, Number(new URLSearchParams(path.split('?')[1] || '').get('weeks')) || 8);
     // Made up, but shaped like the real thing: a couple of markets on sale and a long tail that is
     // not, which is the pattern the tab exists to show.

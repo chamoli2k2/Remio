@@ -36,7 +36,7 @@ const FAQS = [
   ['Who can see what I make?',
     'Only you, until you say otherwise. New collections are private. You can share one with named people, or publish it for anyone to read and copy. Even in a classroom, teachers only see progress on the classroom’s own material, never your personal library.'],
   ['Will I ever be charged automatically?',
-    'No. There is no auto-renewal and we hold no mandate against your card or UPI ID. Each plan is one payment for a fixed period. When it runs out your account drops back to the free tier and every card you made stays exactly where it is. Changed your mind? Personal plans refund in full for 7 days.'],
+    `No. There is no auto-renewal and we hold no mandate against your card or UPI ID. Each plan is one payment for a fixed period. When it runs out your account drops back to the free tier and every card you made stays exactly where it is. Changed your mind? Personal plans refund in full for ${BRAND.refundDays} days, which is the cancellation right UK and EU shoppers have by law and everyone else gets anyway.`],
   ['Can I bring in decks I already have, and get them out again?',
     'Yes, both ways. Premium accounts import from Anki, CSV, Markdown, or JSON, and export any folder back out as JSON or CSV whenever they like. Your cards are never locked in.'],
   ['Does it work on my phone?',

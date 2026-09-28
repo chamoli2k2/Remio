@@ -43,7 +43,19 @@ export const BRAND = {
     security: inbox,
   },
   /** Shown as the "last updated" date on the terms and privacy pages. */
-  policyUpdated: '25 September 2026',
+  policyUpdated: '28 September 2026',
+
+  /**
+   * How long a buyer has to change their mind, stated once because it appears on the terms, the
+   * refund page, the pricing page, the home page questions, and the file agents read — and a
+   * refund promise that says seven days in one place and fourteen in another is worse than either.
+   *
+   * Fourteen rather than seven because the United Kingdom is one of the markets, and the Consumer
+   * Contracts Regulations give a consumer fourteen days to cancel a distance contract. Offering
+   * the same everywhere is simpler than geography-dependent small print, and more generous than
+   * the law requires in the other four.
+   */
+  refundDays: 14,
 
   /**
    * From header on anything the server sends. MAIL_FROM overrides it per environment.

@@ -3,7 +3,7 @@ import { COUNTRY_NAMES, HOME_COUNTRY } from '../../../shared/countries.js';
 const { Schema, model } = mongoose;
 const ref = (name, required = true) => ({ type: Schema.Types.ObjectId, ref: name, required });
 const options = { timestamps: true, toJSON: { transform: (_doc, ret) => { ret.id = ret._id.toString(); delete ret._id; delete ret.__v; return ret; } } };
-const user = new Schema({ username: { type: String, required: true, unique: true, lowercase: true }, email: { type: String, required: true, unique: true, lowercase: true, select: false }, emailVerifiedAt: { type: Date, default: null }, passwordHash: { type: String, required: true, select: false }, name: { type: String, required: true }, bio: { type: String, default: '' }, country: { type: String, enum: COUNTRY_NAMES, default: HOME_COUNTRY }, dailyGoal: { type: Number, default: 20 }, desiredRetention: { type: Number, default: 0.9, min: 0.7, max: 0.97 }, account: { type: String, enum: ['normal', 'premium', 'admin', 'superadmin'], default: 'normal' }, premiumPlan: { type: String, default: '' }, premiumExpiresAt: { type: Date, default: null }, savedFolders: [ref('Folder')], followers: { type: Number, default: 0 }, following: { type: Number, default: 0 }, friends: { type: Number, default: 0 } }, options);
+const user = new Schema({ username: { type: String, required: true, unique: true, lowercase: true }, email: { type: String, required: true, unique: true, lowercase: true, select: false }, emailVerifiedAt: { type: Date, default: null }, passwordHash: { type: String, required: true, select: false }, name: { type: String, required: true }, bio: { type: String, default: '' }, country: { type: String, enum: COUNTRY_NAMES, default: HOME_COUNTRY }, dailyGoal: { type: Number, default: 20 }, desiredRetention: { type: Number, default: 0.9, min: 0.7, max: 0.97 }, termsAcceptedAt: { type: Date, default: null }, termsVersion: { type: String, default: '' }, account: { type: String, enum: ['normal', 'premium', 'admin', 'superadmin'], default: 'normal' }, premiumPlan: { type: String, default: '' }, premiumExpiresAt: { type: Date, default: null }, savedFolders: [ref('Folder')], followers: { type: Number, default: 0 }, following: { type: Number, default: 0 }, friends: { type: Number, default: 0 } }, options);
 const session = new Schema({ tokenHash: { type: String, required: true, unique: true }, user: ref('User'), expiresAt: { type: Date, required: true, expires: 0 } }, options);
 // Emailed links are bearer credentials, so only the hash is stored and `expires: 0` lets Mongo
 // retire them on its own. `purpose` keeps one collection usable for password resets later.
@@ -66,5 +66,34 @@ const setting = new Schema({ key: { type: String, required: true, unique: true }
 // a record of who moved them is a liability the first time a number looks wrong at midnight.
 const auditEntry = new Schema({ actor: ref('User', false), actorName: { type: String, default: '' }, action: { type: String, required: true }, target: { type: String, default: '' }, before: Schema.Types.Mixed, after: Schema.Types.Mixed, note: { type: String, default: '' } }, options);
 auditEntry.index({ createdAt: -1 }); auditEntry.index({ target: 1, createdAt: -1 });
-export const User = model('User', user), Session = model('Session', session), AuthToken = model('AuthToken', authToken), Folder = model('Folder', folder), Card = model('Card', card), Media = model('Media', media), Progress = model('Progress', progress), Review = model('Review', review), Activity = model('Activity', activity), Revision = model('Revision', revision), DomainEvent = model('DomainEvent', event), CardDoc = model('CardDoc', cardDoc), Relationship = model('Relationship', relationship), Project = model('Project', project), PremiumOrder = model('PremiumOrder', premiumOrder), Notification = model('Notification', notification), Team = model('Team', team), TeamMember = model('TeamMember', teamMember), TeamInvite = model('TeamInvite', teamInvite), Assignment = model('Assignment', assignment), Setting = model('Setting', setting), AuditEntry = model('AuditEntry', auditEntry);
-export const allModels = [User, Session, AuthToken, Folder, Card, Media, Progress, Review, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry];
+/**
+ * A notice that something published here should not be.
+ *
+ * The Digital Services Act requires a hosting service to let anyone flag content they believe is
+ * illegal, to act on it, and to tell the person who reported it what happened. That obligation
+ * does not wait for the platform to be large, so this exists from the start.
+ *
+ * `reporter` is optional on purpose. Public folders can be read without an account, so the person
+ * best placed to notice a problem may not have one, and requiring them to register first would
+ * put a barrier in front of the report. An address is asked for instead so the outcome can be
+ * sent back, and that too is optional.
+ */
+const contentReport = new Schema({
+  folder: ref('Folder'),
+  reporter: ref('User', false),
+  email: { type: String, default: '' },
+  reason: { type: String, enum: ['illegal', 'infringement', 'privacy', 'harmful', 'spam', 'other'], required: true },
+  detail: { type: String, default: '' },
+  status: { type: String, enum: ['open', 'upheld', 'rejected'], default: 'open' },
+  // What was decided and why, kept because a decision a reviewer cannot explain later is not a
+  // decision anyone can appeal against.
+  outcome: { type: String, default: '' },
+  reviewedBy: ref('User', false),
+  reviewedAt: { type: Date, default: null },
+}, options);
+// The queue is read newest-first, and a folder's own history is read when judging a repeat report.
+contentReport.index({ status: 1, createdAt: -1 });
+contentReport.index({ folder: 1, createdAt: -1 });
+
+export const User = model('User', user), Session = model('Session', session), AuthToken = model('AuthToken', authToken), Folder = model('Folder', folder), Card = model('Card', card), Media = model('Media', media), Progress = model('Progress', progress), Review = model('Review', review), Activity = model('Activity', activity), Revision = model('Revision', revision), DomainEvent = model('DomainEvent', event), CardDoc = model('CardDoc', cardDoc), Relationship = model('Relationship', relationship), Project = model('Project', project), PremiumOrder = model('PremiumOrder', premiumOrder), Notification = model('Notification', notification), Team = model('Team', team), TeamMember = model('TeamMember', teamMember), TeamInvite = model('TeamInvite', teamInvite), Assignment = model('Assignment', assignment), Setting = model('Setting', setting), AuditEntry = model('AuditEntry', auditEntry), ContentReport = model('ContentReport', contentReport);
+export const allModels = [User, Session, AuthToken, Folder, Card, Media, Progress, Review, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport];

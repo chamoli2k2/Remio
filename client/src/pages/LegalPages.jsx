@@ -15,6 +15,7 @@ const COMPANY = {
   city: BRAND.city,
   country: BRAND.country,
   updated: BRAND.policyUpdated,
+  refundDays: BRAND.refundDays,
 };
 
 function LegalPage({ eyebrow, title, lede, sections }) {
@@ -95,6 +96,22 @@ const termsSections = [
     </>,
   },
   {
+    id: 'moderation', title: 'Reporting content, and how we decide', body: <>
+      <p>Anything published here can be reported. Open a public collection and use <strong>Report this collection</strong> at the foot of the page. You do not need an account to do it, and you can leave an email address if you want to be told what we decided.</p>
+      <p>Tell us what is wrong and, if you can, which cards. A notice that says only “this is bad” is hard to act on; one that points at the specific problem usually gets sorted the same day.</p>
+      <h3>What happens next</h3>
+      <ul>
+        <li><strong>A person reads it.</strong> We do not use automated filters to take material down, and nothing is removed because a report simply arrived.</li>
+        <li><strong>If we agree, the collection is unpublished, not deleted.</strong> It stops being public and stays in its owner’s account. We would rather hide something wrongly for a day than destroy somebody’s work on one complaint.</li>
+        <li><strong>The owner is told what was decided and why</strong>, in enough detail to put it right or to argue with us.</li>
+        <li><strong>If we disagree with the report, the collection stays up</strong> and we say so.</li>
+      </ul>
+      <h3>If you think we got it wrong</h3>
+      <p>Reply to the decision, or write to {COMPANY.email}, and a different person will look again. Say why you think the decision was wrong; we will answer in writing. Nothing here takes away your right to go to a court or an out-of-court dispute body in your own country instead.</p>
+      <p>Reporting things in bad faith — to harass somebody, or to get a competitor taken down — is itself a breach of these terms, and we will suspend accounts that do it repeatedly.</p>
+    </>,
+  },
+  {
     id: 'plans', title: 'Plans and payment', body: <>
       <p>Creating an account, building collections, studying with spaced repetition, publishing to the community, and tracking your own progress are all free, and we intend to keep them that way.</p>
       <p>Premium adds projects, card import and export, folder covers, hosting live quizzes, and inviting editors. Classrooms are billed per seat. Prices are shown in rupees in India and in US dollars elsewhere we sell, follow the country on your account, and include any taxes we are required to add. The current figures are on our <Link to="/pricing">pricing page</Link>.</p>
@@ -107,14 +124,25 @@ const termsSections = [
     </>,
   },
   {
+    id: 'cancellation', title: 'Your right to cancel', body: <>
+      <p>If you are a consumer in the United Kingdom or the European Union, the law gives you <strong>{COMPANY.refundDays} days</strong> from the day you buy to cancel a contract made at a distance, without giving any reason. You do not have to have a fault to point at, and you do not have to explain yourself.</p>
+      <p>Because Premium switches on the moment your payment clears, you are asking us to start straight away. In some places that would normally cost you the cancellation right. We have chosen not to rely on that: the {COMPANY.refundDays} days stand either way, and we apply them to everybody, in every country we sell in, not only where a law requires it.</p>
+      <p>To cancel, write to {COMPANY.billing} from the address on your account, or use the wording below. You do not have to use this form — a plain email saying you have changed your mind is enough.</p>
+      <blockquote>
+        <p>To {COMPANY.legalName}, {COMPANY.city}, {COMPANY.country} — I give notice that I cancel my contract for the supply of the following service: [plan], ordered on [date], account [username]. [Your name, address, and the date.]</p>
+      </blockquote>
+      <p>We refund within 14 days of accepting the cancellation, to the method you paid with. The refund policy below is how we handle everything else, including situations the statutory right does not cover.</p>
+    </>,
+  },
+  {
     id: 'refunds', title: 'Refund policy', body: <>
       <p>We would rather refund you than keep money you are not happy about. This section is the whole policy.</p>
       <h3>When you can get your money back</h3>
       <ul>
-        <li><strong>Personal Premium plans:</strong> a full refund within <strong>7 days</strong> of payment, for any reason at all. You do not have to justify it.</li>
-        <li><strong>Classroom and team plans:</strong> a full refund within <strong>7 days</strong>, as long as no more than two people besides the owner have taken a seat. Once a class is properly under way, we can only refund the seats nobody has claimed.</li>
-        <li><strong>Extra seats</strong> bought part-way through a period stay refundable for 7 days, while they are still unclaimed.</li>
-        <li><strong>Something went wrong on our side:</strong> if a feature you paid for was unavailable for a meaningful stretch and we could not fix it, tell us and we will refund or extend your plan, whichever you prefer. This is not limited to 7 days.</li>
+        <li><strong>Personal Premium plans:</strong> a full refund within <strong>{COMPANY.refundDays} days</strong> of payment, for any reason at all. You do not have to justify it.</li>
+        <li><strong>Classroom and team plans:</strong> a full refund within <strong>{COMPANY.refundDays} days</strong>, as long as no more than two people besides the owner have taken a seat. Once a class is properly under way, we can only refund the seats nobody has claimed.</li>
+        <li><strong>Extra seats</strong> bought part-way through a period stay refundable for {COMPANY.refundDays} days, while they are still unclaimed.</li>
+        <li><strong>Something went wrong on our side:</strong> if a feature you paid for was unavailable for a meaningful stretch and we could not fix it, tell us and we will refund or extend your plan, whichever you prefer. This is not limited to {COMPANY.refundDays} days.</li>
         <li><strong>Paid twice, or paid by mistake:</strong> refunded in full whenever you notice, with no time limit.</li>
         <li><strong>Payment never confirmed:</strong> if a UPI transfer is rejected at review, or a gateway payment fails after the money left your account, you get it all back automatically. You do not need to ask.</li>
       </ul>
@@ -153,6 +181,25 @@ const termsSections = [
     id: 'law', title: 'Governing law', body: <>
       <p>These terms are governed by the laws of {COMPANY.country}, and the courts of {COMPANY.city} have jurisdiction over any dispute. If you are a consumer elsewhere, you keep the protection of the mandatory laws of the country you live in.</p>
       <p>Before anything formal, please write to us. Almost everything is quicker to settle over email.</p>
+    </>,
+  },
+  {
+    id: 'accessibility', title: 'Accessibility', body: <>
+      <p>We build this to be usable with a keyboard alone, to work with a screen reader, and to keep text readable at the contrast levels the WCAG 2.2 AA guidelines ask for. We test it, but we are a small team and we will not claim it is perfect.</p>
+      <p>If something here is hard or impossible for you to use, write to {COMPANY.email} and tell us what stopped you. We treat that as a bug rather than a feature request, and we will tell you what we are doing about it.</p>
+    </>,
+  },
+  {
+    id: 'contact', title: 'How to reach us, and who we are', body: <>
+      <p>{COMPANY.legalName}, {COMPANY.city}, {COMPANY.country}.</p>
+      <ul>
+        <li><strong>Anything at all:</strong> {COMPANY.email}</li>
+        <li><strong>Payments, invoices, and refunds:</strong> {COMPANY.billing}</li>
+        <li><strong>Data protection and privacy:</strong> {COMPANY.privacy}</li>
+        <li><strong>Security reports:</strong> {COMPANY.security}</li>
+      </ul>
+      <p>That first address is also our single point of contact for regulators and for anyone giving formal notice about content, including under the EU Digital Services Act. We accept correspondence in English.</p>
+      <p>A person reads these. We aim to reply within two working days.</p>
     </>,
   },
   {
@@ -211,6 +258,24 @@ const privacySections = [
     </>,
   },
   {
+    id: 'bases', title: 'What allows us to hold it', body: <>
+      <p>Under the UK and EU data protection rules we have to be able to name the legal ground for each use, not merely a good intention. Ours are:</p>
+      <ul>
+        <li><strong>Performing our contract with you:</strong> your account, your collections, your study history, and anything you buy. Without these the service does not exist.</li>
+        <li><strong>Legitimate interests:</strong> keeping the service secure, preventing abuse, fixing faults, and understanding in aggregate how it is used. We use the least personal data that answers the question, and you can object at any time.</li>
+        <li><strong>Legal obligation:</strong> payment and tax records, which we have to keep whatever either of us would prefer.</li>
+        <li><strong>Consent:</strong> only where we ask for it plainly, and you can withdraw it as easily as you gave it.</li>
+      </ul>
+      <p>We do not profile you, we do not make decisions about you by algorithm alone, and we do not use your content to train models.</p>
+    </>,
+  },
+  {
+    id: 'transfers', title: 'Where your data is, and when it crosses a border', body: <>
+      <p>The service runs on hosting and database providers described in the section below, and their servers may be in a different country from you. Where data leaves the UK or the European Economic Area, it is covered by the transfer safeguards those providers publish — standard contractual clauses in practice.</p>
+      <p>If you would like the detail for your own account, write to {COMPANY.privacy} and we will tell you exactly which providers hold what.</p>
+    </>,
+  },
+  {
     id: 'cookies', title: 'Cookies and local storage', body: <>
       <p>We use one cookie: a signed session cookie that keeps you logged in. Removing it logs you out, and nothing else depends on it.</p>
       <p>Your browser also stores a couple of preferences locally, such as light or dark mode and how wide you dragged the sidebar. These never leave your device and are not sent to us.</p>
@@ -262,6 +327,20 @@ const privacySections = [
     </>,
   },
   {
+    id: 'states', title: 'If you live in the United States', body: <>
+      <p>Several states — California, Virginia, Colorado, Connecticut, Utah, Texas and others — give you specific rights over your personal information. We give the same rights to everyone, wherever they live, so there is no separate form to fill in.</p>
+      <h3>The short version</h3>
+      <ul>
+        <li><strong>We do not sell your personal information,</strong> and we never have. We do not share it for cross-context behavioural advertising either. There is no “Do Not Sell” switch here because there is nothing to switch off.</li>
+        <li><strong>We do not show you advertising</strong> and we run no advertising trackers.</li>
+        <li><strong>What we collect</strong> is your account details, the content you make, your study history, and — if you buy something — billing details and a record of the order. The section above sets this out in full.</li>
+        <li><strong>You can see it, correct it, take it, or have it deleted.</strong> Most of it you can do yourself in Settings; for the rest, write to {COMPANY.privacy}.</li>
+        <li><strong>We will not treat you differently for exercising any of this.</strong> No worse price, no reduced service.</li>
+      </ul>
+      <p>We answer within 45 days, and we will tell you if we need longer. If somebody acts on your behalf, we will ask for enough to be sure they are allowed to.</p>
+    </>,
+  },
+  {
     id: 'children', title: 'Children and classrooms', body: <>
       <p>{COMPANY.name} is not intended for children under 13, or under the local age of digital consent where that is higher. We do not knowingly collect their data, and if we learn that we have, we delete it.</p>
       <p>A school or teacher setting up a classroom is responsible for having whatever consent local law requires before inviting students. We have deliberately limited what a teacher can see to the classroom’s own material, so joining a class never exposes a student’s personal library.</p>
@@ -298,7 +377,7 @@ export function TermsPage() {
  * refund policy to be reachable as its own page — a fragment link part-way down a longer document
  * does not satisfy that, however complete the wording is.
  */
-const refundSections = termsSections.filter(s => ['plans', 'refunds'].includes(s.id));
+const refundSections = termsSections.filter(s => ['plans', 'cancellation', 'refunds'].includes(s.id));
 
 export function RefundsPage() {
   return <LegalPage

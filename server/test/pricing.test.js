@@ -21,7 +21,7 @@ test('anyone in the world can be an account, and only a handful of countries can
   for (const c of COUNTRIES) {
     // Every country has to be registerable, and a dialling code, since checkout builds a phone
     // number from whichever one the buyer picks.
-    assert.equal(signupSchema.safeParse({ username: 'someone', name: 'Some One', email: 'a@b.test', password: 'a-long-enough-password', country: c.name }).success, true, `${c.name} should be able to register`);
+    assert.equal(signupSchema.safeParse({ username: 'someone', name: 'Some One', email: 'a@b.test', password: 'a-long-enough-password', country: c.name, acceptedTerms: true }).success, true, `${c.name} should be able to register`);
     assert.match(c.dial, /^\+[1-9]\d{0,3}$/, `${c.name} needs a dialling code`);
   }
   assert.equal(new Set(COUNTRIES.map(c => c.name)).size, COUNTRIES.length, 'two countries sharing a name would make the stored value ambiguous');
@@ -118,7 +118,7 @@ test('prices are written the way each region writes them', () => {
 });
 
 test('signing up requires a country, and it has to be a real one', () => {
-  const base = { username: 'newcomer', name: 'A Newcomer', email: 'new@example.test', password: 'a-long-enough-password' };
+  const base = { username: 'newcomer', name: 'A Newcomer', email: 'new@example.test', password: 'a-long-enough-password', acceptedTerms: true };
   assert.equal(signupSchema.safeParse({ ...base, country: 'Australia' }).success, true);
   assert.equal(signupSchema.safeParse({ ...base, country: 'Nigeria' }).success, true, 'registering is open even where we cannot sell');
   for (const bad of [undefined, '', 'india', 'Atlantis', 'Wakanda']) {

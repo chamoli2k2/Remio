@@ -15,7 +15,10 @@ const RESERVED = new Set(['admin', 'administrator', 'superadmin', 'sysadmin', 'r
 export const reservedUsername = name => RESERVED.has(String(name).trim().toLowerCase());
 // The country is asked for here because it decides what this account is charged, and asking at
 // checkout instead would put the answer in the hands of whoever wants the cheaper price.
-export const signupSchema = z.object({ username: usernameSchema.refine(v => !RESERVED.has(v), 'That username is reserved. Please pick another.'), name: z.string().trim().min(1).max(60), email: z.email().toLowerCase(), country: z.enum(COUNTRY_NAMES, 'Choose your country from the list.'), password: z.string().min(10).max(128) });
+export const signupSchema = z.object({ username: usernameSchema.refine(v => !RESERVED.has(v), 'That username is reserved. Please pick another.'), name: z.string().trim().min(1).max(60), email: z.email().toLowerCase(), country: z.enum(COUNTRY_NAMES, 'Choose your country from the list.'), password: z.string().min(10).max(128),
+  // Refused rather than defaulted. Consent that the server supplies on the user's behalf is not
+  // consent, and the timestamp it produces would be evidence of nothing.
+  acceptedTerms: z.literal(true, 'Please accept the terms and the privacy policy to continue.') });
 export const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: z.string().min(10).max(128) });
 export const deleteAccountSchema = z.object({ password: z.string().min(1).max(128), confirm: z.literal('delete my account') });
 export const verifyEmailSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, 'That confirmation link is not valid.') });
@@ -48,4 +51,21 @@ const filled = v => v.text.trim() || v.image;
 // A cloze card ({{c1::…}} on the front) needs no back: the hidden text is the answer.
 export const cardSchema = z.object({ front: side.refine(filled, 'Add text or an image to the front'), back: side, tags: z.array(z.string().trim().toLowerCase().min(1).max(30)).max(10).default([]).transform(v => [...new Set(v)]), hint: z.string().max(1000).default(''), source: z.union([z.literal(''), z.url().refine(v => /^https?:\/\//.test(v), 'Use an http or https URL')]).default('') })
   .refine(v => filled(v.back) || hasCloze(v.front.text), { path: ['back'], message: 'Add text or an image to the back, or use a cloze deletion like {{c1::answer}} on the front' });
+/**
+ * A notice about published content. Open to signed-out visitors, because public folders are
+ * readable without an account and the person who spots a problem may not have one — so the shape
+ * has to stand on its own without a session behind it.
+ */
+export const reportSchema = z.object({
+  reason: z.enum(['illegal', 'infringement', 'privacy', 'harmful', 'spam', 'other'], 'Choose what is wrong with it.'),
+  detail: z.string().trim().max(1000).optional().default(''),
+  // Optional, and only used to tell the reporter what was decided.
+  email: z.union([z.email(), z.literal('')]).optional().default(''),
+});
+
+export const reportDecisionSchema = z.object({
+  status: z.enum(['upheld', 'rejected']),
+  outcome: z.string().trim().max(500).optional().default(''),
+});
+
 export const validate = schema => (req, _res, next) => { try { req.body = schema.parse(req.body); next(); } catch (e) { next(e); } };

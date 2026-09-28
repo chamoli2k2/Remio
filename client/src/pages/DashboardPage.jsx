@@ -1,7 +1,8 @@
 import { lazy, Suspense, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../services/api';
-import { reportError } from '../services/errors';
+import { messageFor, reportError } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
 import { Button, Loading, ErrorState, Empty, Modal } from '../components/ui';
 import Select, { optionsOf } from '../components/Select';
@@ -32,6 +33,44 @@ function Subscription({ person }) {
     {person.planLabel || 'Premium'} · {left <= 0 ? `expired ${Math.abs(left)}d ago` : `${left} day${left === 1 ? '' : 's'} left`}
   </span>;
 }
+const REASON_LABELS = {
+  illegal: 'Illegal', infringement: 'Copyright', privacy: 'Private information',
+  harmful: 'Abusive or dangerous', spam: 'Spam', other: 'Other',
+};
+
+/**
+ * The notice queue.
+ *
+ * Upholding a report unpublishes the collection; it never deletes it. The owner keeps their work
+ * and can put it right, which is the correct asymmetry when acting on a single complaint that one
+ * person has read once.
+ */
+function Reports({ rows, onDone }) {
+  const [busy, setBusy] = useState('');
+  const [note, setNote] = useState({});
+  async function decide(id, status) {
+    setBusy(id + status);
+    try {
+      await api(`/admin/reports/${id}`, { method: 'PATCH', body: { status, outcome: note[id] || '' } });
+      toast.success(status === 'upheld' ? 'Upheld, and the collection is no longer public.' : 'Rejected, and the collection stays up.');
+      onDone();
+    } catch (e) { toast.error(messageFor(e)); } finally { setBusy(''); }
+  }
+  return <ul className="report-queue">{rows.map(r => <li key={r.id}>
+    <div className="report-head">
+      <span className={`report-reason is-${r.reason}`}>{REASON_LABELS[r.reason] || r.reason}</span>
+      <Link to={`/folders/${r.folder.id}`} target="_blank"><strong>{r.folder.title || 'Untitled collection'}</strong></Link>
+      <span className="dash-muted">by @{r.folder.owner || 'unknown'} · reported by {r.reporter} · {new Date(r.createdAt).toLocaleDateString()}</span>
+    </div>
+    {r.detail && <p className="report-detail">{r.detail}</p>}
+    <div className="report-actions">
+      <input aria-label="What you decided and why" placeholder="What you decided, and why" value={note[r.id] || ''} onChange={e => setNote(n => ({ ...n, [r.id]: e.target.value }))} maxLength={500}/>
+      <Button className="secondary" loading={busy === r.id + 'rejected'} onClick={() => decide(r.id, 'rejected')}>Leave it up</Button>
+      <Button className="primary" loading={busy === r.id + 'upheld'} onClick={() => decide(r.id, 'upheld')}>Unpublish</Button>
+    </div>
+  </li>)}</ul>;
+}
+
 export default function DashboardPage() {
   const { user, refresh } = useApp();
   const [open, setOpen] = useState(null);
@@ -41,6 +80,9 @@ export default function DashboardPage() {
   const { data: orders, loading: lo, error: eo } = useQuery('/admin/orders');
   const [days, setDays] = useState(30);
   const { data: usage, loading: lu, error: eu } = useQuery(`/admin/countries?days=${days}`, null, { enabled: tab === 'countries' });
+  // Loaded whatever tab is open, because the count belongs on the tab itself: a report sitting
+  // unseen is the failure mode this whole queue exists to prevent.
+  const { data: reports, loading: lr, error: er, refetch: refetchReports } = useQuery('/admin/reports?status=open');
   async function setAccount(id, account) {
     try { await api(`/admin/users/${id}`, { method: 'PATCH', body: { account } }); refresh(); toast.success('Role updated'); }
     catch (e) { reportError(e); }
@@ -61,8 +103,12 @@ export default function DashboardPage() {
       <button role="tab" aria-selected={tab === 'orders'} className={tab === 'orders' ? 'active' : ''} onClick={() => setTab('orders')}>Premium requests {pending.length ? <span>{pending.length}</span> : null}</button>
       <button role="tab" aria-selected={tab === 'countries'} className={tab === 'countries' ? 'active' : ''} onClick={() => setTab('countries')}>Where it is used {usage?.totals.countries ? <span>{usage.totals.countries}</span> : null}</button>
       <button role="tab" aria-selected={tab === 'analytics'} className={tab === 'analytics' ? 'active' : ''} onClick={() => setTab('analytics')}>Analytics</button>
+      <button role="tab" aria-selected={tab === 'reports'} className={tab === 'reports' ? 'active' : ''} onClick={() => setTab('reports')}>Reports {reports?.open ? <span>{reports.open}</span> : null}</button>
       <button role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>Settings</button>
     </div>
+    {tab === 'reports' && (lr ? <Loading/> : er ? <ErrorState message={er}/> : !(reports?.reports || []).length
+      ? <Empty title="Nothing reported" text="Notices about published collections arrive here. Nothing is waiting."/>
+      : <Reports rows={reports.reports} onDone={refetchReports}/>)}
     {tab === 'users' && <>
       <form className="folder-search dash-search" onSubmit={e => e.preventDefault()}><input aria-label="Search users" placeholder="Search name, username, email" value={q} onChange={e => setQ(e.target.value)}/></form>
       {loading ? <Loading/> : error ? <ErrorState message={error}/> : !people.length ? <Empty title="No users" text="Try another search."/> : <div className="dash-table-wrap"><table className="dash-table"><thead><tr><th>Person</th><th>Email</th><th>Subscription</th><th>Role</th></tr></thead><tbody>{people.map(p => <tr key={p.id}><td><strong>{p.name}</strong><span>@{p.username}</span></td><td>{p.email || 'Not given'}</td><td><Subscription person={p}/></td><td>{p.id === user.id ? <span className="dash-self">{p.account} · you</span> : <Select compact label={`Role for ${p.username}`} value={p.account || 'normal'} onChange={v => setAccount(p.id, v)} options={optionsOf(ACCOUNTS)}/>}</td></tr>)}</tbody></table></div>}

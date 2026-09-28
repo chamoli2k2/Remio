@@ -23,7 +23,7 @@ before(async () => {
   app = createApp();
   [boss, admin, punter] = [request.agent(app), request.agent(app), request.agent(app)];
   for (const [agent, username] of [[boss, 'theboss'], [admin, 'anadmin'], [punter, 'apunter']]) {
-    const r = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India' });
+    const r = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India', acceptedTerms: true });
     assert.equal(r.status, 201, JSON.stringify(r.body));
   }
   await User.updateOne({ username: 'theboss' }, { $set: { account: 'superadmin', emailVerifiedAt: new Date() } });
@@ -97,7 +97,7 @@ integration('settings that would break the product together are refused together
 integration('closing signups turns away new accounts and leaves existing ones alone', async () => {
   assert.equal((await boss.patch('/api/admin/settings').send({ values: { 'signup.open': false } })).status, 200);
 
-  const turned = await request(app).post('/api/auth/signup').send({ username: 'toolate', name: 'Too Late', email: 'toolate@example.test', password, country: 'India' });
+  const turned = await request(app).post('/api/auth/signup').send({ username: 'toolate', name: 'Too Late', email: 'toolate@example.test', password, country: 'India', acceptedTerms: true });
   assert.equal(turned.status, 503);
   assert.equal(turned.body.code, 'SIGNUP_CLOSED');
 

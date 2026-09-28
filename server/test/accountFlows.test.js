@@ -64,7 +64,7 @@ async function signUp(prefix) {
   const username = `${prefix}${crypto.randomBytes(3).toString('hex')}`;
   const agent = request.agent(app);
   const email = `${username}@example.test`;
-  const r = await agent.post('/api/auth/signup').send({ username, name: prefix, email, password, country: 'India' });
+  const r = await agent.post('/api/auth/signup').send({ username, name: prefix, email, password, country: 'India', acceptedTerms: true });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   await waitForMail(email);
   return { agent, username, email, id: r.body.user.id };
@@ -340,12 +340,12 @@ acct('signing in never grants staff access, whatever the username is', async () 
 acct('the usernames that would pass for staff cannot be registered', async () => {
   for (const username of ['admin', 'superadmin', 'support', 'security', 'billing', 'demolearner', BRAND.slug]) {
     const r = await request(app).post('/api/auth/signup')
-      .send({ username, name: 'Chancer', email: `${username}-taken@example.test`, password, country: 'India' });
+      .send({ username, name: 'Chancer', email: `${username}-taken@example.test`, password, country: 'India', acceptedTerms: true });
     assert.equal(r.status, 400, `${username} should be reserved`);
     assert.match(r.body.error, /reserved/i);
   }
   // An ordinary name that merely contains one of them is still fine.
-  const ok = await request(app).post('/api/auth/signup').send({ username: 'admirer', name: 'Fine', email: 'admirer@example.test', password, country: 'India' });
+  const ok = await request(app).post('/api/auth/signup').send({ username: 'admirer', name: 'Fine', email: 'admirer@example.test', password, country: 'India', acceptedTerms: true });
   assert.equal(ok.status, 201, JSON.stringify(ok.body));
 });
 
@@ -387,4 +387,29 @@ acct('someone else cannot change your password or delete your account', async ()
   assert.equal((await stranger.post('/api/auth/password').send({ currentPassword: password, newPassword: 'Another-password-2026' })).status, 401);
   assert.equal((await stranger.delete('/api/auth/account').send({ password, confirm: 'delete my account' })).status, 401);
   assert.ok(await User.findById(id));
+});
+
+acct('an account cannot be created without agreeing to the terms', async () => {
+  // The tick is the whole record that somebody accepted them, so it has to be refused rather than
+  // assumed. Sent explicitly false as well as omitted, because a client that posts the field with
+  // the wrong value is the more likely mistake.
+  const base = { name: 'No Consent', email: 'noconsent@example.test', password, country: 'India' };
+  for (const [label, payload] of [
+    ['omitted', { ...base, username: 'noconsent1' }],
+    ['false', { ...base, username: 'noconsent2', acceptedTerms: false }],
+  ]) {
+    const r = await request(app).post('/api/auth/signup').send(payload);
+    assert.equal(r.status, 400, `${label}: ${JSON.stringify(r.body)}`);
+    assert.match(r.body.error, /terms/i, `${label} is refused for the right reason`);
+  }
+  assert.equal(await User.countDocuments({ email: 'noconsent@example.test' }), 0, 'and no account was left behind');
+
+  const ok = await request(app).post('/api/auth/signup').send({ ...base, username: 'didconsent', acceptedTerms: true });
+  assert.equal(ok.status, 201, JSON.stringify(ok.body));
+  // Stored as a moment and a version rather than a boolean: what you would need later is when they
+  // agreed and to which wording, not merely that they did.
+  const saved = await User.findOne({ username: 'didconsent' }).lean();
+  assert.ok(saved.termsAcceptedAt instanceof Date, 'the time of acceptance is recorded');
+  assert.equal(saved.termsVersion, BRAND.policyUpdated, 'along with the version accepted');
+  assert.equal(saved.acceptedTerms, undefined, 'and the raw flag is never written to the document');
 });
