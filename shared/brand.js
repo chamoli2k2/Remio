@@ -29,7 +29,7 @@ export const BRAND = {
   title: `${name}, your learning library`,
   domain,
   legalName: `${name} Learning`,
-  city: 'Bengaluru',
+  city: 'Delhi',
   country: 'India',
   /**
    * Addresses printed on the contact and legal pages. All four point at the single mailbox above
