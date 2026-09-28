@@ -48,7 +48,18 @@ export function createApp() {
   app.use(express.json({ limit: '256kb' })); app.use(cookieParser()); app.use('/api', optionalAuth, readOnlyGuard, routes);
   app.use('/api', notFoundHandler);
   const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..', 'dist');
-  app.use(express.static(dist)); app.get('/{*path}', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+  app.use(express.static(dist));
+  /**
+   * A build asset that is not there is a 404, not the app.
+   *
+   * Everything under /assets carries a content hash, so a request for one that does not exist can
+   * only mean the caller is working from a different build — a tab left open across a deploy, most
+   * often. Letting that fall through to the catch-all answered a request for JavaScript with HTML,
+   * which the browser reports as "Expected a JavaScript module but the server responded with a MIME
+   * type of text/html": a confusing way to say 404, and one that hides the actual cause.
+   */
+  app.use('/assets', (_req, res) => res.status(404).type('text/plain').send('Not found'));
+  app.get('/{*path}', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
   app.use(errorHandler);
   return app;
 }

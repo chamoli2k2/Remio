@@ -14,6 +14,9 @@ function ThemedToaster() { const { theme } = useTheme(); return <Toaster positio
 // A real build resolves this immediately; a demo build waits for its fixtures, which `imageUrl`
 // reads synchronously during the very first render.
 await demoReady;
+// The app got this far, so whatever chunk failed last time is loading now. Clearing the mark lets
+// a future deploy recover the same way instead of being told it has already had its one reload.
+try { sessionStorage.removeItem('remio:chunk-reload'); } catch { /* no storage, nothing to clear */ }
 createRoot(document.getElementById('root')).render(<React.StrictMode><ErrorBoundary><BrowserRouter><AppProvider><App/><ThemedToaster/></AppProvider></BrowserRouter></ErrorBoundary></React.StrictMode>);
 // What makes the app installable and able to open with no connection. Only from a build: the worker
 // is generated from the emitted filenames, and in development there are none. Registered after load

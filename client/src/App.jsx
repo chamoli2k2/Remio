@@ -17,7 +17,31 @@ import HomePage from './pages/HomePage';
 import PublicShell from './components/PublicShell';
 import { AuthPage } from './pages/AccountPages';
 
-const page = (load, name = 'default') => lazy(() => load().then(m => ({ default: m[name] })));
+/**
+ * Reloads once when a chunk cannot be fetched.
+ *
+ * A page that fails to load is almost always a deploy that happened while this tab was open: the
+ * running app is asking for filenames from a build the server has since replaced. There is nothing
+ * to retry — those files are gone — but a reload fetches the new index.html and with it the new
+ * names, so the recovery is simply to start again.
+ *
+ * Once per tab. If the very next load fails too then something is actually broken, and an error is
+ * far more useful than a page that reloads forever.
+ */
+const RELOAD_KEY = 'remio:chunk-reload';
+function recoverFromStaleBuild(error) {
+  try {
+    if (!sessionStorage.getItem(RELOAD_KEY)) {
+      sessionStorage.setItem(RELOAD_KEY, '1');
+      window.location.reload();
+      // Never settles: the reload takes over before React can render anything from this.
+      return new Promise(() => {});
+    }
+  } catch { /* private mode with no storage: fall through and report the error honestly */ }
+  throw error;
+}
+
+const page = (load, name = 'default') => lazy(() => load().then(m => ({ default: m[name] })).catch(recoverFromStaleBuild));
 
 const LibraryPage = page(() => import('./pages/LibraryPage'));
 const FolderPage = page(() => import('./pages/FolderPage'));
