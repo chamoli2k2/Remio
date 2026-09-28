@@ -1,19 +1,22 @@
 import { useState } from 'react';
-import { Crown, Check, Clock3, Sparkles, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Crown, Check, Clock3, Globe2, Sparkles, ShieldCheck } from 'lucide-react';
 import { api } from '../services/api';
 import { useApp, useQuery } from '../hooks/useApp';
 import { Button, Loading } from '../components/ui';
 import PaymentForm from '../components/PaymentForm';
+import { useMoney } from '../hooks/useMoney';
 import { hasPremium, PREMIUM_FEATURES, PREMIUM_PLANS, planById } from '../../../shared/account.js';
 import { BRAND } from '../../../shared/brand.js';
-const money = n => `₹${n.toLocaleString('en-IN')}`;
-const perMonth = plan => `${money(Math.round(plan.price / (plan.days / 30)))}/mo`;
+import { currencyNote, sellsTo } from '../../../shared/pricing.js';
+import { countryOf, SELLING_COUNTRIES } from '../../../shared/countries.js';
 
 /**
  * What is being bought and what happens after paying. The caller supplies the line items because a
  * personal plan and a pack of seats are priced differently, but everything else is shared.
  */
 export function PaymentAside({ amount, lines = [], steps = [] }) {
+  const { money } = useMoney();
   return <aside className="premium-aside">
     <div className="premium-pay-card">
       <span className="premium-pay-label">ORDER SUMMARY</span>
@@ -31,6 +34,31 @@ export function PaymentAside({ amount, lines = [], steps = [] }) {
 
 const STEPS = ['Confirm your billing details.', 'Pay in the secure Razorpay window.', 'Premium turns on right away.'];
 
+/**
+ * Shown in place of a price to accounts in countries we cannot bill.
+ *
+ * Anyone may study from anywhere, but selling needs a currency the gateway will take and a view on
+ * the tax owed, so it is limited to a few markets. Better to say so before a plan is chosen than to
+ * let someone pick one and be refused at the gateway: a price you cannot pay is worse than none.
+ */
+export function NotOnSaleHere({ what = 'Premium' }) {
+  const { user } = useApp();
+  const country = countryOf(user);
+  return <section className="premium-unavailable">
+    <span className="premium-unavailable-icon"><Globe2 size={22}/></span>
+    <div>
+      <h2>{what} is not on sale in {country} yet</h2>
+      <p>
+        We can only charge where we are set up for the currency and the tax on it, which so far is
+        {` ${SELLING_COUNTRIES.map(c => c.name).join(', ')}`}. Nothing you already have is affected,
+        and the free library stays exactly as it is.
+      </p>
+      <p>Tell us you want it and we will write to you when it opens.</p>
+    </div>
+    <Link to="/contact" className="button secondary">Ask for {country}</Link>
+  </section>;
+}
+
 export default function PremiumPage() {
   const { user } = useApp();
   const unlocked = hasPremium(user);
@@ -38,10 +66,14 @@ export default function PremiumPage() {
   const [plan, setPlan] = useState('yearly');
   const [dropping, setDropping] = useState(false);
   const order = data?.order, sub = data?.subscription, methods = data?.methods || [];
+  const { money, priceOf, region } = useMoney();
   const chosen = planById(plan);
+  const chosenPrice = priceOf(plan);
+  const rate = p => priceOf(p.id) / (p.days / 30);
+  const perMonth = p => `${money(Math.round(rate(p)))}/mo`;
   // Every plan buys the same thing, so the only honest reason to pick a longer one is the rate.
   const monthly = PREMIUM_PLANS.find(p => p.id === 'monthly');
-  const saving = p => Math.round(100 - (p.price / (p.days / 30)) / monthly.price * 100);
+  const saving = p => Math.round(100 - rate(p) / priceOf(monthly.id) * 100);
   return <>
     <section className="premium-hero">
       <div>
@@ -54,7 +86,9 @@ export default function PremiumPage() {
     </section>
     <div className="premium-section-head"><h2>What Premium unlocks</h2><span>{PREMIUM_FEATURES.length} features</span></div>
     <ul className="premium-feature-list">{PREMIUM_FEATURES.map(f => <li key={f.id}><span className="premium-feature-icon"><Sparkles size={15}/></span><div><strong>{f.label}</strong><p>{f.detail}</p></div></li>)}</ul>
-    {unlocked ? null : loading ? <Loading/> : order?.status === 'pending' ? <section className="premium-pending">
+    {/* The feature list above is shown to everyone, including people who cannot buy: knowing what
+        it does is how someone decides whether to ask for it in their country. */}
+    {unlocked ? null : !sellsTo(user) ? <NotOnSaleHere/> : loading ? <Loading/> : order?.status === 'pending' ? <section className="premium-pending">
       <span className="premium-pending-icon"><Clock3 size={22}/></span>
       <div><h2>Waiting for confirmation</h2><p>{order.method === 'manual'
         ? `Your ${planById(order.plan)?.label || 'Premium'} request and payment screenshot are with our team. Premium turns on as soon as the transfer is verified.`
@@ -73,14 +107,17 @@ export default function PremiumPage() {
         <div className="plan-picker" role="radiogroup" aria-label="Premium plan">{PREMIUM_PLANS.map(p => <label key={p.id} className={`plan-option ${plan === p.id ? 'is-chosen' : ''}`}>
           <input type="radio" name="plan" value={p.id} checked={plan === p.id} onChange={() => setPlan(p.id)}/>
           <span className="plan-top"><strong>{p.label}</strong>{saving(p) >= 5 && <span className="plan-tag">Save {saving(p)}%</span>}</span>
-          <span className="plan-price">{money(p.price)}</span>
+          <span className="plan-price">{money(priceOf(p.id))}</span>
           <span className="plan-term">{perMonth(p)} · {p.days} days</span>
           <span className="plan-blurb">{p.blurb}</span>
         </label>)}</div>
+        {/* Said once, here, because the figures above are the only place the currency is visible and
+            a buyer outside India has no reason to assume which one they are reading. */}
+        <p className="plan-currency">{currencyNote(region)}</p>
         <PaymentForm
           methods={methods}
-          amount={chosen?.price}
-          summary={chosen ? `${chosen.label} · ${money(chosen.price)}` : ''}
+          amount={chosenPrice}
+          summary={chosen ? `${chosen.label} · ${money(chosenPrice)}` : ''}
           extra={{ plan }}
           manualPath="/premium/order"
           checkoutPath="/premium/checkout"
@@ -88,8 +125,8 @@ export default function PremiumPage() {
         />
       </div>
       <PaymentAside
-        amount={chosen?.price}
-        lines={chosen ? [[chosen.label, money(chosen.price)], ['Access for', `${chosen.days} days`], ['Works out at', perMonth(chosen)]] : []}
+        amount={chosenPrice}
+        lines={chosen ? [[chosen.label, money(chosenPrice)], ['Access for', `${chosen.days} days`], ['Works out at', perMonth(chosen)]] : []}
         steps={STEPS}
       />
     </div>}

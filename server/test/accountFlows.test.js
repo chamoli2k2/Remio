@@ -64,7 +64,7 @@ async function signUp(prefix) {
   const username = `${prefix}${crypto.randomBytes(3).toString('hex')}`;
   const agent = request.agent(app);
   const email = `${username}@example.test`;
-  const r = await agent.post('/api/auth/signup').send({ username, name: prefix, email, password });
+  const r = await agent.post('/api/auth/signup').send({ username, name: prefix, email, password, country: 'India' });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   await waitForMail(email);
   return { agent, username, email, id: r.body.user.id };
@@ -340,12 +340,12 @@ acct('signing in never grants staff access, whatever the username is', async () 
 acct('the usernames that would pass for staff cannot be registered', async () => {
   for (const username of ['admin', 'superadmin', 'support', 'security', 'billing', 'demolearner', BRAND.slug]) {
     const r = await request(app).post('/api/auth/signup')
-      .send({ username, name: 'Chancer', email: `${username}-taken@example.test`, password });
+      .send({ username, name: 'Chancer', email: `${username}-taken@example.test`, password, country: 'India' });
     assert.equal(r.status, 400, `${username} should be reserved`);
     assert.match(r.body.error, /reserved/i);
   }
   // An ordinary name that merely contains one of them is still fine.
-  const ok = await request(app).post('/api/auth/signup').send({ username: 'admirer', name: 'Fine', email: 'admirer@example.test', password });
+  const ok = await request(app).post('/api/auth/signup').send({ username: 'admirer', name: 'Fine', email: 'admirer@example.test', password, country: 'India' });
   assert.equal(ok.status, 201, JSON.stringify(ok.body));
 });
 

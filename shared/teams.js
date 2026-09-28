@@ -17,9 +17,14 @@ const ROLE_LABELS = {
 export const roleLabel = (kind, role) => ROLE_LABELS[kind === 'team' ? 'team' : 'classroom'][role] || role;
 
 export const SEATS = { min: 5, max: 500 };
+/**
+ * What a seat costs is not here, because it depends on where the owner paying for it is: see
+ * seatPrice and teamPlanFor in shared/pricing.js. The functions below are handed a plan with the
+ * right rate already on it, so the proration stays plain arithmetic.
+ */
 export const TEAM_PLANS = [
-  { id: 'team-monthly', label: 'Monthly', days: 30, perSeat: 99, blurb: 'Pay for the seats you need, month to month.' },
-  { id: 'team-yearly', label: 'Yearly', days: 365, perSeat: 799, blurb: 'Two months free compared with paying monthly.' },
+  { id: 'team-monthly', label: 'Monthly', days: 30, blurb: 'Pay for the seats you need, month to month.' },
+  { id: 'team-yearly', label: 'Yearly', days: 365, blurb: 'Two months free compared with paying monthly.' },
 ];
 export const TEAM_PLAN_IDS = TEAM_PLANS.map(p => p.id);
 export const teamPlanById = id => TEAM_PLANS.find(p => p.id === id) || null;

@@ -8,13 +8,14 @@ import { toast } from 'sonner';
 import { api } from '../services/api';
 import { reportError, messageFor } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
+import { useMoney } from '../hooks/useMoney';
+import { sellsTo } from '../../../shared/pricing.js';
 import { Button, Field, Modal, Loading, Empty, ErrorState, Avatar, FolderIcon, Menu } from '../components/ui';
 import FolderModal from '../components/FolderModal';
 import PaymentForm from '../components/PaymentForm';
-import { PaymentAside } from './PremiumPage';
+import { NotOnSaleHere, PaymentAside } from './PremiumPage';
 import { TEAM_KINDS, TEAM_PLANS, SEATS, teamPlanById, clampSeats } from '../../../shared/teams.js';
 
-const money = n => `₹${(n || 0).toLocaleString('en-IN')}`;
 const KIND_ICON = { classroom: GraduationCap, team: Users };
 const day = value => new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
@@ -261,6 +262,7 @@ function InviteModal({ teamId, kind, onClose }) {
 
 function SeatsModal({ team, onClose, onDone }) {
   const navigate = useNavigate();
+  const { money, seatRate } = useMoney();
   const [plan, setPlan] = useState(team.plan || 'team-yearly');
   const [seats, setSeats] = useState(Math.max(team.seats || 0, team.memberCount, SEATS.min));
   const [quote, setQuote] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -277,7 +279,7 @@ function SeatsModal({ team, onClose, onDone }) {
       <Field label="Plan"><div className="plan-picker">{TEAM_PLANS.map(p => <label key={p.id} className={`plan-option ${plan === p.id ? 'is-chosen' : ''}`}>
         <input type="radio" name="team-plan" value={p.id} checked={plan === p.id} onChange={() => { setPlan(p.id); setQuote(null); }}/>
         <span className="plan-top"><strong>{p.label}</strong>{p.id === 'team-yearly' && <span className="plan-tag">Best value</span>}</span>
-        <span className="plan-price">{money(p.perSeat)}</span>
+        <span className="plan-price">{money(seatRate(p.id))}</span>
         <span className="plan-term">per seat · {p.days} days</span>
         <span className="plan-blurb">{p.blurb}</span>
       </label>)}</div></Field>
@@ -288,7 +290,7 @@ function SeatsModal({ team, onClose, onDone }) {
         <span className="dash-muted">{KIND[quote.kind] || 'Total'}</span>
         <strong className="premium-amount">{money(quote.amount)}</strong>
         <small>{quote.seats} seat{quote.seats === 1 ? '' : 's'} · {quote.planLabel}{quote.kind === 'team-seats' ? ' · charged only for the days left in this term' : ''}</small>
-      </div> : <p className="dash-muted">{chosen ? `About ${money(chosen.perSeat * clampSeats(seats))} before any proration. Check the exact price next.` : ''}</p>}
+      </div> : <p className="dash-muted">{chosen ? `About ${money(seatRate(chosen.id) * clampSeats(seats))} before any proration. Check the exact price next.` : ''}</p>}
       {error && <ErrorState message={error}/>}
       <div className="modal-actions">
         <Button type="button" className="secondary" onClick={onClose}>Cancel</Button>
@@ -326,13 +328,19 @@ function AssignModal({ teamId, folders, onClose, onDone }) {
 export function TeamCheckoutPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useApp();
+  const { money } = useMoney();
   const [params] = useSearchParams();
+  // Checked before the quote is even asked for. The server refuses the order anyway, but a seat
+  // price quoted in a currency the owner cannot be charged in is a promise we cannot keep.
+  const forSale = sellsTo(user);
   const plan = params.get('plan') || 'team-yearly';
   const seats = clampSeats(params.get('seats'));
   const { data, loading, error } = useQuery(`team-checkout:${id}:${plan}:${seats}`, () => Promise.all([
     api(`/teams/${id}/quote`, { method: 'POST', body: { plan, seats } }),
     api(`/teams/${id}/billing`),
   ]).then(([quote, billing]) => ({ quote, ...billing })));
+  if (!forSale) return <NotOnSaleHere what="Team seats"/>;
   if (loading) return <Loading/>;
   if (error) return <ErrorState message={error}/>;
   const { quote, order, methods = [] } = data;

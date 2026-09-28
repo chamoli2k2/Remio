@@ -107,6 +107,7 @@ r.post('/teams/:id/order', requireAuth, requireVerifiedEmail, payLimit, upload.s
 r.delete('/teams/:id/order', requireAuth, a(teams.cancelBuy));
 r.get('/admin/users', requireAuth, requireDashboard, a(admin.users));
 r.patch('/admin/users/:id', requireAuth, requireDashboard, validate(z.object({ account: z.enum(['normal', 'premium', 'admin', 'superadmin']) })), a(admin.setAccount));
+r.get('/admin/countries', requireAuth, requireDashboard, a(admin.countries));
 r.get('/admin/orders', requireAuth, requireDashboard, a(admin.orders));
 r.patch('/admin/orders/:id', requireAuth, requireDashboard, validate(z.object({ status: z.enum(['approved', 'declined']) })), a(admin.decide));
 r.patch('/cards/:id', requireAuth, validate(cardSchema.extend({ version: z.number().int().min(0) })), a(cards.update));

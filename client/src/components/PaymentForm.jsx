@@ -5,17 +5,17 @@ import { api } from '../services/api';
 import { messageFor, ApiError } from '../services/errors';
 import { loadCheckout } from '../services/razorpay';
 import { useApp } from '../hooks/useApp';
+import { useMoney } from '../hooks/useMoney';
 import { Button, Field, ErrorState } from './ui';
 import ConfirmEmailFirst from './ConfirmEmailFirst';
 import { BRAND } from '../../../shared/brand.js';
-import { COUNTRIES, DEFAULT_COUNTRY, countryByCode, dialFor, composePhone } from '../../../shared/countries.js';
+import { COUNTRIES, DEFAULT_COUNTRY, countryByCode, countryByName, dialFor, composePhone } from '../../../shared/countries.js';
 // Inlined rather than linked. The gateway loads this from its own HTTPS page, so a hosted file has
 // to be absolute, reachable, and already deployed, and it is silently dropped if any of those slip:
 // over plain HTTP in development it is refused as mixed content. Carrying the bytes along cannot fail.
 import logo from '../assets/checkout-logo.png?inline';
 
 const METHOD_ICONS = { razorpay: Zap, manual: Banknote };
-const money = n => `₹${(n || 0).toLocaleString('en-IN')}`;
 /** The gateway finds its container by selector, so the id has to be stable and only ever appear once. */
 const EMBED_ID = 'gateway-embed';
 
@@ -26,10 +26,13 @@ const EMBED_ID = 'gateway-embed';
  */
 export default function PaymentForm({ methods = [], amount, summary, label = 'Submit request', instantLabel = 'Pay', manualPath, checkoutPath, cancelPath, extra = {}, onDone, onMethodChange }) {
   const { user, setUser, refresh } = useApp();
+  const { money } = useMoney();
   const [method, setMethod] = useState('');
   // Name comes from the account and the email is never asked for at all, so what is left is only
   // what we genuinely do not already know: how to ring them, and where they are.
-  const [form, setForm] = useState({ name: user?.name || '', country: DEFAULT_COUNTRY, phone: '', address: '' });
+  // Opens on the country the account is registered in, which is the one that priced this purchase.
+  // It stays editable because a billing address need not be where you live.
+  const [form, setForm] = useState({ name: user?.name || '', country: countryByName(user?.country)?.code || DEFAULT_COUNTRY, phone: '', address: '' });
   const [proof, setProof] = useState(null), [preview, setPreview] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [embedded, setEmbedded] = useState(false);

@@ -8,7 +8,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { connectDatabase } from '../src/config/database.js';
 import { createApp } from '../src/app.js';
 import { allModels, Review, User, Notification, Relationship, PremiumOrder, Team } from '../src/models/index.js';
-import { teamPlanById } from '../../shared/teams.js';
+import { premiumPrice, seatPrice } from '../../shared/pricing.js';
 import { BRAND } from '../../shared/brand.js';
 const enabled = process.env.RUN_INTEGRATION === '1';
 let mongo, app, owner, editor, outsider, folderId, cardId;
@@ -23,7 +23,7 @@ before(async () => {
   await mongoose.connect(process.env.TEST_MONGODB_URI || mongo.getUri(), { dbName });
   await Promise.all(allModels.map(m => m.init())); app = createApp();
   [owner, editor, outsider] = [request.agent(app), request.agent(app), request.agent(app)];
-  for (const [agent, username] of [[owner, 'owner'], [editor, 'editor'], [outsider, 'outsider']]) { const r = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password }); assert.equal(r.status, 201, JSON.stringify(r.body)); }
+  for (const [agent, username] of [[owner, 'owner'], [editor, 'editor'], [outsider, 'outsider']]) { const r = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India' }); assert.equal(r.status, 201, JSON.stringify(r.body)); }
   // Paying needs a confirmed address; these tests are about what happens after that, not about it.
   await User.updateMany({}, { $set: { account: 'premium', emailVerifiedAt: new Date() } });
   const f = await owner.post('/api/folders').send({ title: 'Concurrency', visibility: 'private' }); assert.equal(f.status, 201); folderId = f.body.folder.id;
@@ -69,7 +69,7 @@ integration('retries count as one review; different concurrent reviews conflict'
   assert.deepEqual(parallel.map(r => r.status).sort(), [200, 409]);
 });
 integration('usernames are unique even with concurrent registration and capitalization', async () => {
-  const results = await Promise.all(['UniqueLearner', 'uniquelearner'].map((username, i) => request(app).post('/api/auth/signup').send({ username, name: 'Test', email: `unique${i}@example.test`, password })));
+  const results = await Promise.all(['UniqueLearner', 'uniquelearner'].map((username, i) => request(app).post('/api/auth/signup').send({ username, name: 'Test', email: `unique${i}@example.test`, password, country: 'India' })));
   assert.deepEqual(results.map(r => r.status).sort(), [201, 409]);
 });
 integration('private copies own their image data after access to the source is revoked', async () => {
@@ -123,8 +123,46 @@ integration('dashboard is staff-only; premium routes reject a normal account', a
   const buy = await order().field('plan', 'monthly').attach('proof', png, 'upi.png');
   assert.equal(buy.status, 201, JSON.stringify(buy.body));
   assert.equal(buy.body.order.plan, 'monthly');
+  assert.equal(buy.body.order.currency, 'INR', 'an Indian account is billed in rupees');
+  assert.equal(buy.body.order.amount, premiumPrice('monthly', { country: 'India' }) * 100);
   assert.equal((await outsider.get(`/api/premium/orders/${buy.body.order.id}/proof`)).status, 200);
+
+  // The same plan, bought from abroad, is a different currency and a different number. The billing
+  // country typed into the form is deliberately still India here: it is the account that prices the
+  // order, so filling in a cheaper country must not buy a cheaper plan.
+  await PremiumOrder.deleteMany({ user: (await User.findOne({ username: 'outsider' }))._id });
+  await User.updateOne({ username: 'outsider' }, { $set: { country: 'United States', account: 'normal', premiumPlan: '', premiumExpiresAt: null } });
+  const abroad = await order().field('plan', 'monthly').attach('proof', png, 'upi.png');
+  assert.equal(abroad.status, 201, JSON.stringify(abroad.body));
+  assert.equal(abroad.body.order.currency, 'USD');
+  assert.equal(abroad.body.order.amount, premiumPrice('monthly', { country: 'United States' }) * 100, 'in cents');
+  assert.notEqual(abroad.body.order.amount, buy.body.order.amount);
+  // Somewhere we do not sell cannot buy at all, however the request is dressed up. The billing
+  // country below still says India, which is exactly the loophole this closes.
+  await PremiumOrder.deleteMany({ user: (await User.findOne({ username: 'outsider' }))._id });
+  await User.updateOne({ username: 'outsider' }, { $set: { country: 'Nigeria', account: 'normal', premiumPlan: '', premiumExpiresAt: null } });
+  const refused = await order().field('plan', 'monthly').attach('proof', png, 'upi.png');
+  assert.equal(refused.status, 400, JSON.stringify(refused.body));
+  assert.equal(refused.body.code, 'COUNTRY_UNSUPPORTED', JSON.stringify(refused.body));
+  assert.equal(await PremiumOrder.countDocuments({ user: (await User.findOne({ username: 'outsider' }))._id }), 0, 'a refusal leaves no order behind');
+
+  await User.updateOne({ username: 'outsider' }, { $set: { country: 'India' } });
+  await order().field('plan', 'monthly').attach('proof', png, 'upi.png');
   assert.equal((await outsider.post('/api/premium/order').send({ plan: 'monthly', name: 'No Photo', phone: '+919999999999', country: 'India', address: '1 Demo Street' })).status, 400);
+  // Usage by country is staff-only and counts the account's country, not the billing one.
+  assert.equal((await outsider.get('/api/admin/countries')).status, 403, 'not for ordinary accounts');
+  const usage = await owner.get('/api/admin/countries?days=30');
+  assert.equal(usage.status, 200, JSON.stringify(usage.body));
+  assert.equal(usage.body.days, 30);
+  const india = usage.body.rows.find(r => r.country === 'India');
+  assert.ok(india && india.accounts >= 3, `expected the signups above to be counted: ${JSON.stringify(usage.body.rows)}`);
+  assert.equal(india.sellable, true);
+  assert.equal(india.code, 'IN');
+  assert.equal(usage.body.totals.accounts, usage.body.rows.reduce((n, r) => n + r.accounts, 0), 'the totals add up to the rows');
+  // The window is clamped rather than trusted, so a hand-typed one cannot scan all of history.
+  assert.equal((await owner.get('/api/admin/countries?days=9999')).body.days, 365);
+  assert.equal((await owner.get('/api/admin/countries?days=nonsense')).body.days, 30);
+
   const orders = await owner.get('/api/admin/orders');
   assert.equal(orders.status, 200);
   assert.equal((await owner.patch(`/api/admin/orders/${orders.body.orders[0].id}`).send({ status: 'approved' })).status, 200);
@@ -181,7 +219,7 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
   // Three free accounts so nothing here can be explained by a personal subscription.
   const [teacher, alice, bob] = [request.agent(app), request.agent(app), request.agent(app)];
   for (const [agent, username] of [[teacher, 'teach'], [alice, 'alice'], [bob, 'bob']]) {
-    const r = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password });
+    const r = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India' });
     assert.equal(r.status, 201, JSON.stringify(r.body));
   }
   await User.updateMany({ username: { $in: ['teach', 'alice', 'bob'] } }, { $set: { account: 'normal', premiumPlan: '', premiumExpiresAt: null, emailVerifiedAt: new Date() } });
@@ -197,7 +235,10 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
   const quoted = await teacher.post(`/api/teams/${teamId}/quote`).send({ plan: 'team-monthly', seats: 6 });
   assert.equal(quoted.status, 200, JSON.stringify(quoted.body));
   assert.equal(quoted.body.kind, 'team-new');
-  assert.equal(quoted.body.amount, teamPlanById('team-monthly').perSeat * 6);
+  // Every signup above is Indian, so these are the rupee rates.
+  const seatRate = seatPrice('team-monthly', { country: 'India' });
+  assert.equal(quoted.body.amount, seatRate * 6);
+  assert.equal(quoted.body.currency, 'INR', 'quoted in the owner\'s own currency');
 
   const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#4455cc' } }).png().toBuffer();
   const buy = await teacher.post(`/api/teams/${teamId}/order`)
@@ -205,7 +246,8 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
     .field('phone', '+919999999999').field('country', 'India').field('address', '1 School Road').attach('proof', png, 'upi.png');
   assert.equal(buy.status, 201, JSON.stringify(buy.body));
   assert.equal(buy.body.order.seats, 6);
-  assert.equal(buy.body.order.amount, teamPlanById('team-monthly').perSeat * 6 * 100, 'stored in paise');
+  assert.equal(buy.body.order.amount, seatRate * 6 * 100, 'stored in the smallest unit of the currency');
+  assert.equal(buy.body.order.currency, 'INR');
 
   const orders = await owner.get('/api/admin/orders');
   const seatOrder = orders.body.orders.find(o => o.id === buy.body.order.id);
@@ -254,7 +296,7 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
   const extras = [];
   for (const username of ['stu1', 'stu2', 'stu3', 'stu4']) {
     const agent = request.agent(app);
-    const up = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password });
+    const up = await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India' });
     assert.equal(up.status, 201, JSON.stringify(up.body));
     extras.push(agent);
   }
@@ -264,7 +306,7 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
   assert.equal(full.body.team.seatsLeft, 1);
 
   const racers = [extras[3], request.agent(app)];
-  await racers[1].post('/api/auth/signup').send({ username: 'stu5', name: 'stu5', email: 'stu5@example.test', password });
+  await racers[1].post('/api/auth/signup').send({ username: 'stu5', name: 'stu5', email: 'stu5@example.test', password, country: 'India' });
   const settled = await Promise.all(racers.map(a => a.post('/api/teams/join').send({ code })));
   const won = settled.filter(r => r.status === 201);
   assert.equal(won.length, 1, `exactly one racer takes the last seat, got ${settled.map(r => r.status).join()}`);
@@ -274,7 +316,7 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
   assert.equal(after.body.team.seatsLeft, 0);
 
   // Extra seats bought right after paying cost full price, because no time has been used up yet.
-  const perSeat = teamPlanById('team-monthly').perSeat;
+  const perSeat = seatPrice('team-monthly', { country: 'India' });
   const fresh = await teacher.post(`/api/teams/${teamId}/quote`).send({ plan: 'team-monthly', seats: 8 });
   assert.equal(fresh.body.kind, 'team-seats');
   assert.equal(fresh.body.seats, 8);
@@ -334,7 +376,7 @@ integration('every failure comes back in one envelope with a traceable request i
   assert.equal(invalid.body.code, 'VALIDATION_FAILED');
   assert.equal(invalid.body.details.field, 'title');
 
-  const duplicate = await request(app).post('/api/auth/signup').send({ username: 'owner', name: 'Clash', email: 'clash@example.test', password });
+  const duplicate = await request(app).post('/api/auth/signup').send({ username: 'owner', name: 'Clash', email: 'clash@example.test', password, country: 'India' });
   assert.equal(duplicate.status, 409);
   assert.doesNotMatch(JSON.stringify(duplicate.body), /E11000|mongo/i, 'driver internals never reach the client');
 

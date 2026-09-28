@@ -6,7 +6,17 @@ import { reportError } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
 import { Button, Loading, ErrorState, Empty, Modal } from '../components/ui';
 import { ACCOUNTS, isSuperadmin, planById } from '../../../shared/account.js';
+import { minorUnitsIn } from '../../../shared/pricing.js';
 const when = iso => iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Never';
+/**
+ * What an order took, in the currency it took it in. Stored in the currency's smallest unit, so it
+ * is divided back out rather than assumed to be rupees — an order from Australia is not.
+ */
+const charged = order => {
+  const currency = order.currency || 'INR';
+  const amount = (order.amount || 0) / minorUnitsIn(currency);
+  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount); } catch { return `${amount} ${currency}`; }
+};
 const day = iso => new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
 /** Reads the subscription window for one person in the users table. */
 function Subscription({ person }) {
@@ -25,6 +35,8 @@ export default function DashboardPage() {
   const [q, setQ] = useState('');
   const { data, loading, error } = useQuery(`/admin/users${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`);
   const { data: orders, loading: lo, error: eo } = useQuery('/admin/orders');
+  const [days, setDays] = useState(30);
+  const { data: usage, loading: lu, error: eu } = useQuery(`/admin/countries?days=${days}`);
   async function setAccount(id, account) {
     try { await api(`/admin/users/${id}`, { method: 'PATCH', body: { account } }); refresh(); toast.success('Role updated'); }
     catch (e) { reportError(e); }
@@ -43,6 +55,7 @@ export default function DashboardPage() {
     <div className="tabs" role="tablist">
       <button role="tab" aria-selected={tab === 'users'} className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Users {people.length ? <span>{people.length}</span> : null}</button>
       <button role="tab" aria-selected={tab === 'orders'} className={tab === 'orders' ? 'active' : ''} onClick={() => setTab('orders')}>Premium requests {pending.length ? <span>{pending.length}</span> : null}</button>
+      <button role="tab" aria-selected={tab === 'countries'} className={tab === 'countries' ? 'active' : ''} onClick={() => setTab('countries')}>Where it is used {usage?.totals.countries ? <span>{usage.totals.countries}</span> : null}</button>
     </div>
     {tab === 'users' && <>
       <form className="folder-search dash-search" onSubmit={e => e.preventDefault()}><input aria-label="Search users" placeholder="Search name, username, email" value={q} onChange={e => setQ(e.target.value)}/></form>
@@ -59,12 +72,45 @@ export default function DashboardPage() {
         <span className={`order-status is-${o.status}`}>{o.status}</span>
       </button>
     </li>)}</ul>)}
+    {tab === 'countries' && <>
+      <div className="dash-usage-head">
+        <p>
+          Accounts by country, next to how many of them studied anything in the window. A country
+          with people studying and no Premium on sale is the case for opening it: there are
+          {` ${usage?.totals.unsellableStudying ?? 0} `}such
+          {usage?.totals.unsellableStudying === 1 ? ' person' : ' people'} across
+          {` ${usage?.totals.unsellableCountries ?? 0} `}
+          {usage?.totals.unsellableCountries === 1 ? 'country' : 'countries'} right now.
+        </p>
+        <label className="dash-usage-window">
+          <span>Window</span>
+          <select value={days} onChange={e => setDays(Number(e.target.value))}>
+            {[7, 30, 90, 365].map(d => <option key={d} value={d}>Last {d} days</option>)}
+          </select>
+        </label>
+      </div>
+      {lu ? <Loading/> : eu ? <ErrorState message={eu}/> : !usage?.rows.length ? <Empty title="No accounts yet" text="Countries appear here as people sign up."/> : <div className="dash-table-wrap"><table className="dash-table"><thead><tr>
+        <th>Country</th><th>Accounts</th><th>Studied</th><th>Reviews</th><th>Paying</th><th>Selling</th>
+      </tr></thead><tbody>{usage.rows.map(r => <tr key={r.country}>
+        <td><strong>{r.country}</strong><span>{r.code}</span></td>
+        <td>{r.accounts.toLocaleString()}</td>
+        {/* Studied is the one to read first. Accounts count people who arrived; this counts the
+            ones who came back. */}
+        <td>{r.studying.toLocaleString()}{r.accounts ? <span>{Math.round(r.studying / r.accounts * 100)}% of them</span> : null}</td>
+        <td>{r.reviews.toLocaleString()}</td>
+        <td>{r.premium.toLocaleString()}</td>
+        <td>{r.sellable ? <span className="sub-pill is-active">On sale</span> : <span className="dash-muted">Not on sale</span>}</td>
+      </tr>)}</tbody></table></div>}
+    </>}
     <Modal wide open={!!open} onClose={() => setOpen(null)} title={open ? `Premium request from ${open.name}` : ''} description="Check the payment screenshot against the details before approving.">
       {open && <div className="order-detail">
         <div className="order-detail-proof">{open.hasProof ? <a href={open.proofUrl} target="_blank" rel="noreferrer" title="Open the full image"><img src={open.proofUrl} alt={`Payment screenshot from ${open.name}`}/></a> : <span className="order-detail-noproof"><ImageOff size={24}/> No screenshot on this request</span>}</div>
         <dl className="order-detail-list">
           <div><dt>Status</dt><dd><span className={`order-status is-${open.status}`}>{open.status}</span></dd></div>
-          <div><dt>Plan</dt><dd>{planById(open.plan) ? `${planById(open.plan).label} · ₹${planById(open.plan).price.toLocaleString('en-IN')} · ${planById(open.plan).days ? `${planById(open.plan).days} days` : 'no end date'}` : open.plan}</dd></div>
+          {/* The amount is read off the order rather than looked up from the plan: prices differ by
+              country and change over time, and what matters when approving one is what was charged. */}
+          <div><dt>Plan</dt><dd>{planById(open.plan) ? `${planById(open.plan).label} · ${planById(open.plan).days ? `${planById(open.plan).days} days` : 'no end date'}` : open.plan}</dd></div>
+          <div><dt>Charged</dt><dd>{charged(open)}</dd></div>
           <div><dt>Account</dt><dd>{open.user?.username ? `@${open.user.username}` : 'Deleted user'}</dd></div>
           <div><dt>Email</dt><dd>{open.email}</dd></div>
           <div><dt>Phone</dt><dd>{open.phone}</dd></div>

@@ -13,7 +13,9 @@ export const usernameSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9_]{
  */
 const RESERVED = new Set(['admin', 'administrator', 'superadmin', 'sysadmin', 'root', 'system', 'staff', 'moderator', 'support', 'help', 'helpdesk', 'security', 'abuse', 'billing', 'payments', 'noreply', 'no_reply', 'official', 'team', 'demo', 'demolearner', BRAND.slug]);
 export const reservedUsername = name => RESERVED.has(String(name).trim().toLowerCase());
-export const signupSchema = z.object({ username: usernameSchema.refine(v => !RESERVED.has(v), 'That username is reserved. Please pick another.'), name: z.string().trim().min(1).max(60), email: z.email().toLowerCase(), password: z.string().min(10).max(128) });
+// The country is asked for here because it decides what this account is charged, and asking at
+// checkout instead would put the answer in the hands of whoever wants the cheaper price.
+export const signupSchema = z.object({ username: usernameSchema.refine(v => !RESERVED.has(v), 'That username is reserved. Please pick another.'), name: z.string().trim().min(1).max(60), email: z.email().toLowerCase(), country: z.enum(COUNTRY_NAMES, 'Choose your country from the list.'), password: z.string().min(10).max(128) });
 export const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: z.string().min(10).max(128) });
 export const deleteAccountSchema = z.object({ password: z.string().min(1).max(128), confirm: z.literal('delete my account') });
 export const verifyEmailSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, 'That confirmation link is not valid.') });

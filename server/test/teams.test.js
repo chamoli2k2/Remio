@@ -5,9 +5,14 @@ import {
   teamActive, teamExpired, teamDaysLeft, teamExpiryAfter, seatsLeft, canAddMember,
   canManageTeam, canManageRoster, canSeeProgress, roleLabel, seatEntitles,
 } from '../../shared/teams.js';
+import { teamPlanFor } from '../../shared/pricing.js';
 
 const DAY = 86400000;
-const monthly = teamPlanById('team-monthly'), yearly = teamPlanById('team-yearly');
+// A plan only carries a seat rate once it knows who is buying, so these are priced as an Indian
+// buyer would see them. The arithmetic under test is the same whatever the rate happens to be.
+const buyer = { country: 'India' };
+const priced = id => teamPlanFor(teamPlanById(id), buyer);
+const monthly = priced('team-monthly'), yearly = priced('team-yearly');
 
 test('seat pricing scales with the roster and clamps nonsense inputs', () => {
   assert.equal(teamPrice(monthly, 10), monthly.perSeat * 10);
@@ -85,7 +90,8 @@ test('roles: the owner bills, teachers run the room, students only study', () =>
 
 test('every team plan is priceable and labelled', () => {
   for (const plan of TEAM_PLANS) {
-    assert.ok(plan.days > 0 && plan.perSeat > 0, `${plan.id} needs a term and a price`);
+    assert.ok(plan.days > 0, `${plan.id} needs a term`);
+    assert.ok(priced(plan.id).perSeat > 0, `${plan.id} needs a seat price in every region we sell in`);
     assert.ok(plan.label && plan.blurb, `${plan.id} needs copy`);
     assert.equal(teamPlanById(plan.id), plan);
   }

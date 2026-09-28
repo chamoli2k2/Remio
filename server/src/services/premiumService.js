@@ -1,6 +1,7 @@
 import { PremiumOrder, User, Team } from '../models/index.js';
 import { hasPremium, hasDashboard, planById, premiumDaysLeft, premiumExpiryAfter } from '../../../shared/account.js';
 import { teamPlanById, teamPrice, seatTopUpPrice, teamActive, teamExpiryAfter, clampSeats } from '../../../shared/teams.js';
+import { premiumPrice, pricingFor, sellsTo, teamPlanFor, toMinorUnits } from '../../../shared/pricing.js';
 import { accessTeam } from './teamAccess.js';
 import { notify, notifyStaff } from './notificationService.js';
 import { availableMethods, requireMethod, razorpay } from './payments/index.js';
@@ -22,18 +23,19 @@ const presentOrder = order => ({
  */
 async function quoteTeam(user, body) {
   const { team } = await accessTeam(body.teamId, user, 'owner');
-  const plan = teamPlanById(body.plan);
+  // Seats are priced in the owner's currency, because the owner is the one paying for them.
+  const plan = teamPlanFor(teamPlanById(body.plan), user);
   assert(plan, 400, 'Choose a team plan.', 'UNKNOWN_PLAN');
   const wanted = clampSeats(body.seats);
-  if (!teamActive(team)) return { team, plan, seats: wanted, kind: 'team-new', rupees: teamPrice(plan, wanted) };
-  if (wanted > team.seats) return { team, plan, seats: wanted, kind: 'team-seats', rupees: seatTopUpPrice(plan, wanted - team.seats, team.expiresAt) };
-  return { team, plan, seats: team.seats, kind: 'team-renew', rupees: teamPrice(plan, team.seats) };
+  if (!teamActive(team)) return { team, plan, seats: wanted, kind: 'team-new', total: teamPrice(plan, wanted) };
+  if (wanted > team.seats) return { team, plan, seats: wanted, kind: 'team-seats', total: seatTopUpPrice(plan, wanted - team.seats, team.expiresAt) };
+  return { team, plan, seats: team.seats, kind: 'team-renew', total: teamPrice(plan, team.seats) };
 }
 
 /** A quote the owner can see before committing to it, so the proration is never a surprise. */
 export async function quote(user, body) {
-  const { team, plan, seats, kind, rupees } = await quoteTeam(user, body);
-  return { kind, seats, plan: plan.id, planLabel: plan.label, perSeat: plan.perSeat, amount: rupees, currency: 'INR', seatsNow: team.seats, expiresAt: team.expiresAt || null };
+  const { team, plan, seats, kind, total } = await quoteTeam(user, body);
+  return { kind, seats, plan: plan.id, planLabel: plan.label, perSeat: plan.perSeat, amount: total, currency: pricingFor(user).currency, seatsNow: team.seats, expiresAt: team.expiresAt || null };
 }
 
 /** Seats are applied to the team; a top-up adds chairs without moving the renewal date. */
@@ -92,6 +94,11 @@ export async function fulfilOrder(orderId, status, { actor = null, paymentId = n
 const openOrderFor = (user, teamId = null) => PremiumOrder.findOne({ user: user.id, status: 'pending', team: teamId });
 
 async function newOrder(user, body, method, { proof = null } = {}) {
+  // Where the account says it is decides both the currency and whether there is anything on sale at
+  // all. Not the billing country typed below it, which the buyer chooses freely and could set to
+  // wherever happens to be cheapest.
+  assert(sellsTo(user), 400, `${BRAND.name} Premium is not on sale in your country yet. Write to us and we will tell you when it is.`, 'COUNTRY_UNSUPPORTED');
+  const { currency } = pricingFor(user);
   const team = body.teamId ? await quoteTeam(user, body) : null;
   if (!team) {
     assert(!hasPremium(user), 400, 'You already have Premium.', 'ALREADY_PREMIUM');
@@ -99,13 +106,16 @@ async function newOrder(user, body, method, { proof = null } = {}) {
   }
   const open = await openOrderFor(user, team ? team.team.id : null);
   assert(!open, 400, 'You already have a payment in progress. Finish or cancel it first.', 'ORDER_IN_PROGRESS');
-  const money = team ? { plan: team.plan.id, amount: team.rupees * 100, team: team.team.id, seats: team.seats, kind: team.kind }
-    : { plan: planById(body.plan).id, amount: planById(body.plan).price * 100, kind: 'personal' };
+  const total = team ? team.total : premiumPrice(body.plan, user);
+  // A plan with no price in this region would otherwise reserve an order for nothing and hand the
+  // gateway a zero, which it rejects with nothing useful to show the buyer.
+  assert(total > 0, 400, 'That plan is not available in your country.', 'PLAN_UNAVAILABLE');
+  const money = team ? { plan: team.plan.id, team: team.team.id, seats: team.seats, kind: team.kind } : { plan: planById(body.plan).id, kind: 'personal' };
   // The receipt goes to the confirmed address on the account, never to one typed at checkout, so a
   // slip of the keyboard cannot send somebody's invoice to a stranger.
   const { email } = await User.findById(user.id).select('+email');
   return PremiumOrder.create({
-    user: user.id, method, currency: 'INR', ...money,
+    user: user.id, method, currency, amount: toMinorUnits(total, currency), ...money,
     name: body.name, email, phone: body.phone, country: body.country, address: body.address,
     ...(proof ? { proof, proofType: 'image/webp' } : {}),
     status: 'pending',

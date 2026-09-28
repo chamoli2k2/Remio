@@ -2,7 +2,9 @@ import { uuid } from './uuid';
 import { sampleFolders } from '../../../shared/sampleData';
 import { planById } from '../../../shared/account.js';
 import { teamPlanById, clampSeats, seatTopUpPrice } from '../../../shared/teams.js';
-const user = { id: 'demo-user', username: 'gaurav', name: 'Gaurav Prakash', bio: 'Learning something new, one card at a time.', dailyGoal: 20, savedFolders: [], account: 'superadmin', emailVerifiedAt: '2026-09-01T00:00:00.000Z' };
+import { pricingFor, sellsInCountry, teamPlanFor } from '../../../shared/pricing.js';
+import { countryByName } from '../../../shared/countries.js';
+const user = { id: 'demo-user', username: 'gaurav', name: 'Gaurav Prakash', bio: 'Learning something new, one card at a time.', dailyGoal: 20, country: 'India', savedFolders: [], account: 'superadmin', emailVerifiedAt: '2026-09-01T00:00:00.000Z' };
 const collaborators = [{ id: 'demo-alex', name: 'Alex Morgan', username: 'alex' }, { id: 'demo-maya', name: 'Maya Chen', username: 'maya' }];
 // Stand-in roster so the dashboard has something to manage in the preview.
 const inDays = n => new Date(Date.now() + n * 86400000).toISOString();
@@ -22,6 +24,16 @@ let demoNotifications = [
 ];
 const demoProof = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="420"><rect width="300" height="420" fill="#f4f1fb"/><circle cx="150" cy="110" r="38" fill="#2c7a4f"/><path d="M132 110l13 13 24-26" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text x="150" y="182" font-family="Arial" font-size="19" font-weight="bold" fill="#242331" text-anchor="middle">Payment successful</text><text x="150" y="222" font-family="Arial" font-size="30" font-weight="bold" fill="#242331" text-anchor="middle">Rs 499.00</text><text x="150" y="256" font-family="Arial" font-size="13" fill="#7a7290" text-anchor="middle">To your-upi-id@bank</text><text x="150" y="278" font-family="Arial" font-size="13" fill="#7a7290" text-anchor="middle">UPI Ref 402198337654</text><text x="150" y="380" font-family="Arial" font-size="11" fill="#a09aae" text-anchor="middle">Sample screenshot (preview only)</text></svg>');
 // The gateway is the only way to pay, matching the real product. It cannot take money here.
+const demoCountries = [
+  { country: 'India', accounts: 412, premium: 38, studying: 190, reviews: 8420, joined: '2026-09-20T00:00:00.000Z' },
+  { country: 'United States', accounts: 96, premium: 14, studying: 51, reviews: 2210, joined: '2026-09-22T00:00:00.000Z' },
+  { country: 'Nigeria', accounts: 74, premium: 0, studying: 39, reviews: 1630, joined: '2026-09-24T00:00:00.000Z' },
+  { country: 'United Kingdom', accounts: 41, premium: 6, studying: 22, reviews: 910, joined: '2026-09-19T00:00:00.000Z' },
+  { country: 'Germany', accounts: 33, premium: 0, studying: 17, reviews: 640, joined: '2026-09-25T00:00:00.000Z' },
+  { country: 'Canada', accounts: 22, premium: 3, studying: 11, reviews: 430, joined: '2026-09-18T00:00:00.000Z' },
+  { country: 'Brazil', accounts: 19, premium: 0, studying: 9, reviews: 300, joined: '2026-09-26T00:00:00.000Z' },
+  { country: 'Australia', accounts: 14, premium: 2, studying: 7, reviews: 260, joined: '2026-09-17T00:00:00.000Z' },
+];
 const demoMethods = [
   { id: 'razorpay', label: 'Pay online', blurb: 'UPI, card, net banking, or wallet. It turns on the moment the payment clears.', instant: true, requiresProof: false },
 ];
@@ -79,10 +91,10 @@ function demoTeams(path, method, body, id, action, parts) {
   }
   if (action === 'invites' && method === 'DELETE') { demoInvites = demoInvites.filter(i => i.id !== parts[3]); return { revoked: true }; }
   if (action === 'quote') {
-    const plan = teamPlanById(body.plan), seats = clampSeats(body.seats);
+    const plan = teamPlanFor(teamPlanById(body.plan), user), seats = clampSeats(body.seats);
     const kind = seats > team.seats ? 'team-seats' : 'team-renew';
     const amount = kind === 'team-seats' ? seatTopUpPrice(plan, seats - team.seats, team.expiresAt) : plan.perSeat * team.seats;
-    return { kind, seats: kind === 'team-seats' ? seats : team.seats, plan: plan.id, planLabel: plan.label, perSeat: plan.perSeat, amount, currency: 'INR', seatsNow: team.seats, expiresAt: team.expiresAt };
+    return { kind, seats: kind === 'team-seats' ? seats : team.seats, plan: plan.id, planLabel: plan.label, perSeat: plan.perSeat, amount, currency: pricingFor(user).currency, seatsNow: team.seats, expiresAt: team.expiresAt };
   }
   if (action === 'billing') return { order: null, subscription: null, methods: clone(demoMethods) };
   if (action === 'assignments' && method === 'POST') {
@@ -115,6 +127,15 @@ export async function demoRequest(path, options = {}) {
   if (path === '/premium/order') return { order: null, subscription: { account: user.account, plan: '', planLabel: '', expiresAt: null, daysLeft: null, active: true }, methods: clone(demoMethods) };
   if (path.startsWith('/premium/checkout')) error('Paying needs a real account. Sign up outside the preview to buy Premium.');
   if (entity === 'admin') {
+    // Made up, but shaped like the real thing: a couple of markets on sale and a long tail that is
+    // not, which is the pattern the tab exists to show.
+    if (id === 'countries') {
+      const days = Number(new URLSearchParams(path.split('?')[1] || '').get('days')) || 30;
+      const rows = demoCountries.map(r => ({ ...r, sellable: sellsInCountry(r.country), code: countryByName(r.country)?.code || '' }));
+      const sum = (key, of) => of.reduce((n, r) => n + r[key], 0);
+      const waiting = rows.filter(r => !r.sellable && r.studying > 0);
+      return { days, rows: clone(rows), totals: { countries: rows.length, accounts: sum('accounts', rows), studying: sum('studying', rows), premium: sum('premium', rows), unsellableStudying: sum('studying', waiting), unsellableCountries: waiting.length } };
+    }
     if (id === 'users' && !action) {
       const q = (new URLSearchParams(path.split('?')[1] || '').get('q') || '').toLowerCase();
       return { users: clone(staff.filter(u => !q || `${u.name} ${u.username} ${u.email}`.toLowerCase().includes(q))) };
