@@ -874,3 +874,55 @@ html[data-theme=dark] .google-signin-error{color:#f0a9ad}
 /* Shown after any failed sign-in, never only for the accounts it describes: which addresses are
    registered, and how, is not something a failed guess should reveal. */
 .auth-hint{font-size:12px;line-height:1.6;color:var(--muted);margin:-6px 0 0}
+
+/* Signup fits the window rather than scrolling it.
+   Four of the fields are short enough to share a row, which removes two field heights, and the
+   panel widens on signup to give each half room to breathe. The pair collapses back to one column
+   when there is genuinely not enough width for two. */
+.auth-panel{width:100%;max-width:385px}
+.auth-panel.is-signup{max-width:452px}
+.auth-pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:560px){.auth-pair{grid-template-columns:1fr}}
+.auth-pair .field>small{font-size:11px;line-height:1.45}
+
+/* Short windows: give the form the width it needs for two columns, and drop the decoration.
+   The story panel is the thing that can afford to lose space — it is a headline and three ticks,
+   and it stays legible narrower. The subtitle and the field hints go because the labels and
+   placeholders already say the same thing, and a hint that pushes the submit button off the
+   screen costs more than it explains. */
+@media(max-height:780px){
+  .auth-page{grid-template-columns:0.82fr 1.18fr}
+  .auth-form{padding:52px 34px 20px}
+  .auth-form .form-stack{gap:11px}
+  .auth-form h2{font-size:21px}
+  .auth-panel>h2+p{display:none}
+  .google-signin{gap:9px;margin-bottom:0}
+  .auth-pair{gap:12px}
+  .auth-pair .field>small{display:none}
+  .auth-consent{font-size:11.5px;gap:8px}
+  .auth-story{padding:30px 34px}
+  .auth-story h1{font-size:34px;letter-spacing:-1.4px;margin:10px 0 12px}
+  .auth-story>div>p{font-size:13px}
+  .auth-benefits{display:none}
+  .auth-story>span{display:none}
+  .auth-form{padding:46px 34px 6px}
+  .auth-form .form-stack{gap:8px}
+  .auth-form .form-stack{gap:9px}
+  .auth-form h2{font-size:19px}
+  .auth-form .form-stack>.button{margin-top:4px}
+  .google-signin{gap:7px}
+  .field{gap:6px}
+}
+
+/* Two panes, exactly the height of the window.
+   Chasing this in pixels does not hold: the page is as tall as its tallest column, and the story
+   column's height depends on how a headline happens to wrap. Fixing the height makes it
+   deterministic instead — the story is decoration and is allowed to clip, while the form keeps a
+   scrollbar of its own for the genuinely small windows where six fields cannot be made to fit.
+   Only above the breakpoint where the layout is still two columns; below that it stacks and the
+   page scrolls normally, which is right on a phone. */
+@media(min-width:761px){
+  .auth-page{height:100vh;height:100dvh;overflow:hidden}
+  .auth-story{overflow:hidden}
+  .auth-form{overflow-y:auto}
+}

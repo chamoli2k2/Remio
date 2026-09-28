@@ -82,7 +82,6 @@ export default function GoogleButton({ onCredential, text = 'signin_with' }) {
           // is already filling in it reads as an interruption rather than a shortcut.
           auto_select: false,
           cancel_on_tap_outside: true,
-          use_fedcm_for_prompt: true,
         });
         initialisedFor = clientId;
       }

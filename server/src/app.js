@@ -31,6 +31,18 @@ export function createApp() {
   // its hash rather than opening up inline scripts generally. HSTS is a year with subdomains, which
   // is what lets the domain be preloaded; harmless locally because browsers ignore it off HTTPS.
   app.use(helmet({
+    /**
+     * Popups keep their handle on the page that opened them.
+     *
+     * helmet defaults this to `same-origin`, which cuts `window.opener` for any cross-origin
+     * popup. Google's sign-in opens one, and when the person has chosen their account it posts the
+     * result back through exactly that handle — so the strict policy left a blank tab and
+     * "Cannot read properties of null (reading 'postMessage')".
+     *
+     * `same-origin-allow-popups` keeps this document isolated from anything that opens *it*, and
+     * only relaxes the half that breaks sign-in.
+     */
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true, preload: true },
     contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, jsonLdHash, ...gateway, ...googleAuth], "style-src": ["'self'", "'unsafe-inline'", ...googleAuth], "frame-src": ["'self'", ...gateway, ...googleAuth], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway, ...googleAuth] } },
   }));
