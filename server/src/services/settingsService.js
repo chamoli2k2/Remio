@@ -1,4 +1,5 @@
 import { Setting, AuditEntry } from '../models/index.js';
+import { clientId as googleClientId, isConfigured as googleConfigured } from './auth/googleToken.js';
 import { DEFAULT_REGIONS, pricebook } from '../../../shared/pricing.js';
 import { PREMIUM_PLANS } from '../../../shared/account.js';
 import { TEAM_PLANS } from '../../../shared/teams.js';
@@ -84,7 +85,9 @@ export function publicConfig() {
       quiz: setting('quiz.enabled'),
       readOnly: setting('maintenance.readOnly'),
       razorpay: setting('selling.razorpay'),
+      google: googleConfigured(),
     },
+    googleClientId: googleClientId(),
     notice: setting('maintenance.notice'),
     limits: {
       imageMb: setting('limits.imageMb'),

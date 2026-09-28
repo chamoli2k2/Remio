@@ -68,4 +68,14 @@ export const reportDecisionSchema = z.object({
   outcome: z.string().trim().max(500).optional().default(''),
 });
 
+/**
+ * A Google sign-in. The credential is the signed token from Google; the other two are only present
+ * when the click came from the signup form, and are what let a new account be created.
+ */
+export const googleSignInSchema = z.object({
+  credential: z.string().min(20).max(8192),
+  country: z.enum(COUNTRY_NAMES).optional(),
+  acceptedTerms: z.boolean().optional(),
+});
+
 export const validate = schema => (req, _res, next) => { try { req.body = schema.parse(req.body); next(); } catch (e) { next(e); } };

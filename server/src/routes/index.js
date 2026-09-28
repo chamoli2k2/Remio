@@ -15,7 +15,7 @@ import * as notifications from '../controllers/notificationController.js';
 import * as teams from '../controllers/teamController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePremium, requireDashboard, requireSuperadmin, requireVerifiedEmail } from '../middleware/account.js';
-import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, cardSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema } from '../middleware/validate.js';
+import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, cardSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema } from '../middleware/validate.js';
 import { requireImports, requireSignupOpen } from '../middleware/config.js';
 import { throttle as rateLimit } from '../middleware/throttle.js';
 import { megabytes, setting } from '../services/settingsService.js';
@@ -46,6 +46,9 @@ function sizedUpload(key, field) {
 const uploadImage = sizedUpload('limits.imageMb', 'image');
 r.post('/auth/signup', authLimit, requireSignupOpen, validate(signupSchema), a(auth.signup));
 r.post('/auth/login', authLimit, validate(z.object({ identifier: z.string().min(1).max(254), password: z.string().min(1).max(128) })), a(auth.login));
+// Not behind requireSignupOpen: the same endpoint signs existing people in, and closing signups
+// must not lock them out. The service checks the setting only on the path that creates an account.
+r.post('/auth/google', authLimit, validate(googleSignInSchema), a(auth.google));
 r.post('/auth/logout', a(auth.logout)); r.get('/auth/me', a(auth.me));
 // Confirming a link is unauthenticated because the click can land in any browser. The token is the
 // credential, so the limiter is what stops it being guessed at.

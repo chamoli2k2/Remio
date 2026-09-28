@@ -11,6 +11,7 @@ import {
   Notification, Relationship, PremiumOrder, Team, TeamMember,
 } from '../src/models/index.js';
 import { _setTransport } from '../src/services/mailService.js';
+import { _setKeyCache as _setGoogleKeyCache } from '../src/services/auth/googleToken.js';
 import { BRAND } from '../../shared/brand.js';
 
 const enabled = process.env.RUN_INTEGRATION === '1';
@@ -412,4 +413,76 @@ acct('an account cannot be created without agreeing to the terms', async () => {
   assert.ok(saved.termsAcceptedAt instanceof Date, 'the time of acceptance is recorded');
   assert.equal(saved.termsVersion, BRAND.policyUpdated, 'along with the version accepted');
   assert.equal(saved.acceptedTerms, undefined, 'and the raw flag is never written to the document');
+});
+
+/**
+ * Google sign-in, end to end through the endpoint.
+ *
+ * The token is signed here and the verifier's key cache is stubbed, so these exercise the real
+ * route, the real linking rules, and the real account creation without touching Google.
+ */
+const googleKeys = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+const GOOGLE_AUD = 'remio-test.apps.googleusercontent.com';
+const googleToken = (claims = {}) => {
+  const seg = obj => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  const head = seg({ alg: 'RS256', kid: 'k1', typ: 'JWT' });
+  const body = seg({ iss: 'https://accounts.google.com', aud: GOOGLE_AUD, exp: Math.floor(Date.now() / 1000) + 600, email_verified: true, ...claims });
+  return `${head}.${body}.${crypto.createSign('RSA-SHA256').update(`${head}.${body}`).sign(googleKeys.privateKey).toString('base64url')}`;
+};
+const withGoogle = async fn => {
+  const before = process.env.GOOGLE_CLIENT_ID;
+  process.env.GOOGLE_CLIENT_ID = GOOGLE_AUD;
+  _setGoogleKeyCache({ keys: [{ ...googleKeys.publicKey.export({ format: 'jwk' }), kid: 'k1', alg: 'RS256', use: 'sig' }], expiresAt: Date.now() + 60000 });
+  try { return await fn(); } finally { if (before === undefined) delete process.env.GOOGLE_CLIENT_ID; else process.env.GOOGLE_CLIENT_ID = before; }
+};
+
+acct('a first Google sign-in creates a verified account with no password', async () => {
+  await withGoogle(async () => {
+    const credential = googleToken({ sub: 'g-new-1', email: 'Ada.Byron@gmail.com', name: 'Ada Byron' });
+    // From the sign-in form there is no country and no consent, so there is nothing to create an
+    // account from and the server says so rather than inventing either.
+    const bare = await request(app).post('/api/auth/google').send({ credential });
+    assert.equal(bare.status, 400, JSON.stringify(bare.body));
+    assert.equal(bare.body.code, 'GOOGLE_NEEDS_SIGNUP');
+    assert.equal(await User.countDocuments({ email: 'ada.byron@gmail.com' }), 0, 'and nothing was created');
+
+    const made = await request(app).post('/api/auth/google').send({ credential, country: 'India', acceptedTerms: true });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    assert.equal(made.body.user.username, 'adabyron', 'the username comes from the address');
+    assert.equal(made.body.user.country, 'India');
+
+    const saved = await User.findOne({ username: 'adabyron' }).select('+passwordHash +googleId').lean();
+    assert.equal(saved.googleId, 'g-new-1');
+    assert.equal(saved.passwordHash, undefined, 'no password is invented for an account that has none');
+    assert.ok(saved.emailVerifiedAt, 'Google confirmed the address, so it counts as confirmed here');
+    assert.ok(saved.termsAcceptedAt, 'and the agreement is recorded as it is for any other signup');
+
+    // Signing in again is a sign-in, not a second account.
+    const again = await request(app).post('/api/auth/google').send({ credential });
+    assert.equal(again.status, 200, JSON.stringify(again.body));
+    assert.equal(again.body.user.id, made.body.user.id);
+    assert.equal(await User.countDocuments({ googleId: 'g-new-1' }), 1);
+  });
+});
+
+acct('Google connects to an existing account only when it has confirmed the address', async () => {
+  const { username, email } = await signUp('linkable');
+  await withGoogle(async () => {
+    // Unconfirmed at Google's end, so this could be anybody claiming the address. Refused, because
+    // accepting it would hand over an existing account.
+    const unverified = await request(app).post('/api/auth/google')
+      .send({ credential: googleToken({ sub: 'g-link-1', email, email_verified: false }) });
+    assert.equal(unverified.status, 400, JSON.stringify(unverified.body));
+    assert.equal(unverified.body.code, 'GOOGLE_EMAIL_UNVERIFIED');
+    assert.equal((await User.findOne({ username }).select('+googleId').lean()).googleId, undefined, 'nothing was connected');
+
+    const linked = await request(app).post('/api/auth/google')
+      .send({ credential: googleToken({ sub: 'g-link-1', email, email_verified: true }) });
+    assert.equal(linked.status, 200, JSON.stringify(linked.body));
+    assert.equal(linked.body.user.username, username, 'the same account, now reachable both ways');
+    const after = await User.findOne({ username }).select('+googleId +passwordHash').lean();
+    assert.equal(after.googleId, 'g-link-1');
+    assert.ok(after.passwordHash, 'and the password still works, so either route signs them in');
+    assert.equal(await User.countDocuments({ email }), 1, 'no duplicate account was made');
+  });
 });
