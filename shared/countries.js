@@ -11,9 +11,12 @@
  */
 
 /**
- * Where Premium is on sale, and which pricing region each market belongs to. Edit this to open a
- * new one: add the country code here, check shared/pricing.js has prices for the region it points
- * at, and that is the whole change. A country absent from this map can still register and study.
+ * Which pricing region a country would be billed in, if we sell to it.
+ *
+ * This is a fact about the country — which currency and price list fits it — and not a decision
+ * about whether to trade there. That decision is the `selling.countries` setting, which an operator
+ * changes from the dashboard, and it can only ever name countries that appear here: a country with
+ * no region has no prices to be sold at. So adding a market is two steps, and this is the first.
  */
 const PRICING_REGIONS = {
   IN: 'IN',    // priced for India, in rupees
@@ -279,8 +282,15 @@ const DIALLING = [
 /** Each country with the pricing region it belongs to, or null where we do not sell yet. */
 export const COUNTRIES = DIALLING.map(c => ({ ...c, region: PRICING_REGIONS[c.code] || null }));
 
-/** Just the markets Premium is sold in, in the order they appear above. */
-export const SELLING_COUNTRIES = COUNTRIES.filter(c => c.region);
+/** Every country that could be sold to, whether or not it currently is. */
+export const PRICEABLE_COUNTRIES = COUNTRIES.filter(c => c.region);
+
+/**
+ * The markets Premium ships switched on for, and the fallback whenever the stored setting is
+ * missing. Which countries are actually on sale today is the `selling.countries` setting; read it
+ * through a pricebook rather than reaching for this.
+ */
+export const SELLING_COUNTRY_CODES = PRICEABLE_COUNTRIES.map(c => c.code);
 
 export const DEFAULT_COUNTRY = 'IN';
 export const COUNTRY_NAMES = COUNTRIES.map(c => c.name);

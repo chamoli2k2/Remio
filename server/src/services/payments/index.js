@@ -1,14 +1,20 @@
 import * as razorpay from './razorpay.js';
 import { badRequest } from '../../utils/errors.js';
+import { setting } from '../settingsService.js';
 
 /**
  * Payment methods are described in one place and advertised to the client at runtime, so switching
- * the product off the manual flow is an environment change (MANUAL_PAYMENT=off) rather than a deploy
- * of new UI. A method only appears if it is actually usable on this server.
+ * the product off the manual flow is a setting rather than a deploy of new UI. A method only
+ * appears if it is both switched on and actually usable on this server.
+ *
+ * Two conditions, not one, and they are different questions. The setting is an operator saying they
+ * do not want to take money this way; being configured is whether the server could even if asked.
+ * Switching on a gateway with no keys would advertise a checkout that cannot open.
  */
 // Retired now that the gateway is live. The code stays because old orders still carry a screenshot
-// an admin may need to open, and MANUAL_PAYMENT=on brings it back without a deploy.
-const manualEnabled = () => (process.env.MANUAL_PAYMENT || 'off').toLowerCase() !== 'off';
+// an admin may need to open, and switching it back on brings it back without a deploy. The env var
+// is still honoured so the test suites, which have no settings store, can force it on.
+const manualEnabled = () => (process.env.MANUAL_PAYMENT || '').toLowerCase() === 'on' || !!setting('selling.manual');
 
 export const METHODS = [
   {
@@ -18,7 +24,7 @@ export const METHODS = [
     blurb: 'UPI, card, net banking, or wallet. It turns on the moment the payment clears.',
     instant: true,
     requiresProof: false,
-    isConfigured: razorpay.isConfigured,
+    isConfigured: () => !!setting('selling.razorpay') && razorpay.isConfigured(),
   },
   {
     id: 'manual',

@@ -1,7 +1,9 @@
 import { PremiumOrder, User, Team } from '../models/index.js';
 import { hasPremium, hasDashboard, planById, premiumDaysLeft, premiumExpiryAfter } from '../../../shared/account.js';
 import { teamPlanById, teamPrice, seatTopUpPrice, teamActive, teamExpiryAfter, clampSeats } from '../../../shared/teams.js';
-import { premiumPrice, pricingFor, sellsTo, teamPlanFor, toMinorUnits } from '../../../shared/pricing.js';
+import { toMinorUnits } from '../../../shared/pricing.js';
+import { countryByCode } from '../../../shared/countries.js';
+import { livePricebook } from './settingsService.js';
 import { accessTeam } from './teamAccess.js';
 import { notify, notifyStaff } from './notificationService.js';
 import { availableMethods, requireMethod, razorpay } from './payments/index.js';
@@ -24,7 +26,7 @@ const presentOrder = order => ({
 async function quoteTeam(user, body) {
   const { team } = await accessTeam(body.teamId, user, 'owner');
   // Seats are priced in the owner's currency, because the owner is the one paying for them.
-  const plan = teamPlanFor(teamPlanById(body.plan), user);
+  const plan = livePricebook().teamPlanFor(teamPlanById(body.plan), user);
   assert(plan, 400, 'Choose a team plan.', 'UNKNOWN_PLAN');
   const wanted = clampSeats(body.seats);
   if (!teamActive(team)) return { team, plan, seats: wanted, kind: 'team-new', total: teamPrice(plan, wanted) };
@@ -35,7 +37,7 @@ async function quoteTeam(user, body) {
 /** A quote the owner can see before committing to it, so the proration is never a surprise. */
 export async function quote(user, body) {
   const { team, plan, seats, kind, total } = await quoteTeam(user, body);
-  return { kind, seats, plan: plan.id, planLabel: plan.label, perSeat: plan.perSeat, amount: total, currency: pricingFor(user).currency, seatsNow: team.seats, expiresAt: team.expiresAt || null };
+  return { kind, seats, plan: plan.id, planLabel: plan.label, perSeat: plan.perSeat, amount: total, currency: livePricebook().pricingFor(user).currency, seatsNow: team.seats, expiresAt: team.expiresAt || null };
 }
 
 /** Seats are applied to the team; a top-up adds chairs without moving the renewal date. */
@@ -43,7 +45,7 @@ async function applyToTeam(order) {
   const team = await Team.findById(order.team);
   if (!team) return null;
   if (order.kind === 'team-seats') team.seats = Math.max(team.seats, order.seats);
-  else { team.seats = order.seats; team.plan = order.plan; team.expiresAt = teamExpiryAfter(team, teamPlanById(order.plan)); }
+  else { team.seats = order.seats; team.plan = order.plan; team.expiresAt = teamExpiryAfter(team, livePricebook().planFor(teamPlanById(order.plan))); }
   await team.save();
   return team;
 }
@@ -74,7 +76,7 @@ export async function fulfilOrder(orderId, status, { actor = null, paymentId = n
   } else if (status === 'approved') {
     const user = await User.findById(order.user);
     if (user) {
-      expiresAt = premiumExpiryAfter(user, planById(order.plan));
+      expiresAt = premiumExpiryAfter(user, livePricebook().planFor(planById(order.plan)));
       if ((user.account || 'normal') === 'normal') user.account = 'premium';
       user.premiumPlan = order.plan;
       user.premiumExpiresAt = expiresAt;
@@ -93,12 +95,45 @@ export async function fulfilOrder(orderId, status, { actor = null, paymentId = n
 // upgrade and vice versa.
 const openOrderFor = (user, teamId = null) => PremiumOrder.findOne({ user: user.id, status: 'pending', team: teamId });
 
+/**
+ * Refuses a buyer we cannot bill, and does it before anything else is checked.
+ *
+ * Where the account says it is decides both the currency and whether there is anything on sale at
+ * all. Not the billing country typed below it, which the buyer chooses freely and could set to
+ * wherever happens to be cheapest. It runs ahead of the payment-method check because "we do not
+ * sell here" is the true answer and "that method is unavailable" sounds like a glitch worth
+ * retrying, which wastes the buyer's afternoon.
+ */
+function assertOnSale(user) {
+  assert(livePricebook().sellsTo(user), 400, `${BRAND.name} Premium is not on sale in your country yet. Write to us and we will tell you when it is.`, 'COUNTRY_UNSUPPORTED');
+}
+
+/** The markets currently on sale, by name, for a message a buyer can act on. */
+const billableNames = book => book.selling.map(code => countryByCode(code)?.name).filter(Boolean).sort();
+
+/**
+ * Refuses a billing address in a country we cannot invoice.
+ *
+ * The form only offers the markets on sale, so arriving here with anything else means the request
+ * did not come from the form. It is checked anyway, because this country is written onto the order
+ * and onto the invoice, and one we are not registered in is one whose tax we cannot account for.
+ *
+ * Deliberately a separate question from the country on the account, and allowed to differ from it.
+ * Somebody with an Indian account and a card billed in the United States is an ordinary person
+ * abroad, not an arbitrage: the price follows the account either way, so there is nothing to win by
+ * changing this field and no reason to make them explain themselves.
+ */
+function assertBillable(book, country) {
+  assert(book.sellsInCountry(country), 400,
+    `We can only invoice an address in ${billableNames(book).join(', ')} at the moment. Choose one of those, or write to us and we will tell you when yours opens.`,
+    'BILLING_COUNTRY_UNSUPPORTED');
+}
+
 async function newOrder(user, body, method, { proof = null } = {}) {
-  // Where the account says it is decides both the currency and whether there is anything on sale at
-  // all. Not the billing country typed below it, which the buyer chooses freely and could set to
-  // wherever happens to be cheapest.
-  assert(sellsTo(user), 400, `${BRAND.name} Premium is not on sale in your country yet. Write to us and we will tell you when it is.`, 'COUNTRY_UNSUPPORTED');
-  const { currency } = pricingFor(user);
+  const book = livePricebook();
+  assertOnSale(user);
+  assertBillable(book, body.country);
+  const { currency } = book.pricingFor(user);
   const team = body.teamId ? await quoteTeam(user, body) : null;
   if (!team) {
     assert(!hasPremium(user), 400, 'You already have Premium.', 'ALREADY_PREMIUM');
@@ -106,7 +141,7 @@ async function newOrder(user, body, method, { proof = null } = {}) {
   }
   const open = await openOrderFor(user, team ? team.team.id : null);
   assert(!open, 400, 'You already have a payment in progress. Finish or cancel it first.', 'ORDER_IN_PROGRESS');
-  const total = team ? team.total : premiumPrice(body.plan, user);
+  const total = team ? team.total : book.premiumPrice(body.plan, user);
   // A plan with no price in this region would otherwise reserve an order for nothing and hand the
   // gateway a zero, which it rejects with nothing useful to show the buyer.
   assert(total > 0, 400, 'That plan is not available in your country.', 'PLAN_UNAVAILABLE');
@@ -128,6 +163,7 @@ const describe = order => order.team
 
 /** Manual flow: the buyer proves they paid, an admin confirms it later. */
 export async function submitOrder(user, body, proof) {
+  assertOnSale(user);
   requireMethod('manual');
   assert(proof?.length, 400, 'Upload a screenshot of the payment.', 'PROOF_REQUIRED');
   const order = await newOrder(user, body, 'manual', { proof });
@@ -137,6 +173,7 @@ export async function submitOrder(user, body, proof) {
 
 /** Gateway flow, step one: reserve an order with Razorpay and hand the client what checkout needs. */
 export async function startCheckout(user, body) {
+  assertOnSale(user);
   requireMethod('razorpay');
   const order = await newOrder(user, body, 'razorpay');
   try {

@@ -1,4 +1,4 @@
-import { hasDashboard, hasPremium } from '../../../shared/account.js';
+import { hasDashboard, hasPremium, isSuperadmin } from '../../../shared/account.js';
 import { assert } from '../utils/errors.js';
 
 export const requirePremium = (req, _res, next) => {
@@ -20,5 +20,17 @@ export const requireVerifiedEmail = (req, _res, next) => {
 
 export const requireDashboard = (req, _res, next) => {
   try { assert(hasDashboard(req.user), 403, 'This dashboard is for admins.'); next(); }
+  catch (e) { next(e); }
+};
+
+/**
+ * A narrower gate than the dashboard, for the things that change the product rather than run it.
+ *
+ * An admin approves payments and moves people between roles, which is daily work. Rewriting a price
+ * or closing signups is not, and the difference between the two is worth a separate check: an admin
+ * account is handed out more freely, and this way one of them cannot make Premium free by accident.
+ */
+export const requireSuperadmin = (req, _res, next) => {
+  try { assert(isSuperadmin(req.user), 403, 'Only a superadmin can change configuration.', 'SUPERADMIN_REQUIRED'); next(); }
   catch (e) { next(e); }
 };

@@ -5,13 +5,13 @@ import {
   teamActive, teamExpired, teamDaysLeft, teamExpiryAfter, seatsLeft, canAddMember,
   canManageTeam, canManageRoster, canSeeProgress, roleLabel, seatEntitles,
 } from '../../shared/teams.js';
-import { teamPlanFor } from '../../shared/pricing.js';
+import { defaultPricebook } from '../../shared/pricing.js';
 
 const DAY = 86400000;
 // A plan only carries a seat rate once it knows who is buying, so these are priced as an Indian
 // buyer would see them. The arithmetic under test is the same whatever the rate happens to be.
 const buyer = { country: 'India' };
-const priced = id => teamPlanFor(teamPlanById(id), buyer);
+const priced = id => defaultPricebook.teamPlanFor(teamPlanById(id), buyer);
 const monthly = priced('team-monthly'), yearly = priced('team-yearly');
 
 test('seat pricing scales with the roster and clamps nonsense inputs', () => {

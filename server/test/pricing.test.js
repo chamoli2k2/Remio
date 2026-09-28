@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PLAN_IDS, PREMIUM_PLANS } from '../../shared/account.js';
 import { TEAM_PLAN_IDS } from '../../shared/teams.js';
-import { COUNTRIES, HOME_COUNTRY, SELLING_COUNTRIES, countryOf, regionForCountry } from '../../shared/countries.js';
-import {
-  DEFAULT_REGION, REGIONS, currencyNote, formatMoney, minorUnitsIn, premiumPrice,
-  pricingFor, regionFor, seatPrice, sellsInCountry, sellsTo, teamPlanFor, toMinorUnits,
-} from '../../shared/pricing.js';
+import { COUNTRIES, HOME_COUNTRY, PRICEABLE_COUNTRIES, countryOf, regionForCountry } from '../../shared/countries.js';
+import { DEFAULT_REGION, DEFAULT_REGIONS, defaultPricebook, formatMoney, minorUnitsIn, pricebook, toMinorUnits } from '../../shared/pricing.js';
 import { signupSchema } from '../src/middleware/validate.js';
+
+// The shipped book, which is what the app runs on until an operator changes something.
+const { currencyNote, premiumPrice, pricingFor, regionFor, seatPrice, sellsInCountry, sellsTo, teamPlanFor } = defaultPricebook;
+const REGIONS = DEFAULT_REGIONS;
 
 const buyer = country => ({ country });
 
@@ -15,8 +16,8 @@ test('anyone in the world can be an account, and only a handful of countries can
   // The whole point of the split: registering is open, selling is not. If these two ever converge
   // it means either the list shrank to the markets we bill, or we started billing everywhere.
   assert.ok(COUNTRIES.length > 200, `only ${COUNTRIES.length} countries offered at signup`);
-  assert.ok(SELLING_COUNTRIES.length < COUNTRIES.length);
-  assert.deepEqual(SELLING_COUNTRIES.map(c => c.code).sort(), ['AU', 'CA', 'GB', 'IN', 'US']);
+  assert.ok(PRICEABLE_COUNTRIES.length < COUNTRIES.length);
+  assert.deepEqual(PRICEABLE_COUNTRIES.map(c => c.code).sort(), ['AU', 'CA', 'GB', 'IN', 'US']);
   for (const c of COUNTRIES) {
     // Every country has to be registerable, and a dialling code, since checkout builds a phone
     // number from whichever one the buyer picks.
@@ -28,7 +29,7 @@ test('anyone in the world can be an account, and only a handful of countries can
 });
 
 test('a country we sell to can price every plan; one we do not has no prices at all', () => {
-  for (const c of SELLING_COUNTRIES) {
+  for (const c of PRICEABLE_COUNTRIES) {
     assert.equal(sellsInCountry(c.name), true);
     assert.ok(REGIONS[regionForCountry(c.name)], `${c.name} points at a region that does not exist`);
     // A sellable country with a plan priced at zero would take an order and charge nothing for it.
@@ -123,4 +124,37 @@ test('signing up requires a country, and it has to be a real one', () => {
   for (const bad of [undefined, '', 'india', 'Atlantis', 'Wakanda']) {
     assert.equal(signupSchema.safeParse({ ...base, country: bad }).success, false, `${bad} should be refused`);
   }
+});
+
+test('an overridden price is the price, and the shipped one is only a fallback', () => {
+  // The whole reason prices go through a book: an operator changes a number and the next quote uses
+  // it, without a deploy and without the old figure surviving in some second copy of the truth.
+  const cheaper = pricebook({ regions: { ...DEFAULT_REGIONS, IN: { ...DEFAULT_REGIONS.IN, premium: { ...DEFAULT_REGIONS.IN.premium, yearly: 999 } } } });
+  assert.equal(cheaper.premiumPrice('yearly', buyer('India')), 999);
+  assert.equal(cheaper.premiumPrice('yearly', buyer('United States')), DEFAULT_REGIONS.INTL.premium.yearly, 'one region changing leaves the other alone');
+  assert.equal(defaultPricebook.premiumPrice('yearly', buyer('India')), DEFAULT_REGIONS.IN.premium.yearly, 'and the shipped book is untouched by it');
+});
+
+test('closing a market stops the sale without unpricing the country', () => {
+  const indiaOnly = pricebook({ selling: ['IN'] });
+  assert.equal(indiaOnly.sellsTo(buyer('India')), true);
+  assert.equal(indiaOnly.sellsTo(buyer('United States')), false, 'switched off, so nothing can be sold there');
+  // It still has a region, because whether a country can be priced and whether we choose to trade
+  // there are different questions. Conflating them is what would make reopening a market a deploy.
+  assert.equal(indiaOnly.regionForCountry('United States'), 'INTL');
+  assert.equal(indiaOnly.premiumPrice('yearly', buyer('United States')) > 0, true);
+});
+
+test('a country with no prices can never be switched on', () => {
+  // Naming it in the setting is not enough: there is no currency and no price list behind it, so
+  // selling would mean quoting a figure out of thin air.
+  const wishful = pricebook({ selling: ['IN', 'NG', 'DE'] });
+  assert.equal(wishful.sellsTo(buyer('Nigeria')), false);
+  assert.equal(wishful.sellsTo(buyer('Germany')), false);
+});
+
+test('a lengthened plan grants the configured days, not the shipped ones', () => {
+  const generous = pricebook({ planDays: { yearly: 400 } });
+  assert.equal(generous.planFor(PREMIUM_PLANS.find(p => p.id === 'yearly')).days, 400);
+  assert.equal(generous.planFor(PREMIUM_PLANS.find(p => p.id === 'monthly')).days, 30, 'untouched plans keep their own length');
 });

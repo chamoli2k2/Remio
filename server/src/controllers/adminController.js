@@ -5,3 +5,14 @@ export const setAccount = async (req, res) => res.json({ user: await admin.setAc
 export const countries = async (req, res) => res.json(await admin.countryUsage(Math.min(Math.max(Number(req.query.days) || 30, 1), 365)));
 export const orders = async (req, res) => res.json({ orders: await admin.listOrders(req.query.status) });
 export const decide = async (req, res) => res.json({ order: await admin.decideOrder(req.user, req.params.id, req.body.status) });
+
+/**
+ * Every panel in one response.
+ *
+ * One request rather than five because they are read together, always, and five parallel
+ * aggregations from one handler is cheaper than five round trips each doing one.
+ */
+export const analytics = async (req, res) => res.json(await admin.analytics({
+  days: Math.min(Math.max(Number(req.query.days) || 30, 1), 365),
+  weeks: Math.min(Math.max(Number(req.query.weeks) || 8, 1), 26),
+}));

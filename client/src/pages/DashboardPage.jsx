@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { ImageOff, Maximize2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../services/api';
@@ -6,6 +6,10 @@ import { reportError } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
 import { Button, Loading, ErrorState, Empty, Modal } from '../components/ui';
 import { ACCOUNTS, isSuperadmin, planById } from '../../../shared/account.js';
+// Split out because between them they are most of this page's weight and neither is on the tab
+// that opens first. An admin who only ever approves payments never downloads either.
+const DashboardAnalytics = lazy(() => import('./DashboardAnalytics'));
+const DashboardSettings = lazy(() => import('./DashboardSettings'));
 import { minorUnitsIn } from '../../../shared/pricing.js';
 const when = iso => iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Never';
 /**
@@ -36,7 +40,7 @@ export default function DashboardPage() {
   const { data, loading, error } = useQuery(`/admin/users${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`);
   const { data: orders, loading: lo, error: eo } = useQuery('/admin/orders');
   const [days, setDays] = useState(30);
-  const { data: usage, loading: lu, error: eu } = useQuery(`/admin/countries?days=${days}`);
+  const { data: usage, loading: lu, error: eu } = useQuery(`/admin/countries?days=${days}`, null, { enabled: tab === 'countries' });
   async function setAccount(id, account) {
     try { await api(`/admin/users/${id}`, { method: 'PATCH', body: { account } }); refresh(); toast.success('Role updated'); }
     catch (e) { reportError(e); }
@@ -56,6 +60,8 @@ export default function DashboardPage() {
       <button role="tab" aria-selected={tab === 'users'} className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Users {people.length ? <span>{people.length}</span> : null}</button>
       <button role="tab" aria-selected={tab === 'orders'} className={tab === 'orders' ? 'active' : ''} onClick={() => setTab('orders')}>Premium requests {pending.length ? <span>{pending.length}</span> : null}</button>
       <button role="tab" aria-selected={tab === 'countries'} className={tab === 'countries' ? 'active' : ''} onClick={() => setTab('countries')}>Where it is used {usage?.totals.countries ? <span>{usage.totals.countries}</span> : null}</button>
+      <button role="tab" aria-selected={tab === 'analytics'} className={tab === 'analytics' ? 'active' : ''} onClick={() => setTab('analytics')}>Analytics</button>
+      <button role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>Settings</button>
     </div>
     {tab === 'users' && <>
       <form className="folder-search dash-search" onSubmit={e => e.preventDefault()}><input aria-label="Search users" placeholder="Search name, username, email" value={q} onChange={e => setQ(e.target.value)}/></form>
@@ -102,6 +108,9 @@ export default function DashboardPage() {
         <td>{r.sellable ? <span className="sub-pill is-active">On sale</span> : <span className="dash-muted">Not on sale</span>}</td>
       </tr>)}</tbody></table></div>}
     </>}
+    {/* Both are split bundles, so the fallback covers the fetch of the code as well as the data. */}
+    {tab === 'analytics' && <Suspense fallback={<Loading/>}><DashboardAnalytics/></Suspense>}
+    {tab === 'settings' && <Suspense fallback={<Loading/>}><DashboardSettings/></Suspense>}
     <Modal wide open={!!open} onClose={() => setOpen(null)} title={open ? `Premium request from ${open.name}` : ''} description="Check the payment screenshot against the details before approving.">
       {open && <div className="order-detail">
         <div className="order-detail-proof">{open.hasProof ? <a href={open.proofUrl} target="_blank" rel="noreferrer" title="Open the full image"><img src={open.proofUrl} alt={`Payment screenshot from ${open.name}`}/></a> : <span className="order-detail-noproof"><ImageOff size={24}/> No screenshot on this request</span>}</div>

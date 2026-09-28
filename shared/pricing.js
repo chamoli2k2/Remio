@@ -1,7 +1,12 @@
-import { countryOf, HOME_COUNTRY, regionForCountry } from './countries.js';
+import { countryByName, countryOf, HOME_COUNTRY, regionForCountry, SELLING_COUNTRY_CODES } from './countries.js';
 
 /**
- * Every price in the product. This is the file to edit to change what anything costs.
+ * The currencies Premium is priced in, and what it costs in each by default.
+ *
+ * These figures are the shipped defaults, not the live prices. An operator edits prices from the
+ * dashboard and the override is stored; what anyone is actually charged comes from a pricebook,
+ * which layers those overrides on top of this. Read one through `pricebook()` rather than reaching
+ * into this table, or you will quote a price nobody agreed to.
  *
  * Prices are grouped into regions rather than set per country, so a single edit moves every country
  * that shares a market. Each country in shared/countries.js names the region it belongs to; split
@@ -35,7 +40,7 @@ import { countryOf, HOME_COUNTRY, regionForCountry } from './countries.js';
  * Zero-rating an export is not automatic — it wants a LUT on file and the money received in foreign
  * currency. Worth half an hour with an accountant before the first international sale, not after.
  */
-export const REGIONS = {
+export const DEFAULT_REGIONS = {
   IN: {
     label: 'India',
     currency: 'INR',
@@ -61,53 +66,14 @@ export const REGIONS = {
   },
 };
 
-/**
- * Regions we will actually take money from. Having this as well as the region list means a market
- * can be priced before it is opened, or closed without deleting its prices: a region missing from
- * here has a full price list that simply is not for sale.
- */
-const SELLING = ['IN', 'INTL'];
-
+/** The default markets, and the fallback whenever no override is stored. */
+export const DEFAULT_SELLING = SELLING_COUNTRY_CODES;
 export const DEFAULT_REGION = 'IN';
-export const regionById = id => REGIONS[id] || null;
-
-/**
- * Whether there is anything to sell a country, which is the question every payment path asks.
- *
- * Most countries answer no. Anyone may register and study from anywhere, so the great majority of
- * accounts are in countries with no pricing region at all, and that has to read as "not for sale"
- * rather than quietly falling back to a price list meant for somewhere else.
- */
-export const sellsInCountry = name => SELLING.includes(regionForCountry(name));
-export const sellsTo = user => sellsInCountry(countryOf(user));
-
-/**
- * The region whose prices an account is shown.
- *
- * Only meaningful once `sellsTo` says yes. For everyone else it settles on the default so that
- * formatting a number never throws, but that figure is not an offer and nothing should show it
- * without checking `sellsTo` first — which is why the premium page asks that before anything else.
- */
-export const regionFor = user => regionForCountry(countryOf(user)) || DEFAULT_REGION;
-export const pricingFor = user => REGIONS[regionFor(user)];
-
-/** A plan's price for a buyer, in whole units of their currency. Zero for anything unpriced. */
-export const premiumPrice = (planId, user) => pricingFor(user).premium[planId] || 0;
-export const seatPrice = (planId, user) => pricingFor(user).perSeat[planId] || 0;
-
-/**
- * A team plan carrying the buyer's own seat rate.
- *
- * The seat maths in shared/teams.js is about time and how many chairs, not about currency, and it
- * should stay that way — proration is the same arithmetic in every country. So the rate is attached
- * here and that code goes on reading `perSeat` off the plan it is handed, none the wiser.
- */
-export const teamPlanFor = (plan, user) => (plan ? { ...plan, perSeat: seatPrice(plan.id, user) } : null);
 
 /**
  * The amount as a payment gateway wants it: the smallest unit of the currency. Both currencies here
- * happen to divide by a hundred, but stating it per region means a currency that does not — yen,
- * won — is a config change rather than a rounding bug in someone's invoice.
+ * happen to divide by a hundred, but stating it per currency means one that does not — yen, won —
+ * is a config change rather than a rounding bug in someone's invoice.
  */
 const MINOR_UNITS = { INR: 100, USD: 100, GBP: 100, CAD: 100, AUD: 100, JPY: 1, KRW: 1 };
 export const minorUnitsIn = currency => MINOR_UNITS[currency] ?? 100;
@@ -117,8 +83,8 @@ export const toMinorUnits = (amount, currency) => Math.round(amount * minorUnits
  * A price as it should read on screen. Grouping follows the region, so an Indian buyer sees
  * ₹1,49,900 written the way they write it and everyone else sees the thousands separated theirs.
  */
-export function formatMoney(amount, region = DEFAULT_REGION) {
-  const { currency, locale, symbol } = REGIONS[region] || REGIONS[DEFAULT_REGION];
+export function formatMoney(amount, region = DEFAULT_REGION, regions = DEFAULT_REGIONS) {
+  const { currency, locale, symbol } = regions[region] || regions[DEFAULT_REGION] || DEFAULT_REGIONS[DEFAULT_REGION];
   try {
     return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: Number.isInteger(amount) ? 0 : 2 }).format(amount);
   } catch {
@@ -127,10 +93,73 @@ export function formatMoney(amount, region = DEFAULT_REGION) {
   }
 }
 
-/** Where a region's prices are quoted, for the one line of copy that has to say so. */
-export const currencyNote = region => {
-  const { currency } = REGIONS[region] || REGIONS[DEFAULT_REGION];
-  return `All prices in ${currency}, tax included.`;
-};
+/**
+ * Everything that depends on what things cost and where they are sold, bound to one set of prices.
+ *
+ * The point of the indirection is that there is no ambient answer to "what does this cost". The
+ * server builds a book from the stored settings, the browser builds one from the config it was
+ * served, and tests build one from whatever they are testing. Nothing reads a price out of a module
+ * and hopes it is current.
+ *
+ * `regions` is the price table, `selling` the country codes on sale, `planDays` an optional map of
+ * plan id to length for when those have been overridden too.
+ */
+export function pricebook({ regions = DEFAULT_REGIONS, selling = DEFAULT_SELLING, planDays = null } = {}) {
+  const sellable = new Set(selling);
+  const regionOf = name => regionForCountry(name);
+
+  /**
+   * Whether there is anything to sell a country, which is the question every payment path asks.
+   *
+   * Two conditions, both needed: an operator has switched the country on, and it belongs to a
+   * region that has prices. Most countries fail the first, and anyone may still register from them.
+   */
+  const sellsInCountry = name => {
+    const country = countryByName(name);
+    return !!country && sellable.has(country.code) && !!regions[country.region];
+  };
+
+  /**
+   * The region whose prices an account is shown.
+   *
+   * Only meaningful once `sellsTo` says yes. For everyone else it settles on the default so that
+   * formatting a number never throws, but that figure is not an offer and nothing should show it
+   * without checking `sellsTo` first — which is why the premium page asks that before anything else.
+   */
+  const regionFor = user => regionOf(countryOf(user)) || DEFAULT_REGION;
+  const pricingFor = user => regions[regionFor(user)] || DEFAULT_REGIONS[DEFAULT_REGION];
+
+  return {
+    regions,
+    selling: [...sellable],
+    regionForCountry: regionOf,
+    sellsInCountry,
+    sellsTo: user => sellsInCountry(countryOf(user)),
+    regionFor,
+    pricingFor,
+
+    /** A plan's price for a buyer, in whole units of their currency. Zero for anything unpriced. */
+    premiumPrice: (planId, user) => pricingFor(user).premium?.[planId] || 0,
+    seatPrice: (planId, user) => pricingFor(user).perSeat?.[planId] || 0,
+
+    /**
+     * A team plan carrying the buyer's own seat rate, and the term length in force.
+     *
+     * The seat maths in shared/teams.js is about time and how many chairs, not about currency, and
+     * it should stay that way — proration is the same arithmetic in every country. So the rate is
+     * attached here and that code goes on reading `perSeat` off the plan it is handed, none the wiser.
+     */
+    teamPlanFor: (plan, user) => (plan ? { ...plan, perSeat: pricingFor(user).perSeat?.[plan.id] || 0, days: planDays?.[plan.id] ?? plan.days } : null),
+
+    /** A plan with any overridden term length applied, for granting the right number of days. */
+    planFor: plan => (plan ? { ...plan, days: planDays?.[plan.id] ?? plan.days } : null),
+
+    money: (amount, region) => formatMoney(amount || 0, region || DEFAULT_REGION, regions),
+    currencyNote: region => `All prices in ${(regions[region] || regions[DEFAULT_REGION] || DEFAULT_REGIONS[DEFAULT_REGION]).currency}, tax included.`,
+  };
+}
+
+/** The shipped prices, for tests and for anywhere that genuinely predates the stored settings. */
+export const defaultPricebook = pricebook();
 
 export { HOME_COUNTRY };

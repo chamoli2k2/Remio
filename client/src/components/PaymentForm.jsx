@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Crown, ImageUp, ImageOff, ShieldCheck, Zap, Banknote, MailCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../services/api';
@@ -9,7 +9,8 @@ import { useMoney } from '../hooks/useMoney';
 import { Button, Field, ErrorState } from './ui';
 import ConfirmEmailFirst from './ConfirmEmailFirst';
 import { BRAND } from '../../../shared/brand.js';
-import { COUNTRIES, DEFAULT_COUNTRY, countryByCode, countryByName, dialFor, composePhone } from '../../../shared/countries.js';
+import { countryByCode, countryByName, dialFor, composePhone } from '../../../shared/countries.js';
+import CountryPicker from './CountryPicker';
 // Inlined rather than linked. The gateway loads this from its own HTTPS page, so a hosted file has
 // to be absolute, reachable, and already deployed, and it is silently dropped if any of those slip:
 // over plain HTTP in development it is refused as mixed content. Carrying the bytes along cannot fail.
@@ -25,20 +26,43 @@ const EMBED_ID = 'gateway-embed';
  * the method picker, the billing fields, and the gateway handshake.
  */
 export default function PaymentForm({ methods = [], amount, summary, label = 'Submit request', instantLabel = 'Pay', manualPath, checkoutPath, cancelPath, extra = {}, onDone, onMethodChange }) {
-  const { user, setUser, refresh } = useApp();
+  const { user, setUser, refresh, config } = useApp();
   const { money } = useMoney();
   const [method, setMethod] = useState('');
+  /**
+   * The countries an invoice can be addressed to, which is not every country.
+   *
+   * Billing somewhere means being set up for its currency and the tax on it, and we are set up for
+   * five places. Offering the other two hundred was the bug: the buyer picked one, filled in the
+   * rest of the form, and only then found out it could not be taken. The list comes from the served
+   * config rather than a constant so closing a market in the dashboard closes it here in the same
+   * breath, and it is intersected with the priced countries because a market with no price list
+   * cannot be charged in any currency.
+   */
+  const payable = useMemo(() => (config.selling || [])
+    .map(code => countryByCode(code))
+    .filter(c => c && c.region)
+    .sort((a, b) => a.name.localeCompare(b.name)), [config.selling]);
+
   // Name comes from the account and the email is never asked for at all, so what is left is only
   // what we genuinely do not already know: how to ring them, and where they are.
-  // Opens on the country the account is registered in, which is the one that priced this purchase.
-  // It stays editable because a billing address need not be where you live.
-  const [form, setForm] = useState({ name: user?.name || '', country: countryByName(user?.country)?.code || DEFAULT_COUNTRY, phone: '', address: '' });
+  // Opens on the country the account is registered in, which is the one that priced this purchase,
+  // falling back to whatever is on sale if that country is not somewhere we can bill.
+  const [form, setForm] = useState(() => {
+    const own = countryByName(user?.country)?.code;
+    return { name: user?.name || '', country: payable.some(c => c.code === own) ? own : payable[0]?.code || '', phone: '', address: '' };
+  });
   const [proof, setProof] = useState(null), [preview, setPreview] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [embedded, setEmbedded] = useState(false);
   const gateway = useRef(null);
 
   useEffect(() => { if (methods.length && !methods.some(m => m.id === method)) setMethod(methods[0].id); }, [methods, method]);
+  // A market can be closed while this form is sitting open. Falling back to one that is still on
+  // sale beats posting a country the server is about to refuse.
+  useEffect(() => {
+    if (payable.length && !payable.some(c => c.code === form.country)) setForm(f => ({ ...f, country: payable[0].code }));
+  }, [payable, form.country]);
   const active = methods.find(m => m.id === method) || null;
   useEffect(() => { onMethodChange?.(active); }, [active, onMethodChange]);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
@@ -167,7 +191,9 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
     {user?.email && <p className="pay-receipt"><MailCheck size={15}/><span>Your receipt goes to <strong>{user.email}</strong>, the confirmed address on your account.</span></p>}
     <div className="premium-grid">
       <Field label="Full name" hint="As it should read on the invoice."><input required maxLength={80} autoComplete="name" placeholder="Your name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}/></Field>
-      <Field label="Country"><select required autoComplete="country" value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))}>{COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
+      <Field label="Country" hint="Where we can send an invoice. It does not change the price, which follows the country on your account.">
+        <CountryPicker label="Billing country" options={payable} value={form.country} onChange={code => setForm(f => ({ ...f, country: code }))}/>
+      </Field>
     </div>
     <Field label="Phone number" hint="The dialling code follows the country you picked.">
       <div className="pay-phone">

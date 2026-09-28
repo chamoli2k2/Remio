@@ -1,8 +1,9 @@
 import { uuid } from './uuid';
 import { sampleFolders } from '../../../shared/sampleData';
 import { planById } from '../../../shared/account.js';
-import { teamPlanById, clampSeats, seatTopUpPrice } from '../../../shared/teams.js';
-import { pricingFor, sellsInCountry, teamPlanFor } from '../../../shared/pricing.js';
+import { teamPlanById, clampSeats, seatTopUpPrice, SEATS } from '../../../shared/teams.js';
+import { defaultPricebook as prices, DEFAULT_REGIONS, DEFAULT_SELLING } from '../../../shared/pricing.js';
+import { SETTINGS, SETTING_GROUPS, settingFallbacks } from '../../../shared/settings.js';
 import { countryByName } from '../../../shared/countries.js';
 const user = { id: 'demo-user', username: 'gaurav', name: 'Gaurav Prakash', bio: 'Learning something new, one card at a time.', dailyGoal: 20, country: 'India', savedFolders: [], account: 'superadmin', emailVerifiedAt: '2026-09-01T00:00:00.000Z' };
 const collaborators = [{ id: 'demo-alex', name: 'Alex Morgan', username: 'alex' }, { id: 'demo-maya', name: 'Maya Chen', username: 'maya' }];
@@ -24,6 +25,73 @@ let demoNotifications = [
 ];
 const demoProof = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="420"><rect width="300" height="420" fill="#f4f1fb"/><circle cx="150" cy="110" r="38" fill="#2c7a4f"/><path d="M132 110l13 13 24-26" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text x="150" y="182" font-family="Arial" font-size="19" font-weight="bold" fill="#242331" text-anchor="middle">Payment successful</text><text x="150" y="222" font-family="Arial" font-size="30" font-weight="bold" fill="#242331" text-anchor="middle">Rs 499.00</text><text x="150" y="256" font-family="Arial" font-size="13" fill="#7a7290" text-anchor="middle">To your-upi-id@bank</text><text x="150" y="278" font-family="Arial" font-size="13" fill="#7a7290" text-anchor="middle">UPI Ref 402198337654</text><text x="150" y="380" font-family="Arial" font-size="11" fill="#a09aae" text-anchor="middle">Sample screenshot (preview only)</text></svg>');
 // The gateway is the only way to pay, matching the real product. It cannot take money here.
+const demoAudit = [
+  { id: 'a1', action: 'settings.update', target: 'price.IN.yearly', actor: 'founder', before: { 'price.IN.yearly': 1499 }, after: { 'price.IN.yearly': 1299 }, note: 'new year offer', at: new Date(Date.now() - 2 * 86400000).toISOString() },
+  { id: 'a2', action: 'settings.update', target: 'limits.importCards', actor: 'founder', before: { 'limits.importCards': 2000 }, after: { 'limits.importCards': 5000 }, note: '', at: new Date(Date.now() - 9 * 86400000).toISOString() },
+  { id: 'a3', action: 'settings.reset', target: 'throttle.apiPerMinute', actor: 'founder', before: { 'throttle.apiPerMinute': 900 }, after: null, note: 'back to normal after the launch', at: new Date(Date.now() - 12 * 86400000).toISOString() },
+];
+
+/**
+ * Numbers with the shape the real ones have, so the panels can be looked at without a database.
+ *
+ * Deliberately not flattering: a weekday rhythm in the series, most cohorts losing people, and a
+ * couple of health counters off zero. A preview where everything is perfect teaches the reader
+ * nothing about what the page looks like when something needs attention.
+ */
+function demoAnalytics(days, weeks) {
+  const dayKey = back => new Date(Date.now() - back * 86400000).toISOString().slice(0, 10);
+  const series = Array.from({ length: days }, (_, i) => {
+    const back = days - 1 - i, weekday = new Date(Date.now() - back * 86400000).getUTCDay();
+    const lull = weekday === 0 || weekday === 6 ? 0.55 : 1;
+    return { date: dayKey(back), signups: Math.round((6 + (i % 5) * 2) * lull), reviews: Math.round((210 + (i % 7) * 34) * lull), people: Math.round((38 + (i % 6) * 4) * lull) };
+  });
+  const newInWindow = series.reduce((n, d) => n + d.signups, 0);
+  const reviews = series.reduce((n, d) => n + d.reviews, 0);
+  const gross = (currency, orders, each) => ({ currency, orders, gross: orders * each });
+  return {
+    days, weeks,
+    growth: { days, since: dayKey(days - 1), series, totals: { accounts: 1284, newInWindow }, activation: { createdCard: Math.round(newInWindow * 0.62), createdCardPercent: 62, reviewed: Math.round(newInWindow * 0.44), reviewedPercent: 44 } },
+    revenue: {
+      days, since: dayKey(days - 1),
+      currencies: [gross('INR', 37, 1499), gross('USD', 11, 45)],
+      byPlan: [
+        { plan: 'yearly', label: 'Yearly', orders: 29, revenue: [{ currency: 'INR', gross: 1499 * 22 }, { currency: 'USD', gross: 45 * 7 }] },
+        { plan: 'monthly', label: 'Monthly', orders: 19, revenue: [{ currency: 'INR', gross: 199 * 15 }, { currency: 'USD', gross: 6 * 4 }] },
+      ],
+      byCountry: [
+        { country: 'India', label: 'India', orders: 37, revenue: [{ currency: 'INR', gross: 1499 * 22 + 199 * 15 }] },
+        { country: 'United States', label: 'United States', orders: 8, revenue: [{ currency: 'USD', gross: 45 * 5 + 6 * 3 }] },
+        { country: 'United Kingdom', label: 'United Kingdom', orders: 3, revenue: [{ currency: 'USD', gross: 45 * 2 + 6 }] },
+      ],
+      byMethod: [
+        { method: 'razorpay', label: 'razorpay', orders: 44, revenue: [{ currency: 'INR', gross: 1499 * 22 + 199 * 13 }, { currency: 'USD', gross: 45 * 7 + 6 * 4 }] },
+        { method: 'manual', label: 'manual', orders: 4, revenue: [{ currency: 'INR', gross: 199 * 2 }] },
+      ],
+      orders: { approved: 48, pending: 3, declined: 2 },
+      conversion: { approvedOrders: 48, newAccounts: newInWindow, percent: Math.round((48 / Math.max(newInWindow, 1)) * 1000) / 10 },
+    },
+    engagement: {
+      days, since: dayKey(days - 1), series,
+      totals: { reviews, daily: 41, weekly: 188, monthly: 604 },
+      topFolders: [
+        { id: 'f1', title: 'Spanish 1000 most common words', copies: 214, likes: 388, owner: 'demolearner', ownerName: 'Demo Learner' },
+        { id: 'f2', title: 'Organic chemistry reactions', copies: 151, likes: 260, owner: 'maya', ownerName: 'Maya Iyer' },
+        { id: 'f3', title: 'System design primer', copies: 98, likes: 174, owner: 'arjun', ownerName: 'Arjun Rao' },
+      ],
+    },
+    retention: {
+      weeks,
+      rows: Array.from({ length: weeks }, (_, i) => {
+        const age = weeks - 1 - i, size = 52 + (i % 4) * 11;
+        // `measured` shrinks towards the newest cohort, which is the point: the panel blanks the
+        // weeks that have not happened rather than drawing them as nobody coming back.
+        return { cohort: dayKey(age * 7 + 6), size, weeks: [size, Math.round(size * 0.46), Math.round(size * 0.33), Math.round(size * 0.27)], measured: Math.min(4, age + 1) };
+      }),
+    },
+    health: { stuckApprovals: 3, unclaimedPayments: 7, unverifiedAccounts: 24, domainEvents: 18422, database: { readyState: 1, state: 'connected' } },
+  };
+}
+
 const demoCountries = [
   { country: 'India', accounts: 412, premium: 38, studying: 190, reviews: 8420, joined: '2026-09-20T00:00:00.000Z' },
   { country: 'United States', accounts: 96, premium: 14, studying: 51, reviews: 2210, joined: '2026-09-22T00:00:00.000Z' },
@@ -91,10 +159,10 @@ function demoTeams(path, method, body, id, action, parts) {
   }
   if (action === 'invites' && method === 'DELETE') { demoInvites = demoInvites.filter(i => i.id !== parts[3]); return { revoked: true }; }
   if (action === 'quote') {
-    const plan = teamPlanFor(teamPlanById(body.plan), user), seats = clampSeats(body.seats);
+    const plan = prices.teamPlanFor(teamPlanById(body.plan), user), seats = clampSeats(body.seats);
     const kind = seats > team.seats ? 'team-seats' : 'team-renew';
     const amount = kind === 'team-seats' ? seatTopUpPrice(plan, seats - team.seats, team.expiresAt) : plan.perSeat * team.seats;
-    return { kind, seats: kind === 'team-seats' ? seats : team.seats, plan: plan.id, planLabel: plan.label, perSeat: plan.perSeat, amount, currency: pricingFor(user).currency, seatsNow: team.seats, expiresAt: team.expiresAt };
+    return { kind, seats: kind === 'team-seats' ? seats : team.seats, plan: plan.id, planLabel: plan.label, perSeat: plan.perSeat, amount, currency: prices.pricingFor(user).currency, seatsNow: team.seats, expiresAt: team.expiresAt };
   }
   if (action === 'billing') return { order: null, subscription: null, methods: clone(demoMethods) };
   if (action === 'assignments' && method === 'POST') {
@@ -113,6 +181,9 @@ export async function demoRequest(path, options = {}) {
   const method = options.method || 'GET'; const body = typeof options.body === 'string' ? JSON.parse(options.body) : options.body || {};
   const parts = path.split('?')[0].split('/').filter(Boolean); const [entity, id, action] = parts;
   if (path === '/auth/me') return { user: clone(user) };
+  // The preview has no settings to read, so it answers with the shipped ones. Everything is on and
+  // nothing is overridden, which is the configuration a fresh install runs.
+  if (path === '/config') return { regions: DEFAULT_REGIONS, selling: DEFAULT_SELLING, planDays: null, flags: { signupOpen: true, explorePublic: true, imports: true, quiz: true, readOnly: false, razorpay: true, manual: false }, notice: '', limits: { imageMb: 5, importMb: 25, importCards: 2000, cardText: 10000, projectFolders: 40, dailyGoalMax: 200, minSeats: SEATS.min, maxSeats: SEATS.max } };
   if (entity === 'users') {
     if (!id) { const q = new URLSearchParams(path.split('?')[1] || '').get('q') || ''; return { users: [user, ...collaborators].filter(u => u.username.startsWith(q.toLowerCase()) || u.name.toLowerCase().startsWith(q.toLowerCase())).map(u => ({ id: u.id, username: u.username, name: u.name })) }; }
     const profile = [user, ...collaborators].find(u => u.username === id); if (!profile) error('User not found.');
@@ -127,11 +198,21 @@ export async function demoRequest(path, options = {}) {
   if (path === '/premium/order') return { order: null, subscription: { account: user.account, plan: '', planLabel: '', expiresAt: null, daysLeft: null, active: true }, methods: clone(demoMethods) };
   if (path.startsWith('/premium/checkout')) error('Paying needs a real account. Sign up outside the preview to buy Premium.');
   if (entity === 'admin') {
+    // The settings form is generated from the catalog, so the preview can serve the real one and
+    // the real fallbacks. Nothing is stored: `overridden` is empty and a save is refused below,
+    // which is the honest version of a settings page with no server behind it.
+    if (id === 'settings' && method === 'GET') {
+      const fallbacks = settingFallbacks();
+      return { groups: SETTING_GROUPS, specs: Object.fromEntries(Object.entries(SETTINGS).map(([k, s]) => [k, { ...s, options: typeof s.options === 'function' ? s.options() : s.options }])), values: fallbacks, overridden: [], fallbacks };
+    }
+    if (id === 'settings') error('Changing configuration needs a signed-in superadmin outside the preview.');
+    if (id === 'audit') return { entries: clone(demoAudit) };
+    if (id === 'analytics') return demoAnalytics(Number(new URLSearchParams(path.split('?')[1] || '').get('days')) || 30, Number(new URLSearchParams(path.split('?')[1] || '').get('weeks')) || 8);
     // Made up, but shaped like the real thing: a couple of markets on sale and a long tail that is
     // not, which is the pattern the tab exists to show.
     if (id === 'countries') {
       const days = Number(new URLSearchParams(path.split('?')[1] || '').get('days')) || 30;
-      const rows = demoCountries.map(r => ({ ...r, sellable: sellsInCountry(r.country), code: countryByName(r.country)?.code || '' }));
+      const rows = demoCountries.map(r => ({ ...r, sellable: prices.sellsInCountry(r.country), code: countryByName(r.country)?.code || '' }));
       const sum = (key, of) => of.reduce((n, r) => n + r[key], 0);
       const waiting = rows.filter(r => !r.sellable && r.studying > 0);
       return { days, rows: clone(rows), totals: { countries: rows.length, accounts: sum('accounts', rows), studying: sum('studying', rows), premium: sum('premium', rows), unsellableStudying: sum('studying', waiting), unsellableCountries: waiting.length } };

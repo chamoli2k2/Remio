@@ -8,8 +8,7 @@ import PaymentForm from '../components/PaymentForm';
 import { useMoney } from '../hooks/useMoney';
 import { hasPremium, PREMIUM_FEATURES, PREMIUM_PLANS, planById } from '../../../shared/account.js';
 import { BRAND } from '../../../shared/brand.js';
-import { currencyNote, sellsTo } from '../../../shared/pricing.js';
-import { countryOf, SELLING_COUNTRIES } from '../../../shared/countries.js';
+import { countryByCode, countryOf } from '../../../shared/countries.js';
 
 /**
  * What is being bought and what happens after paying. The caller supplies the line items because a
@@ -42,15 +41,16 @@ const STEPS = ['Confirm your billing details.', 'Pay in the secure Razorpay wind
  * let someone pick one and be refused at the gateway: a price you cannot pay is worse than none.
  */
 export function NotOnSaleHere({ what = 'Premium' }) {
-  const { user } = useApp();
+  const { user, config } = useApp();
   const country = countryOf(user);
+  const open = config.selling.map(code => countryByCode(code)?.name).filter(Boolean).sort();
   return <section className="premium-unavailable">
     <span className="premium-unavailable-icon"><Globe2 size={22}/></span>
     <div>
       <h2>{what} is not on sale in {country} yet</h2>
       <p>
         We can only charge where we are set up for the currency and the tax on it, which so far is
-        {` ${SELLING_COUNTRIES.map(c => c.name).join(', ')}`}. Nothing you already have is affected,
+        {` ${open.join(', ')}`}. Nothing you already have is affected,
         and the free library stays exactly as it is.
       </p>
       <p>Tell us you want it and we will write to you when it opens.</p>
@@ -66,7 +66,7 @@ export default function PremiumPage() {
   const [plan, setPlan] = useState('yearly');
   const [dropping, setDropping] = useState(false);
   const order = data?.order, sub = data?.subscription, methods = data?.methods || [];
-  const { money, priceOf, region } = useMoney();
+  const { money, priceOf, onSale, currencyNote } = useMoney();
   const chosen = planById(plan);
   const chosenPrice = priceOf(plan);
   const rate = p => priceOf(p.id) / (p.days / 30);
@@ -88,7 +88,7 @@ export default function PremiumPage() {
     <ul className="premium-feature-list">{PREMIUM_FEATURES.map(f => <li key={f.id}><span className="premium-feature-icon"><Sparkles size={15}/></span><div><strong>{f.label}</strong><p>{f.detail}</p></div></li>)}</ul>
     {/* The feature list above is shown to everyone, including people who cannot buy: knowing what
         it does is how someone decides whether to ask for it in their country. */}
-    {unlocked ? null : !sellsTo(user) ? <NotOnSaleHere/> : loading ? <Loading/> : order?.status === 'pending' ? <section className="premium-pending">
+    {unlocked ? null : !onSale ? <NotOnSaleHere/> : loading ? <Loading/> : order?.status === 'pending' ? <section className="premium-pending">
       <span className="premium-pending-icon"><Clock3 size={22}/></span>
       <div><h2>Waiting for confirmation</h2><p>{order.method === 'manual'
         ? `Your ${planById(order.plan)?.label || 'Premium'} request and payment screenshot are with our team. Premium turns on as soon as the transfer is verified.`
@@ -113,7 +113,7 @@ export default function PremiumPage() {
         </label>)}</div>
         {/* Said once, here, because the figures above are the only place the currency is visible and
             a buyer outside India has no reason to assume which one they are reading. */}
-        <p className="plan-currency">{currencyNote(region)}</p>
+        <p className="plan-currency">{currencyNote()}</p>
         <PaymentForm
           methods={methods}
           amount={chosenPrice}

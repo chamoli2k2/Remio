@@ -1,20 +1,22 @@
 import { useApp } from './useApp';
-import { formatMoney, premiumPrice, regionFor, seatPrice } from '../../../shared/pricing.js';
 
 /**
  * Prices in the signed-in account's own currency.
  *
- * Everything on screen has to agree with what the server will charge, and the server prices from
- * the country on the account. Reading it from the same place here is what keeps a buyer from being
- * quoted one figure and billed another.
+ * Everything on screen has to agree with what the server will charge, so the figures come from the
+ * pricebook the server sent rather than from anything compiled into this bundle: prices are edited
+ * from the dashboard, and a stale build must not go on quoting last month's. The region still comes
+ * from the country on the account, which is what stops a cheaper price being a request away.
  */
 export function useMoney() {
-  const { user } = useApp();
-  const region = regionFor(user);
+  const { user, prices } = useApp();
+  const region = prices.regionFor(user);
   return {
     region,
-    money: amount => formatMoney(amount || 0, region),
-    priceOf: planId => premiumPrice(planId, user),
-    seatRate: planId => seatPrice(planId, user),
+    onSale: prices.sellsTo(user),
+    money: amount => prices.money(amount, region),
+    priceOf: planId => prices.premiumPrice(planId, user),
+    seatRate: planId => prices.seatPrice(planId, user),
+    currencyNote: () => prices.currencyNote(region),
   };
 }

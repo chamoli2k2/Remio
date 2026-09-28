@@ -2,7 +2,8 @@ import { User, PremiumOrder, Review } from '../models/index.js';
 import { canAssign, ACCOUNTS, planById, premiumDaysLeft, hasPremium } from '../../../shared/account.js';
 import { fulfilOrder } from './premiumService.js';
 import { countryByName, HOME_COUNTRY } from '../../../shared/countries.js';
-import { sellsInCountry } from '../../../shared/pricing.js';
+import { livePricebook } from './settingsService.js';
+import { overview } from './analyticsService.js';
 import { assert } from '../utils/errors.js';
 
 const publicAdmin = u => ({
@@ -56,6 +57,7 @@ export async function countryUsage(days = 30) {
       { $group: { _id: { $ifNull: ['$person.country', HOME_COUNTRY] }, studying: { $sum: 1 }, reviews: { $sum: '$reviews' } } },
     ]),
   ]);
+  const book = livePricebook();
   const studied = new Map(active.map(a => [a._id, a]));
   const rows = accounts.map(a => ({
     country: a._id,
@@ -64,7 +66,7 @@ export async function countryUsage(days = 30) {
     premium: a.premium,
     studying: studied.get(a._id)?.studying || 0,
     reviews: studied.get(a._id)?.reviews || 0,
-    sellable: sellsInCountry(a._id),
+    sellable: book.sellsInCountry(a._id),
     joined: a.joined || null,
   })).sort((x, y) => y.studying - x.studying || y.accounts - x.accounts || x.country.localeCompare(y.country));
   const sum = (key, of = rows) => of.reduce((n, r) => n + r[key], 0);
@@ -115,3 +117,6 @@ export async function decideOrder(actor, orderId, status) {
   assert(!alreadySettled, 404, 'No pending order.');
   return order;
 }
+
+/** The dashboard's analytics, gathered in one pass. See analyticsService for what each part means. */
+export const analytics = ({ days, weeks }) => overview({ days, weeks });

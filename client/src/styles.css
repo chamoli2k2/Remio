@@ -571,3 +571,116 @@ html[data-theme=dark] .premium-unavailable-icon{background:#26305a;color:#9db0e8
 .dash-usage-window{display:flex;align-items:center;gap:9px;flex:none}
 .dash-usage-window span{font-size:12px;color:var(--muted)}
 .dash-usage-window select{font-size:13px}
+/* Settings editor. The form is generated from the catalog the server sends, so these rules have to
+   hold for any setting that turns up later without being told about it: hence a grid that reflows
+   rather than a column count, and a cell that does not care how tall its help text is. */
+.dash-set-group{margin:26px 0 30px}
+.dash-set-group>header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:11px;border-bottom:1px solid var(--border)}
+.dash-set-group h2{font-size:17px}
+.dash-set-group>header p{font-size:13px;color:var(--muted);margin-top:4px;max-width:70ch;line-height:1.6}
+.dash-set-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:15px}
+.dash-set-cell{display:flex;flex-direction:column;gap:5px;min-width:0}
+.dash-set{display:flex;flex-direction:column;gap:6px;border:1px solid var(--border);border-radius:12px;background:#fff;padding:13px 14px;height:100%;min-width:0}
+/* An unsaved field is marked on the field itself, not only in the save bar: with seven groups open
+   the bar can be telling you about a number that is three screens away. */
+.dash-set.is-dirty{border-color:#c0a4f0;box-shadow:0 0 0 3px rgba(150,106,232,.1)}
+.dash-set-label{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:13.5px;font-weight:600}
+.dash-set-label em,.dash-set-label b{font-style:normal;font-weight:600;font-size:10px;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:5px}
+.dash-set-label em{background:#eee6fb;color:#6d4aa8}
+.dash-set-label b{background:#fdf0d8;color:#8a5c11}
+.dash-set small{font-size:12px;color:var(--muted);line-height:1.55}
+.dash-set input[type=text],.dash-set input[type=number]{width:100%;max-width:100%}
+.dash-set-number{display:flex;align-items:center;gap:8px}
+.dash-set-number i{font-style:normal;font-size:12px;color:var(--muted);flex:none}
+.dash-set-toggle{flex-direction:row;align-items:flex-start;gap:11px;cursor:pointer}
+.dash-set-toggle>input{flex:none;margin-top:2px;width:17px;height:17px;cursor:pointer}
+.dash-set-toggle>span{display:flex;flex-direction:column;gap:5px;min-width:0}
+.dash-set-countries{display:flex;flex-direction:column;gap:7px;margin-top:3px}
+.dash-set-countries label{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+.dash-set-error{font-size:12px;color:#b3261e;line-height:1.5;padding:0 3px}
+.dash-set-revert{background:none;border:none;padding:0 3px;font:inherit;font-size:11.5px;color:var(--muted);text-align:left;cursor:pointer;text-decoration:underline;text-decoration-style:dotted}
+.dash-set-revert:hover{color:var(--text)}
+.dash-set-readonly{display:flex;align-items:flex-start;gap:11px;border:1px solid #f0dcb4;background:#fdf7ea;color:#7a5410;border-radius:12px;padding:13px 15px;font-size:13px;line-height:1.6;margin-bottom:22px}
+.dash-set-readonly svg{flex:none;margin-top:1px}
+.dash-set-bar{position:sticky;bottom:14px;z-index:5;display:flex;align-items:center;gap:11px;flex-wrap:wrap;border:1px solid var(--border);border-radius:14px;background:#fff;box-shadow:0 10px 30px rgba(35,20,60,.16);padding:12px 15px;margin:22px 0}
+.dash-set-bar span{font-size:13px;color:var(--muted)}
+.dash-set-bar strong{color:var(--text)}
+.dash-set-bar input{flex:1 1 210px;min-width:0}
+.dash-audit-change code{font-size:11.5px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:1px 5px;word-break:break-word}
+html[data-theme=dark] .dash-set,html[data-theme=dark] .dash-set-bar{background:var(--surface)}
+html[data-theme=dark] .dash-set.is-dirty{border-color:#7d5bb8;box-shadow:0 0 0 3px rgba(150,106,232,.18)}
+html[data-theme=dark] .dash-set-label em{background:#36265a;color:#c6aef2}
+html[data-theme=dark] .dash-set-label b{background:#4a3a1c;color:#f0cf95}
+html[data-theme=dark] .dash-set-readonly{background:#3a2f18;border-color:#5f4c22;color:#f0d9a8}
+html[data-theme=dark] .dash-set-error{color:#f0a6a0}
+/* Analytics panels. The figures and counters are deliberately the same shape as each other so the
+   eye can compare down a column; only the tone differs, and only where a number means act on me. */
+.dash-an-windows{display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:none}
+.dash-an-section{margin:30px 0}
+.dash-an-section-head{margin-bottom:14px;padding-bottom:11px;border-bottom:1px solid var(--border)}
+.dash-an-section-head h2{font-size:17px}
+.dash-an-section-head p{font-size:13px;color:var(--muted);margin-top:4px;max-width:74ch;line-height:1.6}
+.dash-an-section h3{font-size:13.5px;margin:20px 0 9px;color:var(--text)}
+.dash-an-note{font-size:12.5px;color:var(--muted);line-height:1.6;margin:9px 0 0;max-width:80ch}
+.dash-an-figures,.dash-an-currencies,.dash-an-counters{display:grid;gap:12px;margin-bottom:15px}
+.dash-an-figures{grid-template-columns:repeat(auto-fit,minmax(155px,1fr))}
+.dash-an-currencies{grid-template-columns:repeat(auto-fit,minmax(185px,1fr))}
+.dash-an-counters{grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
+.dash-an-figures>div,.dash-an-currencies>div,.dash-an-counter{display:flex;flex-direction:column;gap:3px;border:1px solid var(--border);border-radius:12px;background:#fff;padding:13px 15px;min-width:0}
+.dash-an-figures strong,.dash-an-counter strong{font-size:23px;line-height:1.2}
+.dash-an-currencies strong{font-size:21px;line-height:1.2}
+.dash-an-figures span,.dash-an-currencies span{font-size:12px;color:var(--muted);line-height:1.5}
+.dash-an-counter span{font-size:12.5px;font-weight:600}
+.dash-an-counter small{font-size:11.5px;color:var(--muted);line-height:1.55;margin-top:3px}
+/* Warn is a tint rather than a red border: these counters are usually non-zero and briefly so, and
+   a wall of alarm every morning trains people to stop reading them. */
+.dash-an-counter.is-warn{border-color:#eccfa0;background:#fdf8ef}
+.dash-an-counter.is-warn strong{color:#9a6512}
+.dash-an-bars{display:flex;align-items:flex-end;gap:2px;height:96px;padding:11px 12px;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden}
+.dash-an-bar{flex:1 1 0;min-width:2px;height:100%;display:flex;align-items:flex-end}
+/* A floor on the height so a day with one signup is still a mark rather than nothing, which would
+   read the same as a day with none. */
+.dash-an-bar>span{display:block;width:100%;min-height:2px;border-radius:2px 2px 0 0;background:linear-gradient(180deg,#8b6ce0,#6545d1)}
+.dash-an-cohorts td{white-space:nowrap}
+/* The shade carries the percentage so a column can be read at a glance; the number is still there
+   because a colour alone is not a figure anyone can quote. */
+.dash-an-cell{background:rgba(101,69,209,calc(var(--dash-an-shade) * .55))}
+.dash-an-unmeasured{color:#bdb3c9}
+html[data-theme=dark] .dash-an-figures>div,html[data-theme=dark] .dash-an-currencies>div,html[data-theme=dark] .dash-an-counter,html[data-theme=dark] .dash-an-bars{background:var(--surface)}
+html[data-theme=dark] .dash-an-counter.is-warn{border-color:#6a5223;background:#3a2f18}
+html[data-theme=dark] .dash-an-counter.is-warn strong{color:#f0cf95}
+html[data-theme=dark] .dash-an-cell{background:rgba(157,131,240,calc(var(--dash-an-shade) * .5))}
+html[data-theme=dark] .dash-an-unmeasured{color:#6b6280}
+/* Country picker. Metrics copied from the base input rule rather than inherited, because the
+   trigger is a button and would otherwise sit a pixel or two off the fields either side of it. */
+.cpick{position:relative;min-width:0}
+.cpick-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:1px solid #e2ddee;border-radius:9px;background:#fff;color:var(--ink);padding:11px 13px;font-size:16px;text-align:left;min-height:44px}
+.cpick-trigger>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpick-trigger>svg{flex:none;color:var(--muted);transition:transform .15s}
+.cpick.is-open .cpick-trigger>svg{transform:rotate(180deg)}
+.cpick.is-open .cpick-trigger{border-color:#b7a7f3}
+.cpick-empty-value{color:#a79db6}
+/* Absolute rather than fixed so it follows the field when the form scrolls, and z-indexed above the
+   cards around it. The width is pinned to the trigger so a long country name widens nothing. */
+.cpick-pop{position:absolute;left:0;right:0;z-index:40;background:#fff;border:1px solid var(--border);border-radius:11px;box-shadow:0 14px 34px rgba(35,20,60,.15);overflow:hidden}
+.cpick-pop.is-down{top:calc(100% + 5px)}
+.cpick-pop.is-up{bottom:calc(100% + 5px)}
+.cpick-search{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--border)}
+.cpick-search svg{flex:none;color:var(--muted)}
+.cpick-search input{flex:1;min-width:0;border:0;padding:0;background:none;font-size:14px}
+.cpick-search input:focus{outline:none}
+.cpick-list{list-style:none;margin:0;padding:5px;max-height:268px;overflow-y:auto;overscroll-behavior:contain}
+.cpick-list:focus-visible{outline:none}
+/* The row is highlighted by pointer and by keyboard through the same class, so arrowing and hovering
+   cannot disagree about which country is about to be chosen. */
+.cpick-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:7px;font-size:14px;cursor:pointer;min-height:38px}
+.cpick-item>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpick-item>svg{flex:none;color:var(--accent)}
+.cpick-item.is-active{background:var(--soft);color:var(--accent-dark)}
+.cpick-item[aria-selected=true]{font-weight:600}
+.cpick-none{padding:13px 11px;font-size:13px;color:var(--muted)}
+html[data-theme=dark] .cpick-trigger{background:var(--surface-2);border-color:var(--border)}
+html[data-theme=dark] .cpick.is-open .cpick-trigger{border-color:#7c6ae0}
+html[data-theme=dark] .cpick-empty-value{color:var(--text-4)}
+html[data-theme=dark] .cpick-pop{background:var(--surface-2);border-color:var(--border);box-shadow:0 14px 34px rgba(0,0,0,.42)}
+html[data-theme=dark] .cpick-item.is-active{background:var(--soft);color:var(--ink)}

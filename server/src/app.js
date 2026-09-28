@@ -2,7 +2,6 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
-import { rateLimit } from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import routes from './routes/index.js';
@@ -14,6 +13,9 @@ import { isConfigured as razorpayConfigured } from './services/payments/razorpay
 import { asyncHandler } from './utils/errors.js';
 export { trustedOrigins } from './utils/origin.js';
 import { trustedOrigins } from './utils/origin.js';
+import { readOnlyGuard } from './middleware/config.js';
+import { throttle } from './middleware/throttle.js';
+import { setting } from './services/settingsService.js';
 export function createApp() {
   const app = express(); app.disable('x-powered-by'); if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
   app.use(requestContext);
@@ -23,7 +25,8 @@ export function createApp() {
   const gateway = razorpayConfigured() ? ['https://checkout.razorpay.com', 'https://api.razorpay.com'] : [];
   app.use(helmet({ contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", ...gateway], "style-src": ["'self'", "'unsafe-inline'"], "frame-src": ["'self'", ...gateway], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway] } } }));
   app.use(cors({ origin: origins, credentials: true }));
-  app.use('/api', rateLimit({ windowMs: 60000, limit: 300, standardHeaders: 'draft-8', legacyHeaders: false }));
+  // `limit` is a function because the value behind it changes while the process is running.
+  app.use('/api', throttle({ windowMs: 60000, limit: () => setting('throttle.apiPerMinute') }));
   // CSRF guard for writes. Same-origin requests (Origin host === Host header) are always allowed, so the standard
   // single-service deployment needs no CLIENT_ORIGIN; the allow-list is for separately hosted frontends.
   const sameOrigin = req => { try { return req.headers.origin && new URL(req.headers.origin).host === req.headers.host; } catch { return false; } };
@@ -32,7 +35,7 @@ export function createApp() {
   app.use('/api', healthRoutes);
   // The gateway signs the exact bytes it sent, so this one route has to see them before any parser does.
   app.post('/api/premium/webhook/razorpay', express.raw({ type: '*/*', limit: '64kb' }), asyncHandler(premiumWebhook));
-  app.use(express.json({ limit: '256kb' })); app.use(cookieParser()); app.use('/api', optionalAuth, routes);
+  app.use(express.json({ limit: '256kb' })); app.use(cookieParser()); app.use('/api', optionalAuth, readOnlyGuard, routes);
   app.use('/api', notFoundHandler);
   const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..', 'dist');
   app.use(express.static(dist)); app.get('/{*path}', (_req, res) => res.sendFile(path.join(dist, 'index.html')));

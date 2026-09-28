@@ -9,7 +9,6 @@ import { api } from '../services/api';
 import { reportError, messageFor } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
 import { useMoney } from '../hooks/useMoney';
-import { sellsTo } from '../../../shared/pricing.js';
 import { Button, Field, Modal, Loading, Empty, ErrorState, Avatar, FolderIcon, Menu } from '../components/ui';
 import FolderModal from '../components/FolderModal';
 import PaymentForm from '../components/PaymentForm';
@@ -328,12 +327,11 @@ function AssignModal({ teamId, folders, onClose, onDone }) {
 export function TeamCheckoutPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useApp();
-  const { money } = useMoney();
+  const { money, onSale } = useMoney();
   const [params] = useSearchParams();
   // Checked before the quote is even asked for. The server refuses the order anyway, but a seat
   // price quoted in a currency the owner cannot be charged in is a promise we cannot keep.
-  const forSale = sellsTo(user);
+  const forSale = onSale;
   const plan = params.get('plan') || 'team-yearly';
   const seats = clampSeats(params.get('seats'));
   const { data, loading, error } = useQuery(`team-checkout:${id}:${plan}:${seats}`, () => Promise.all([
