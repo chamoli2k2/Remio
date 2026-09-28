@@ -870,3 +870,7 @@ html[data-theme=dark] .google-signin-error{color:#f0a9ad}
   .auth-form>div>p{font-size:13px}
 }
 @media(max-width:760px){.auth-form{padding:26px 22px}}
+
+/* Shown after any failed sign-in, never only for the accounts it describes: which addresses are
+   registered, and how, is not something a failed guess should reveal. */
+.auth-hint{font-size:12px;line-height:1.6;color:var(--muted);margin:-6px 0 0}

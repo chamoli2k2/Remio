@@ -22,7 +22,7 @@ export const google = async (req, res) => {
   await createSession(res, user);
   res.status(created ? 201 : 200).json({ user: await User.findById(user.id) });
 };
-export const login = async (req, res) => { const identifier = String(req.body.identifier).toLowerCase().trim(); const user = await User.findOne({ $or: [{ username: identifier }, { email: identifier }] }).select('+passwordHash'); assert(user && await bcrypt.compare(req.body.password, user.passwordHash), 401, 'Username or password is incorrect.'); await createSession(res, user); res.json({ user: await User.findById(user.id) }); };
+export const login = async (req, res) => { const identifier = String(req.body.identifier).toLowerCase().trim(); const user = await User.findOne({ $or: [{ username: identifier }, { email: identifier }] }).select('+passwordHash'); assert(user?.passwordHash && await bcrypt.compare(req.body.password, user.passwordHash), 401, 'Username or password is incorrect.'); await createSession(res, user); res.json({ user: await User.findById(user.id) }); };
 export const logout = async (req, res) => { const token = sessionToken(req); if (token) await Session.deleteOne({ tokenHash: hashToken(token) }); const { maxAge, ...options } = cookieOptions(); for (const n of sessionCookieNames) res.clearCookie(n, options); res.json({ ok: true }); };
 /**
  * Includes the address, which `select: false` hides everywhere else. Only ever your own, and it

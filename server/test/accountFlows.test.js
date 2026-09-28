@@ -486,3 +486,21 @@ acct('Google connects to an existing account only when it has confirmed the addr
     assert.equal(await User.countDocuments({ email }), 1, 'no duplicate account was made');
   });
 });
+
+acct('an account that has only ever used Google is refused at the password form, not broken by it', async () => {
+  await withGoogle(async () => {
+    const credential = googleToken({ sub: 'g-nopass-1', email: 'nopassword@gmail.com', name: 'No Password' });
+    const made = await request(app).post('/api/auth/google').send({ credential, country: 'India', acceptedTerms: true });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+
+    // There is no stored hash to compare against. Handing that straight to bcrypt threw, which
+    // turned a wrong guess into a 500 — and made a Google-only account answer differently from
+    // every other one, which is a way of asking the server which addresses are registered.
+    const tried = await request(app).post('/api/auth/login').send({ identifier: 'nopassword@gmail.com', password: 'anything-at-all-123' });
+    assert.equal(tried.status, 401, JSON.stringify(tried.body));
+
+    const unknown = await request(app).post('/api/auth/login').send({ identifier: 'nobody-here@example.test', password: 'anything-at-all-123' });
+    assert.equal(unknown.status, 401);
+    assert.equal(tried.body.error, unknown.body.error, 'and it is indistinguishable from an address that does not exist');
+  });
+});
