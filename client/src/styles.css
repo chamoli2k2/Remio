@@ -510,7 +510,7 @@ html[data-theme=dark] .verify-icon-bad{background:#4a2630;color:#f07a93}
 input,select,textarea,.folder-search input,.global-search input,.username-input,
 .toolbar-right>select,.toolbar-right .folder-search input,.cards-toolbar select,.cards-toolbar .folder-search input{font-size:16px}
 .folder-search{height:44px}
-.toolbar-right>select{max-width:none;flex:1;height:44px}
+.toolbar-right>select{max-width:none;flex:1;height:44px}.toolbar-right>.sel .sel-trigger{height:40px}
 .toolbar-right{gap:9px}
 }
 
@@ -651,36 +651,59 @@ html[data-theme=dark] .dash-an-counter.is-warn{border-color:#6a5223;background:#
 html[data-theme=dark] .dash-an-counter.is-warn strong{color:#f0cf95}
 html[data-theme=dark] .dash-an-cell{background:rgba(157,131,240,calc(var(--dash-an-shade) * .5))}
 html[data-theme=dark] .dash-an-unmeasured{color:#6b6280}
-/* Country picker. Metrics copied from the base input rule rather than inherited, because the
-   trigger is a button and would otherwise sit a pixel or two off the fields either side of it. */
-.cpick{position:relative;min-width:0}
-.cpick-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:1px solid #e2ddee;border-radius:9px;background:#fff;color:var(--ink);padding:11px 13px;font-size:16px;text-align:left;min-height:44px}
-.cpick-trigger>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cpick-trigger>svg{flex:none;color:var(--muted);transition:transform .15s}
-.cpick.is-open .cpick-trigger>svg{transform:rotate(180deg)}
-.cpick.is-open .cpick-trigger{border-color:#b7a7f3}
-.cpick-empty-value{color:#a79db6}
-/* Absolute rather than fixed so it follows the field when the form scrolls, and z-indexed above the
-   cards around it. The width is pinned to the trigger so a long country name widens nothing. */
-.cpick-pop{position:absolute;left:0;right:0;z-index:40;background:#fff;border:1px solid var(--border);border-radius:11px;box-shadow:0 14px 34px rgba(35,20,60,.15);overflow:hidden}
-.cpick-pop.is-down{top:calc(100% + 5px)}
-.cpick-pop.is-up{bottom:calc(100% + 5px)}
-.cpick-search{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--border)}
-.cpick-search svg{flex:none;color:var(--muted)}
-.cpick-search input{flex:1;min-width:0;border:0;padding:0;background:none;font-size:14px}
-.cpick-search input:focus{outline:none}
-.cpick-list{list-style:none;margin:0;padding:5px;max-height:268px;overflow-y:auto;overscroll-behavior:contain}
-.cpick-list:focus-visible{outline:none}
-/* The row is highlighted by pointer and by keyboard through the same class, so arrowing and hovering
-   cannot disagree about which country is about to be chosen. */
-.cpick-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:7px;font-size:14px;cursor:pointer;min-height:38px}
-.cpick-item>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cpick-item>svg{flex:none;color:var(--accent)}
-.cpick-item.is-active{background:var(--soft);color:var(--accent-dark)}
-.cpick-item[aria-selected=true]{font-weight:600}
-.cpick-none{padding:13px 11px;font-size:13px;color:var(--muted)}
-html[data-theme=dark] .cpick-trigger{background:var(--surface-2);border-color:var(--border)}
-html[data-theme=dark] .cpick.is-open .cpick-trigger{border-color:#7c6ae0}
-html[data-theme=dark] .cpick-empty-value{color:var(--text-4)}
-html[data-theme=dark] .cpick-pop{background:var(--surface-2);border-color:var(--border);box-shadow:0 14px 34px rgba(0,0,0,.42)}
-html[data-theme=dark] .cpick-item.is-active{background:var(--soft);color:var(--ink)}
+/* The one dropdown. Metrics on the trigger are copied from the base input rule rather than
+   inherited, because it is a button and would otherwise sit a pixel or two off the fields either
+   side of it. Everything below is shared by every dropdown in the app: form fields, toolbars,
+   table cells and modals differ only by the compact variant. */
+.sel{min-width:0;display:block}
+.sel-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:1px solid #e2ddee;border-radius:9px;background:#fff;color:var(--ink);padding:11px 13px;font-size:16px;text-align:left;min-height:44px}
+.sel-trigger>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-trigger>svg{flex:none;color:var(--muted);transition:transform .15s}
+.sel.is-open .sel-trigger>svg{transform:rotate(180deg)}
+.sel.is-open .sel-trigger{border-color:#b7a7f3}
+.sel-empty{color:#a79db6}
+/* The compact variant, for a control that sits beside other things rather than in a form: a
+   toolbar, a table cell, a row of page actions. It takes its width from its content, so a row of
+   them does not turn into a row of identical wide boxes. */
+.sel.is-compact{display:inline-flex;max-width:100%}
+.sel.is-compact .sel-trigger{width:auto;gap:7px;padding:7px 10px;font-size:13px;min-height:36px;color:#887495}
+.sel.is-compact.is-open .sel-trigger{color:var(--ink)}
+.field .sel,.field .sel .sel-trigger{width:100%;max-width:100%}
+/* Positioned against the viewport from JavaScript and portalled to the body, so a table cell with
+   overflow:auto and a modal cannot clip it. Only the paint is left to CSS. */
+/* Above 101, which is the modal: a dropdown inside a modal has to sit over the card it belongs to,
+   and being portalled to the body means it no longer inherits the modal's stacking context.
+
+   pointer-events is not belt and braces. Radix puts an inline pointer-events:none on the body while
+   a dialog is open and hands it back only to the dialog's own content; a popup portalled beside that
+   content inherits the none and paints perfectly while ignoring every click. */
+.sel-pop{position:fixed;z-index:120;pointer-events:auto;display:flex;flex-direction:column;background:#fff;border:1px solid var(--border);border-radius:11px;box-shadow:0 14px 34px rgba(35,20,60,.15);overflow:hidden}
+/* A compact trigger is usually narrower than its own longest option, so the popup is allowed to
+   grow past it rather than ellipsing every row. */
+.sel-pop.is-compact{width:max-content;max-width:min(320px,86vw)}
+.sel-search{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--border);flex:none}
+.sel-search svg{flex:none;color:var(--muted)}
+.sel-search input{flex:1;min-width:0;border:0;padding:0;background:none;font-size:14px}
+.sel-search input:focus{outline:none}
+/* min-height:0 so the list, not the popup, is what scrolls when the window is short. */
+.sel-list{list-style:none;margin:0;padding:5px;max-height:268px;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.sel-list:focus-visible{outline:none}
+/* The row is highlighted by pointer and by keyboard through the same class, so arrowing and
+   hovering cannot disagree about which option is about to be chosen. */
+.sel-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:7px;font-size:14px;cursor:pointer;min-height:38px}
+.sel-item>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-item>svg{flex:none;color:var(--accent)}
+.sel-item.is-active{background:var(--soft);color:var(--accent-dark)}
+.sel-item[aria-selected=true]{font-weight:600}
+.sel-none{padding:13px 11px;font-size:13px;color:var(--muted)}
+/* Contexts that used to size the native control. Kept as overrides rather than edits to those
+   rules so each one still says what it is for. */
+.page-actions .sel{max-width:190px}
+.toolbar-right>.sel,.cards-toolbar .sel{flex:none}
+.dash-table .sel.is-compact .sel-trigger{font-size:12px}
+html[data-theme=dark] .sel-trigger{background:var(--surface-2);border-color:var(--border)}
+html[data-theme=dark] .sel.is-compact .sel-trigger{color:var(--text-2)}
+html[data-theme=dark] .sel.is-open .sel-trigger{border-color:#7c6ae0}
+html[data-theme=dark] .sel-empty{color:var(--text-4)}
+html[data-theme=dark] .sel-pop{background:var(--surface-2);border-color:var(--border);box-shadow:0 14px 34px rgba(0,0,0,.42)}
+html[data-theme=dark] .sel-item.is-active{background:var(--soft);color:var(--ink)}

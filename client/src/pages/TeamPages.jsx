@@ -12,6 +12,7 @@ import { useMoney } from '../hooks/useMoney';
 import { Button, Field, Modal, Loading, Empty, ErrorState, Avatar, FolderIcon, Menu } from '../components/ui';
 import FolderModal from '../components/FolderModal';
 import PaymentForm from '../components/PaymentForm';
+import Select from '../components/Select';
 import { NotOnSaleHere, PaymentAside } from './PremiumPage';
 import { TEAM_KINDS, TEAM_PLANS, SEATS, teamPlanById, clampSeats } from '../../../shared/teams.js';
 
@@ -202,7 +203,7 @@ export function TeamPage() {
       <tbody>{members.map(m => <tr key={m.id}>
         <td><div className="dash-person"><Avatar user={m} small/><span><strong>{m.name}</strong><span className="dash-muted">@{m.username}</span></span></div></td>
         <td>{isOwner && m.role !== 'owner'
-          ? <select aria-label={`Role for ${m.username}`} value={m.role} onChange={e => setRole(m, e.target.value)}><option value="student">{team.kind === 'classroom' ? 'Student' : 'Member'}</option><option value="teacher">{team.kind === 'classroom' ? 'Teacher' : 'Manager'}</option></select>
+          ? <Select compact label={`Role for ${m.username}`} value={m.role} onChange={v => setRole(m, v)} options={[{ value: 'student', label: team.kind === 'classroom' ? 'Student' : 'Member' }, { value: 'teacher', label: team.kind === 'classroom' ? 'Teacher' : 'Manager' }]}/>
           : <span className="dash-muted">{m.roleLabel}</span>}</td>
         <td><span className="dash-muted">{day(m.joinedAt)}</span></td>
         {isTeacher && <td>{m.role !== 'owner' && <button className="text-button danger" onClick={() => remove(m)}><UserMinus size={15}/> Remove</button>}</td>}
@@ -313,12 +314,12 @@ function AssignModal({ teamId, folders, onClose, onDone }) {
   }
   return <Modal open onClose={onClose} title="Set an assignment" description="Points the group at one folder. Everyone gets a notification.">
     <form className="form-stack" onSubmit={submit}>
-      <Field label="Folder"><select required value={form.folderId} onChange={e => setForm(f => ({ ...f, folderId: e.target.value }))}>{folders.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}</select></Field>
+      <Field label="Folder"><Select label="Folder" placeholder="Choose a folder" value={form.folderId} onChange={v => setForm(f => ({ ...f, folderId: v }))} options={folders.map(f => ({ value: f.id, label: f.title }))}/></Field>
       <Field label="Title · optional" hint="Defaults to the folder name."><input maxLength={80} placeholder="e.g. Chapter 1" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}/></Field>
       <Field label="Due · optional"><input type="date" value={form.dueAt} onChange={e => setForm(f => ({ ...f, dueAt: e.target.value }))}/></Field>
       <Field label="Instructions · optional"><textarea maxLength={500} rows={3} placeholder="Anything they should know." value={form.instructions} onChange={e => setForm(f => ({ ...f, instructions: e.target.value }))}/></Field>
       {error && <ErrorState message={error}/>}
-      <div className="modal-actions"><Button type="button" className="secondary" onClick={onClose}>Cancel</Button><Button className="primary" loading={busy} type="submit"><CalendarClock size={16}/> Set it</Button></div>
+      <div className="modal-actions"><Button type="button" className="secondary" onClick={onClose}>Cancel</Button><Button className="primary" loading={busy} disabled={!form.folderId} type="submit"><CalendarClock size={16}/> Set it</Button></div>
     </form>
   </Modal>;
 }
@@ -389,7 +390,7 @@ export function TeamProgressPage() {
     <div className="page-heading">
       <div><span className="eyebrow">REPORT</span><h1>{team.name}</h1><p>Coverage is how much of {folderId ? 'this folder' : 'the team’s material'} each person has seen at least once. {totalCards} card{totalCards === 1 ? '' : 's'} in scope.</p></div>
       <div className="page-actions">
-        <select aria-label="Folder" value={folderId} onChange={e => setFolderId(e.target.value)}><option value="">All team folders</option>{folders.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}</select>
+        <Select compact label="Folder" value={folderId} onChange={setFolderId} options={[{ value: '', label: 'All team folders' }, ...folders.map(f => ({ value: f.id, label: f.title }))]}/>
         <Link className="button secondary" to={`/teams/${id}`}>Back to team</Link>
       </div>
     </div>

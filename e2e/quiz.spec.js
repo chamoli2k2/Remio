@@ -10,7 +10,12 @@ test('host a live quiz, a friend joins by code, both answer, scores and podium a
   // Host: folder menu -> setup modal -> lobby with a code.
   await host.goto(`/folders/${folder.id}`); await expect(host.locator('.presence-label')).toBeVisible();
   await host.getByRole('button', { name: 'More options' }).click(); await host.getByRole('menuitem', { name: 'Host a live quiz' }).click();
-  await host.getByLabel('Questions').selectOption('3'); await host.getByLabel('Seconds per question').selectOption('10');
+  // Two clicks rather than selectOption: these are the app's own dropdown now, not a native select.
+  const choose = async (field, option) => {
+    await host.getByRole('button', { name: new RegExp(`^${field}`) }).click();
+    await host.getByRole('option', { name: option, exact: true }).click();
+  };
+  await choose('Questions', '3 questions'); await choose('Seconds per question', '10 seconds');
   await host.getByRole('button', { name: 'Open the room' }).click();
   await expect(host.getByRole('heading', { name: 'Waiting for players' })).toBeVisible();
   const code = (await host.locator('.room-big-code').textContent()).trim(); expect(code).toMatch(/^[A-Z0-9]{6}$/);

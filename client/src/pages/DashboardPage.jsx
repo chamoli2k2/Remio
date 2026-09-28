@@ -5,6 +5,7 @@ import { api } from '../services/api';
 import { reportError } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
 import { Button, Loading, ErrorState, Empty, Modal } from '../components/ui';
+import Select, { optionsOf } from '../components/Select';
 import { ACCOUNTS, isSuperadmin, planById } from '../../../shared/account.js';
 // Split out because between them they are most of this page's weight and neither is on the tab
 // that opens first. An admin who only ever approves payments never downloads either.
@@ -65,7 +66,7 @@ export default function DashboardPage() {
     </div>
     {tab === 'users' && <>
       <form className="folder-search dash-search" onSubmit={e => e.preventDefault()}><input aria-label="Search users" placeholder="Search name, username, email" value={q} onChange={e => setQ(e.target.value)}/></form>
-      {loading ? <Loading/> : error ? <ErrorState message={error}/> : !people.length ? <Empty title="No users" text="Try another search."/> : <div className="dash-table-wrap"><table className="dash-table"><thead><tr><th>Person</th><th>Email</th><th>Subscription</th><th>Role</th></tr></thead><tbody>{people.map(p => <tr key={p.id}><td><strong>{p.name}</strong><span>@{p.username}</span></td><td>{p.email || 'Not given'}</td><td><Subscription person={p}/></td><td>{p.id === user.id ? <span className="dash-self">{p.account} · you</span> : <select aria-label={`Role for ${p.username}`} value={p.account || 'normal'} onChange={e => setAccount(p.id, e.target.value)}>{ACCOUNTS.map(a => <option key={a} value={a}>{a}</option>)}</select>}</td></tr>)}</tbody></table></div>}
+      {loading ? <Loading/> : error ? <ErrorState message={error}/> : !people.length ? <Empty title="No users" text="Try another search."/> : <div className="dash-table-wrap"><table className="dash-table"><thead><tr><th>Person</th><th>Email</th><th>Subscription</th><th>Role</th></tr></thead><tbody>{people.map(p => <tr key={p.id}><td><strong>{p.name}</strong><span>@{p.username}</span></td><td>{p.email || 'Not given'}</td><td><Subscription person={p}/></td><td>{p.id === user.id ? <span className="dash-self">{p.account} · you</span> : <Select compact label={`Role for ${p.username}`} value={p.account || 'normal'} onChange={v => setAccount(p.id, v)} options={optionsOf(ACCOUNTS)}/>}</td></tr>)}</tbody></table></div>}
     </>}
     {tab === 'orders' && (lo ? <Loading/> : eo ? <ErrorState message={eo}/> : !(orders?.orders || []).length ? <Empty title="No Premium requests" text="When someone submits the buy form, they appear here."/> : <ul className="order-grid">{orders.orders.map(o => <li key={o.id}>
       <button type="button" className="order-card" onClick={() => setOpen(o)}>
@@ -88,12 +89,11 @@ export default function DashboardPage() {
           {` ${usage?.totals.unsellableCountries ?? 0} `}
           {usage?.totals.unsellableCountries === 1 ? 'country' : 'countries'} right now.
         </p>
-        <label className="dash-usage-window">
+        <div className="dash-usage-window">
           <span>Window</span>
-          <select value={days} onChange={e => setDays(Number(e.target.value))}>
-            {[7, 30, 90, 365].map(d => <option key={d} value={d}>Last {d} days</option>)}
-          </select>
-        </label>
+          <Select compact label="Window" value={days} onChange={setDays}
+            options={optionsOf([7, 30, 90, 365], d => `Last ${d} days`)}/>
+        </div>
       </div>
       {lu ? <Loading/> : eu ? <ErrorState message={eu}/> : !usage?.rows.length ? <Empty title="No accounts yet" text="Countries appear here as people sign up."/> : <div className="dash-table-wrap"><table className="dash-table"><thead><tr>
         <th>Country</th><th>Accounts</th><th>Studied</th><th>Reviews</th><th>Paying</th><th>Selling</th>

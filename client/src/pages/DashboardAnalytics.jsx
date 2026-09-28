@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '../hooks/useApp';
 import { Loading, ErrorState, Empty } from '../components/ui';
+import Select, { optionsOf } from '../components/Select';
 const DAY_WINDOWS = [7, 30, 90, 365], WEEK_WINDOWS = [4, 8, 12, 26];
 const num = n => (Number.isFinite(n) ? n : 0).toLocaleString();
 /** The percentages the service sends are already rounded to one decimal, so they are only printed. */
@@ -67,18 +68,16 @@ export default function DashboardAnalytics() {
         here because nothing in the models records them.
       </p>
       <div className="dash-an-windows">
-        <label className="dash-usage-window">
+        <div className="dash-usage-window">
           <span>Window</span>
-          <select value={days} onChange={e => setDays(Number(e.target.value))}>
-            {DAY_WINDOWS.map(d => <option key={d} value={d}>Last {d} days</option>)}
-          </select>
-        </label>
-        <label className="dash-usage-window">
+          <Select compact label="Window" value={days} onChange={setDays}
+            options={optionsOf(DAY_WINDOWS, d => `Last ${d} days`)}/>
+        </div>
+        <div className="dash-usage-window">
           <span>Cohorts</span>
-          <select value={weeks} onChange={e => setWeeks(Number(e.target.value))}>
-            {WEEK_WINDOWS.map(w => <option key={w} value={w}>{w} weeks</option>)}
-          </select>
-        </label>
+          <Select compact label="Cohorts" value={weeks} onChange={setWeeks}
+            options={optionsOf(WEEK_WINDOWS, w => `${w} weeks`)}/>
+        </div>
       </div>
     </div>
     <Section title="Growth" text="Who arrived, and how many of them did the two things that separate an account from a form submission.">
