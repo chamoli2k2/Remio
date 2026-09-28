@@ -32,7 +32,7 @@ export function createApp() {
   // is what lets the domain be preloaded; harmless locally because browsers ignore it off HTTPS.
   app.use(helmet({
     strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, jsonLdHash, ...gateway, ...googleAuth], "style-src": ["'self'", "'unsafe-inline'"], "frame-src": ["'self'", ...gateway, ...googleAuth], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway, ...googleAuth] } },
+    contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, jsonLdHash, ...gateway, ...googleAuth], "style-src": ["'self'", "'unsafe-inline'", ...googleAuth], "frame-src": ["'self'", ...gateway, ...googleAuth], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway, ...googleAuth] } },
   }));
   app.use(cors({ origin: origins, credentials: true }));
   // `limit` is a function because the value behind it changes while the process is running.

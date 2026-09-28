@@ -22,6 +22,19 @@ function loadGoogle() {
 }
 
 /**
+ * `initialize` configures one global client, not a component.
+ *
+ * Calling it again — which is what happens when this re-renders for a theme change or when the
+ * page switches between sign-in and sign-up — makes Google log that only the last call counts.
+ * It is harmless but it is also a warning that the code is doing something it did not mean to, so
+ * the client id it was set up with is remembered and the call is made once.
+ */
+let initialisedFor = null;
+
+/** Google sizes its button in pixels and caps it at 400, so a percentage has to be measured. */
+const BUTTON_MIN = 200, BUTTON_MAX = 400;
+
+/**
  * Google's own button, rendered by Google.
  *
  * It has to be their markup rather than ours: the styling, wording, and logo are fixed by their
@@ -36,39 +49,59 @@ export default function GoogleButton({ onCredential, text = 'signin_with' }) {
   const { theme } = useTheme();
   const slot = useRef(null);
   const [failed, setFailed] = useState('');
+  const [width, setWidth] = useState(0);
   // Kept in a ref so re-rendering with a new callback does not mean re-initialising Google.
   const handler = useRef(onCredential);
   handler.current = onCredential;
 
   const clientId = config.googleClientId;
 
+  // Measured rather than assumed, because a fixed 320 overflows the form column on a narrow phone
+  // and leaves a gap on a wide one.
   useEffect(() => {
-    if (!clientId || !slot.current) return;
+    const el = slot.current;
+    if (!el) return;
+    const measure = () => setWidth(Math.round(Math.min(BUTTON_MAX, Math.max(BUTTON_MIN, el.clientWidth || BUTTON_MIN))));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [clientId]);
+
+  useEffect(() => {
+    if (!clientId || !slot.current || !width) return;
     let cancelled = false;
     loadGoogle().then(google => {
       if (cancelled || !slot.current) return;
-      google.accounts.id.initialize({
-        client_id: clientId,
-        callback: response => handler.current?.(response.credential),
-        // One Tap is deliberately off. It appears unbidden over the page, and on a form somebody is
-        // already filling in it reads as an interruption rather than a shortcut.
-        auto_select: false,
-        cancel_on_tap_outside: true,
-        use_fedcm_for_prompt: true,
-      });
+      if (initialisedFor !== clientId) {
+        google.accounts.id.initialize({
+          client_id: clientId,
+          // Reads the ref, so the current page's handler is used without re-initialising.
+          callback: response => handler.current?.(response.credential),
+          // One Tap is deliberately off. It appears unbidden over the page, and on a form somebody
+          // is already filling in it reads as an interruption rather than a shortcut.
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          use_fedcm_for_prompt: true,
+        });
+        initialisedFor = clientId;
+      }
+      // Re-rendered rather than re-initialised when the theme or the wording changes. Google
+      // appends, so the old button is cleared first or they stack up.
+      slot.current.innerHTML = '';
       google.accounts.id.renderButton(slot.current, {
         theme: theme === 'dark' ? 'filled_black' : 'outline',
-        size: 'large', text, shape: 'pill', logo_alignment: 'center', width: 320,
+        size: 'large', text, shape: 'pill', logo_alignment: 'center', width,
       });
     }).catch(e => { if (!cancelled) setFailed(e.message); });
     return () => { cancelled = true; };
-  }, [clientId, theme, text]);
+  }, [clientId, theme, text, width]);
 
   // Nothing at all when it is not configured, rather than a button that cannot work.
   if (!clientId) return null;
   return <div className="google-signin">
     <div ref={slot} className="google-signin-slot"/>
     {failed && <p className="google-signin-error">{failed}</p>}
-    <span className="google-signin-divider"><span/>or<span/></span>
+    <span className="google-signin-divider"><span/>or with your email<span/></span>
   </div>;
 }

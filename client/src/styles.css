@@ -844,3 +844,29 @@ html[data-theme=dark] .report-reason.is-illegal,html[data-theme=dark] .report-re
 .google-signin-divider{display:flex;align-items:center;gap:12px;width:100%;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
 .google-signin-divider>span{flex:1;height:1px;background:var(--border)}
 html[data-theme=dark] .google-signin-error{color:#f0a9ad}
+
+/* Auth pages, after the Google button and the consent line made the signup form taller than a
+   laptop window.
+
+   The column was centred with align-items, which is fine until the content is taller than the
+   space: a centred flex child overflows equally in both directions and the top goes under the
+   edge of the screen, unreachable. Auto margins centre it the same way when there is room and
+   collapse to zero when there is not, so it scrolls from the top instead of being cut off. */
+.auth-form{align-items:flex-start;overflow-y:auto}
+.auth-form>div{margin-block:auto}
+/* Tightened rather than redesigned: the same fields, less air between them, which is what buys
+   back the height the two new elements cost. */
+.auth-form .form-stack{gap:15px}
+.google-signin{gap:12px;margin-bottom:2px}
+.google-signin-slot{min-height:44px;width:100%}
+.google-signin-divider{font-size:10.5px}
+.auth-consent{font-size:12px;gap:9px}
+/* A short window — a laptop with the browser chrome, or a phone in landscape — gets the padding
+   back as usable height. */
+@media(max-height:820px){
+  .auth-form{padding:58px 45px 24px}
+  .auth-form .form-stack{gap:13px}
+  .auth-form h2{font-size:23px}
+  .auth-form>div>p{font-size:13px}
+}
+@media(max-width:760px){.auth-form{padding:26px 22px}}
