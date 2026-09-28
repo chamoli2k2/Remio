@@ -16,6 +16,8 @@ import { trustedOrigins } from './utils/origin.js';
 import { readOnlyGuard } from './middleware/config.js';
 import { throttle } from './middleware/throttle.js';
 import { setting } from './services/settingsService.js';
+import { themeScriptHash } from '../../shared/themeScript.js';
+import { jsonLdHash } from '../../shared/seo.js';
 export function createApp() {
   const app = express(); app.disable('x-powered-by'); if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
   app.use(requestContext);
@@ -23,7 +25,13 @@ export function createApp() {
   // connect-src includes ws(s) so the same-origin Socket.IO connection is allowed by CSP in every browser.
   // The gateway's checkout runs in its own script and iframe, so it only widens the policy when configured.
   const gateway = razorpayConfigured() ? ['https://checkout.razorpay.com', 'https://api.razorpay.com'] : [];
-  app.use(helmet({ contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", ...gateway], "style-src": ["'self'", "'unsafe-inline'"], "frame-src": ["'self'", ...gateway], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway] } } }));
+  // The theme script is inlined into the HTML to save a blocking round trip, so the policy names
+  // its hash rather than opening up inline scripts generally. HSTS is a year with subdomains, which
+  // is what lets the domain be preloaded; harmless locally because browsers ignore it off HTTPS.
+  app.use(helmet({
+    strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, jsonLdHash, ...gateway], "style-src": ["'self'", "'unsafe-inline'"], "frame-src": ["'self'", ...gateway], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway] } },
+  }));
   app.use(cors({ origin: origins, credentials: true }));
   // `limit` is a function because the value behind it changes while the process is running.
   app.use('/api', throttle({ windowMs: 60000, limit: () => setting('throttle.apiPerMinute') }));

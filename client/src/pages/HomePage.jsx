@@ -180,7 +180,7 @@ export default function HomePage() {
       <HeroCard/>
     </section>
     <section className="home-steps" aria-label={`How ${BRAND.name} works`}>
-      {[[Layers, 'Collect', 'Create folders for anything worth remembering. Add two-sided text or image cards, tags, hints, and sources.'], [Brain, 'Recall', `Study what is due. Rate each answer honestly and ${BRAND.name} brings difficult cards back sooner.`], [Users, 'Share', 'Invite collaborators as viewers or editors, publish a collection to the world, or keep it just for you.']].map(([Icon, title, text], i) => <div className="home-step" key={title}><span className="home-step-index">0{i + 1}</span><span className="home-step-icon"><Icon size={20}/></span><h3>{title}</h3><p>{text}</p></div>)}
+      {[[Layers, 'Collect', 'Create folders for anything worth remembering. Add two-sided text or image cards, tags, hints, and sources.'], [Brain, 'Recall', `Study what is due. Rate each answer honestly and ${BRAND.name} brings difficult cards back sooner.`], [Users, 'Share', 'Invite collaborators as viewers or editors, publish a collection to the world, or keep it just for you.']].map(([Icon, title, text], i) => <div className="home-step" key={title}><span className="home-step-index" aria-hidden="true">0{i + 1}</span><span className="home-step-icon"><Icon size={20}/></span><h2>{title}</h2><p>{text}</p></div>)}
     </section>
     <Guide/>
     <section className="home-community" id="library">
