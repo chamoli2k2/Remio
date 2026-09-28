@@ -1,5 +1,4 @@
 import { lazy, Suspense, useState } from 'react';
-import { ImageOff, Maximize2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 import { reportError } from '../services/errors';
@@ -68,9 +67,8 @@ export default function DashboardPage() {
       <form className="folder-search dash-search" onSubmit={e => e.preventDefault()}><input aria-label="Search users" placeholder="Search name, username, email" value={q} onChange={e => setQ(e.target.value)}/></form>
       {loading ? <Loading/> : error ? <ErrorState message={error}/> : !people.length ? <Empty title="No users" text="Try another search."/> : <div className="dash-table-wrap"><table className="dash-table"><thead><tr><th>Person</th><th>Email</th><th>Subscription</th><th>Role</th></tr></thead><tbody>{people.map(p => <tr key={p.id}><td><strong>{p.name}</strong><span>@{p.username}</span></td><td>{p.email || 'Not given'}</td><td><Subscription person={p}/></td><td>{p.id === user.id ? <span className="dash-self">{p.account} · you</span> : <Select compact label={`Role for ${p.username}`} value={p.account || 'normal'} onChange={v => setAccount(p.id, v)} options={optionsOf(ACCOUNTS)}/>}</td></tr>)}</tbody></table></div>}
     </>}
-    {tab === 'orders' && (lo ? <Loading/> : eo ? <ErrorState message={eo}/> : !(orders?.orders || []).length ? <Empty title="No Premium requests" text="When someone submits the buy form, they appear here."/> : <ul className="order-grid">{orders.orders.map(o => <li key={o.id}>
+    {tab === 'orders' && (lo ? <Loading/> : eo ? <ErrorState message={eo}/> : !(orders?.orders || []).length ? <Empty title="No Premium orders" text="Every purchase through the gateway appears here."/> : <ul className="order-grid">{orders.orders.map(o => <li key={o.id}>
       <button type="button" className="order-card" onClick={() => setOpen(o)}>
-        <span className="order-card-proof">{o.hasProof ? <><img src={o.proofUrl} alt=""/><span className="order-card-zoom"><Maximize2 size={15}/></span></> : <ImageOff size={20}/>}</span>
         <span className="order-card-body">
           <strong>{o.name}</strong>
           <span>{planById(o.plan)?.label || 'Premium'} · {o.user?.username ? `@${o.user.username}` : o.email}</span>
@@ -111,9 +109,8 @@ export default function DashboardPage() {
     {/* Both are split bundles, so the fallback covers the fetch of the code as well as the data. */}
     {tab === 'analytics' && <Suspense fallback={<Loading/>}><DashboardAnalytics/></Suspense>}
     {tab === 'settings' && <Suspense fallback={<Loading/>}><DashboardSettings/></Suspense>}
-    <Modal wide open={!!open} onClose={() => setOpen(null)} title={open ? `Premium request from ${open.name}` : ''} description="Check the payment screenshot against the details before approving.">
+    <Modal wide open={!!open} onClose={() => setOpen(null)} title={open ? `Premium request from ${open.name}` : ''} description="The billing details on this order, as the buyer gave them.">
       {open && <div className="order-detail">
-        <div className="order-detail-proof">{open.hasProof ? <a href={open.proofUrl} target="_blank" rel="noreferrer" title="Open the full image"><img src={open.proofUrl} alt={`Payment screenshot from ${open.name}`}/></a> : <span className="order-detail-noproof"><ImageOff size={24}/> No screenshot on this request</span>}</div>
         <dl className="order-detail-list">
           <div><dt>Status</dt><dd><span className={`order-status is-${open.status}`}>{open.status}</span></dd></div>
           {/* The amount is read off the order rather than looked up from the plan: prices differ by

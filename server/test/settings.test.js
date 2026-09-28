@@ -72,7 +72,7 @@ test('combinations that would break the app are caught before they are saved', (
   // Each of these is a legal value on its own and a broken product together, which is why the check
   // runs against the whole effective configuration rather than field by field.
   assert.ok(conflicts({ ...base, 'teams.minSeats': 50, 'teams.maxSeats': 10 }).length, 'a floor above the ceiling sells nothing');
-  assert.ok(conflicts({ ...base, 'selling.razorpay': false, 'selling.manual': false }).length, 'no way to pay is a checkout that cannot complete');
+  assert.ok(conflicts({ ...base, 'selling.razorpay': false }).length, 'no way to pay is a checkout that cannot complete');
   assert.ok(conflicts({ ...base, 'selling.countries': [] }).length, 'on sale nowhere');
   assert.equal(conflicts(base).length, 0, 'and the shipped configuration is coherent');
 });

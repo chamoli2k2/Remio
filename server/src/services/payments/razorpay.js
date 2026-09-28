@@ -1,7 +1,12 @@
 import crypto from 'node:crypto';
 import { AppError, badRequest } from '../../utils/errors.js';
 
-const API = 'https://api.razorpay.com/v1';
+/**
+ * Overridable so a test suite can point the client at a stub on localhost and exercise the real
+ * request-building, error-mapping, and order-reserving code without reaching the internet or
+ * needing live keys. Unset everywhere except in tests, which is where it should stay.
+ */
+const API = () => process.env.RAZORPAY_API_URL || 'https://api.razorpay.com/v1';
 export const keyId = () => process.env.RAZORPAY_KEY_ID || '';
 const keySecret = () => process.env.RAZORPAY_KEY_SECRET || '';
 const webhookSecret = () => process.env.RAZORPAY_WEBHOOK_SECRET || '';
@@ -33,7 +38,7 @@ export async function createOrder({ amount, currency = 'INR', receipt, notes }) 
   const auth = Buffer.from(`${keyId()}:${keySecret()}`).toString('base64');
   let response;
   try {
-    response = await fetch(`${API}/orders`, {
+    response = await fetch(`${API()}/orders`, {
       method: 'POST',
       headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount, currency, receipt, notes, payment_capture: 1 }),

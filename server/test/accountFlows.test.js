@@ -297,7 +297,7 @@ acct('a payment record survives deletion with the personal details stripped out'
   assert.equal((await agent.delete('/api/auth/account').send({ password, confirm: 'delete my account' })).status, 200);
 
   const order = await PremiumOrder.findOne({ user: id }).lean();
-  assert.ok(order, 'the proof of payment is still there');
+  assert.ok(order, 'the record of the payment is still there');
   assert.equal(order.amount, 19900, 'the amount is untouched');
   assert.equal(order.name, 'Deleted account');
   assert.equal(order.phone, '');

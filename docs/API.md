@@ -46,12 +46,10 @@ All routes use the `/api` prefix. The browser sends the HttpOnly `remio_session`
 | GET | `/notifications` | Own 30 most recent notifications plus `unread` count. Types: `follow`, `connect.request`, `connect.accepted`, `premium.requested`, `premium.approved`, `premium.declined` |
 | POST | `/notifications/read` | `{ ids?: string[] }`. Omit `ids` to mark everything read. Returns the new `unread` count |
 | GET | `/premium/order` | `{ order, subscription, methods }`. `subscription` carries `plan`, `expiresAt`, `daysLeft`, `active`. `methods` lists only what this server can actually take money with, each `{ id, label, blurb, instant, requiresProof }`. The checkout page renders whatever is returned |
-| POST | `/premium/order` | Manual flow. Multipart: `plan` (monthly\|quarterly\|halfyearly\|yearly), name, email, phone, country, address, and required `proof` image (UPI screenshot). Stays `pending` until an admin approves it |
 | POST | `/premium/checkout` | Gateway flow, step one. Same JSON fields plus `method: razorpay`. Reserves a Razorpay order and returns `{ order, checkout }` for the browser SDK. 502 `GATEWAY_UNREACHABLE`/`GATEWAY_REJECTED` if the gateway declines, and the pending order is removed so the buyer can retry |
 | POST | `/premium/checkout/confirm` | Gateway flow, step two. `{ orderId, paymentId, signature }` from the checkout callback. The signature is verified against `RAZORPAY_KEY_SECRET` before anything is granted; a mismatch is 400 `BAD_SIGNATURE` |
 | POST | `/premium/webhook/razorpay` | Gateway callback, unauthenticated but signed. Mounted on the **raw** body before the JSON parser, because `X-Razorpay-Signature` covers the exact bytes. Handles `payment.captured` and `payment.failed`. Safe to retry: the grant is a conditional status update, so a replay returns `alreadySettled` and adds no days |
 | DELETE | `/premium/order` | Discards the caller's pending order, e.g. after they close the checkout window |
-| GET | `/premium/orders/:id/proof` | Owner or admin; payment screenshot. Manual orders only. `Cache-Control: private, no-store` |
 | GET / POST | `/teams` | Own teams with `role`, `seats`, `memberCount`, `daysLeft`, `active`. POST takes `{ name, kind: classroom\|team, description }` and creates it unpaid with no seats |
 | GET | `/teams/:id` | `{ team, members, folders, assignments }`. Only for members; a team you are not in is a 404 |
 | PATCH / PATCH | `/teams/:id`, `/teams/:id/archive` | Owner only. Update takes `version` for optimistic concurrency; archiving keeps the folders and study history |
@@ -66,10 +64,9 @@ All routes use the `/api` prefix. The browser sends the HttpOnly `remio_session`
 | POST | `/teams/:id/quote` | `{ plan: team-monthly\|team-yearly, seats }`. Prices from the team's own state: `team-new` pays for every seat, `team-renew` extends the current count, `team-seats` prorates extras against the days left |
 | GET | `/teams/:id/billing` | The owner's pending seat order, if any, plus the usable payment `methods` |
 | POST | `/teams/:id/checkout` | Gateway flow for seats. Same shape as `/premium/checkout` plus `seats`; confirm through `/premium/checkout/confirm` |
-| POST / DELETE | `/teams/:id/order` | Manual flow for seats (multipart with `proof`), and discarding a pending seat order |
 | GET | `/admin/users` | Admin/Superadmin; list accounts (`+email`) with `plan`, `expiresAt`, `daysLeft`, `premiumActive`. `?q=` filters |
 | PATCH | `/admin/users/:id` | `{ account: normal\|premium\|admin\|superadmin }`. Admin may only set normal/premium. A hand-granted role carries no end date; moving off premium clears the subscription |
-| GET | `/admin/orders` | Premium payment requests, including the requested `plan` and `method`. `hasProof` is only true for manual orders |
+| GET | `/admin/orders` | Premium orders, including the requested `plan` and `method` |
 | PATCH | `/admin/orders/:id` | `{ status: approved\|declined }`. Goes through the same fulfilment as a verified gateway payment: approving applies the plan's window, extending an unexpired subscription rather than truncating it, and notifies the buyer |
 | GET | `/health` | Liveness: Express is running. Public, no database access, always 200 |
 | GET | `/ready` | Readiness: MongoDB answers a ping within `READINESS_TIMEOUT_MS`. 200 ready / 503 unavailable; no error details |

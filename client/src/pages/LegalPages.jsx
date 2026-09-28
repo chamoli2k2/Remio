@@ -100,7 +100,7 @@ const termsSections = [
       <p>Premium adds projects, card import and export, folder covers, hosting live quizzes, and inviting editors. Classrooms are billed per seat. Prices are shown in rupees in India and in US dollars elsewhere we sell, follow the country on your account, and include any taxes we are required to add. The current figures are on our <Link to="/pricing">pricing page</Link>.</p>
       <ul>
         <li><strong>Nothing renews automatically.</strong> Every plan is a single payment that buys a fixed period, and we do not store a mandate against your card or UPI ID. When the period ends, your account simply returns to the free tier and your content stays where it is.</li>
-        <li>You can pay online through our payment gateway, which unlocks your plan as soon as the payment clears, or by UPI transfer with a screenshot, which a person reviews, usually within one working day.</li>
+        <li>You pay online through our payment gateway with a card, UPI, net banking, or a wallet, and your plan unlocks as soon as the payment clears.</li>
         <li>Adding seats to a classroom part-way through a period is charged pro rata to the renewal date you already have, so topping up never shortens what you have paid for.</li>
         <li>If we change our prices, the change only affects purchases you make afterwards. A period you have already paid for is never repriced.</li>
       </ul>
@@ -178,7 +178,7 @@ const privacySections = [
       <ul>
         <li><strong>Your account:</strong> name, username, email address, and a password that we store only as a bcrypt hash, never as text we could read. A profile picture and bio are optional.</li>
         <li><strong>Your content:</strong> the folders, cards, tags, hints, and images you create or upload. Images are converted to WebP and resized when you upload them.</li>
-        <li><strong>Billing details:</strong> if you buy a plan, the name, email, and phone number you type at checkout, plus a record of the order. For a manual UPI transfer, the screenshot you upload as proof. <strong>Card and UPI credentials never reach our servers</strong>; the payment gateway handles those directly.</li>
+        <li><strong>Billing details:</strong> if you buy a plan, the name, email, and phone number you type at checkout, plus a record of the order. <strong>Card and UPI credentials never reach our servers</strong>; the payment gateway handles those directly.</li>
         <li><strong>Anything you write to us:</strong> support emails and the messages in them.</li>
       </ul>
       <h3>Things the service produces</h3>

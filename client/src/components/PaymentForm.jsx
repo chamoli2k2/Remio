@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Crown, ImageUp, ImageOff, ShieldCheck, Zap, Banknote, MailCheck, X } from 'lucide-react';
+import { Crown, ShieldCheck, MailCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 import { messageFor, ApiError } from '../services/errors';
@@ -16,7 +16,6 @@ import CountryPicker from './CountryPicker';
 // over plain HTTP in development it is refused as mixed content. Carrying the bytes along cannot fail.
 import logo from '../assets/checkout-logo.png?inline';
 
-const METHOD_ICONS = { razorpay: Zap, manual: Banknote };
 /** The gateway finds its container by selector, so the id has to be stable and only ever appear once. */
 const EMBED_ID = 'gateway-embed';
 
@@ -25,7 +24,7 @@ const EMBED_ID = 'gateway-embed';
  * to and what extra fields ride along, so a personal plan and a pack of seats share every line of
  * the method picker, the billing fields, and the gateway handshake.
  */
-export default function PaymentForm({ methods = [], amount, summary, label = 'Submit request', instantLabel = 'Pay', manualPath, checkoutPath, cancelPath, extra = {}, onDone, onMethodChange }) {
+export default function PaymentForm({ methods = [], amount, summary, instantLabel = 'Pay', checkoutPath, cancelPath, extra = {}, onDone, onMethodChange }) {
   const { user, setUser, refresh, config } = useApp();
   const { money } = useMoney();
   const [method, setMethod] = useState('');
@@ -52,7 +51,6 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
     const own = countryByName(user?.country)?.code;
     return { name: user?.name || '', country: payable.some(c => c.code === own) ? own : payable[0]?.code || '', phone: '', address: '' };
   });
-  const [proof, setProof] = useState(null), [preview, setPreview] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [embedded, setEmbedded] = useState(false);
   const gateway = useRef(null);
@@ -65,21 +63,12 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
   }, [payable, form.country]);
   const active = methods.find(m => m.id === method) || null;
   useEffect(() => { onMethodChange?.(active); }, [active, onMethodChange]);
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
-
-  function pickProof(file) {
-    if (file && !/^image\/(png|jpeg|webp)$/.test(file.type)) { setError('Use a JPG, PNG, or WebP image.'); return; }
-    setError('');
-    setProof(file || null);
-    setPreview(old => { if (old) URL.revokeObjectURL(old); return file ? URL.createObjectURL(file) : ''; });
-  }
 
   async function submit(e) {
     e.preventDefault();
-    if (active?.requiresProof && !proof) { setError('Attach a screenshot of the UPI payment.'); return; }
     setBusy(true); setError('');
     try {
-      if (method === 'razorpay') await payOnline(); else { await payManual(); toast.success('Request sent with your payment photo.'); }
+      await payOnline();
       refresh(); onDone?.();
     } catch (err) { setError(messageFor(err)); } finally { setBusy(false); }
   }
@@ -91,13 +80,6 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
     phone: composePhone(form.country, form.phone),
     address: form.address,
   });
-
-  async function payManual() {
-    const body = new FormData();
-    Object.entries({ ...billing(), ...extra, method: 'manual' }).forEach(([k, v]) => body.append(k, v));
-    body.append('proof', proof);
-    await api(manualPath, { method: 'POST', body });
-  }
 
   /**
    * Tears the gateway down and frees the order it reserved, so the next attempt is not blocked by
@@ -175,18 +157,6 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
         <div id={EMBED_ID} className="pay-embed-frame"/>
       </div>
     </div>}
-    {methods.length > 1 && <>
-      <div className="premium-card-head premium-card-head-inline"><h2>How would you like to pay?</h2></div>
-      <div className="pay-picker" role="radiogroup" aria-label="Payment method">{methods.map(m => {
-        const Icon = METHOD_ICONS[m.id] || Banknote;
-        return <label key={m.id} className={`pay-option ${method === m.id ? 'is-chosen' : ''}`}>
-          <input type="radio" name="method" value={m.id} checked={method === m.id} onChange={() => setMethod(m.id)}/>
-          <span className="pay-icon"><Icon size={16}/></span>
-          <span className="pay-text"><strong>{m.label}</strong><small>{m.blurb}</small></span>
-          {m.instant && <span className="plan-tag">Instant</span>}
-        </label>;
-      })}</div>
-    </>}
     <div className="premium-card-head premium-card-head-inline"><h2>Billing details</h2>{summary && <span className="plan-total">{summary}</span>}</div>
     {user?.email && <p className="pay-receipt"><MailCheck size={15}/><span>Your receipt goes to <strong>{user.email}</strong>, the confirmed address on your account.</span></p>}
     <div className="premium-grid">
@@ -202,18 +172,8 @@ export default function PaymentForm({ methods = [], amount, summary, label = 'Su
       </div>
     </Field>
     <Field label="Billing address" hint="Needed on the invoice for tax purposes."><textarea required minLength={6} maxLength={300} rows={2} autoComplete="street-address" placeholder="Street, city, and postal code" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))}/></Field>
-    {active?.requiresProof && <>
-      <div className="premium-card-head premium-card-head-inline"><h2>Proof of payment</h2><span className="premium-required">Required</span></div>
-      <label className={`dropzone proof-dropzone ${proof ? 'has-file' : ''}`} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); pickProof(e.dataTransfer.files[0]); }}>
-        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => pickProof(e.target.files[0])}/>
-        {preview ? <img className="proof-preview" src={preview} alt="Payment screenshot preview"/> : <span className="dropzone-icon"><ImageUp size={22}/></span>}
-        <strong>{proof ? proof.name : 'Add your payment screenshot'}</strong>
-        <small>{proof ? 'Click or drop another image to replace it.' : 'Drag an image here, or click to browse. JPG, PNG, or WebP.'}</small>
-      </label>
-      {proof && <button type="button" className="text-button proof-clear" onClick={() => pickProof(null)}><ImageOff size={14}/> Remove image</button>}
-    </>}
     {error && <ErrorState message={error}/>}
-    <Button className="primary premium-submit" loading={busy} type="submit"><Crown size={16}/> {active?.instant ? instantLabel : label}{amount ? ` · ${money(amount)}` : ''}</Button>
-    <p className="premium-fineprint"><ShieldCheck size={14}/> {active?.requiresProof ? 'Your screenshot is private. Only you and an admin can open it.' : `Card details go straight to the payment gateway. ${BRAND.name} never sees them.`}</p>
+    <Button className="primary premium-submit" loading={busy} type="submit"><Crown size={16}/> {instantLabel}{amount ? ` · ${money(amount)}` : ''}</Button>
+    <p className="premium-fineprint"><ShieldCheck size={14}/> Card details go straight to the payment gateway. {BRAND.name} never sees them.</p>
   </form>;
 }

@@ -98,5 +98,26 @@ const pwa = () => {
 export default defineConfig({
   plugins: [react(), brandHtml(), pwa()],
   server: { host: '0.0.0.0', port: 4173, strictPort: true, allowedHosts: ['terminal.local'], proxy: { '/api': 'http://127.0.0.1:4000', '/socket.io': { target: 'http://127.0.0.1:4000', ws: true } } },
-  build: { outDir: 'dist', sourcemap: false }
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        /**
+         * Dependencies that change on their own schedule, kept out of the app chunk.
+         *
+         * Not about the size of the first download — these are needed either way — but about the
+         * second one. Bundled together with our code, every deploy invalidates React and the
+         * router too, so a returning visitor re-downloads a few hundred kilobytes that did not
+         * change. Split out, they stay in the browser cache across releases.
+         */
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) return 'react';
+          if (id.includes('@radix-ui') || id.includes('sonner')) return 'ui-kit';
+          return undefined;
+        },
+      },
+    },
+  }
 });

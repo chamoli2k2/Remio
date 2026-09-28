@@ -61,22 +61,19 @@ test('a gateway that can take money but cannot verify a webhook is called out at
   });
 });
 
-test('only usable methods are advertised, and the retired transfer flow stays retired', () => {
-  withEnv({ RAZORPAY_KEY_ID: 'rzp_test_key', RAZORPAY_KEY_SECRET: 's', MANUAL_PAYMENT: undefined }, () => {
-    assert.deepEqual(availableMethods().map(m => m.id), ['razorpay'], 'the gateway alone, because the transfer flow is off by default now');
-    assert.throws(() => requireMethod('manual'), /not available/);
+test('only usable methods are advertised, and the retired transfer flow is gone', () => {
+  withEnv({ RAZORPAY_KEY_ID: 'rzp_test_key', RAZORPAY_KEY_SECRET: 's' }, () => {
+    assert.deepEqual(availableMethods().map(m => m.id), ['razorpay'], 'the gateway, and nothing else');
   });
-  withEnv({ RAZORPAY_KEY_ID: '', RAZORPAY_KEY_SECRET: '', MANUAL_PAYMENT: undefined }, () => {
-    // Nothing is offered rather than falling back to the transfer, so a server missing its keys
-    // cannot quietly start collecting screenshots again.
+  withEnv({ RAZORPAY_KEY_ID: '', RAZORPAY_KEY_SECRET: '' }, () => {
+    // Nothing is offered rather than falling back to anything, so a server missing its keys does
+    // not quietly start taking money by some other route.
     assert.deepEqual(availableMethods().map(m => m.id), [], 'no keys means nothing is on sale');
     assert.throws(() => requireMethod('razorpay'), /not available/);
-    assert.throws(() => requireMethod('manual'), /not available/);
-  });
-  withEnv({ RAZORPAY_KEY_ID: 'rzp_test_key', RAZORPAY_KEY_SECRET: 's', MANUAL_PAYMENT: 'on' }, () => {
-    assert.deepEqual(availableMethods().map(m => m.id), ['razorpay', 'manual'], 'the old flow can still be brought back for a stranded order');
   });
   assert.throws(() => requireMethod('bitcoin'), /how you want to pay/);
-  assert.equal(methodById('manual').requiresProof, true, 'the transfer needs a screenshot; the gateway does not');
-  assert.equal(methodById('razorpay').requiresProof, false);
+  // The transfer-and-screenshot flow was removed, so asking for it is now as meaningless as asking
+  // for a method that never existed.
+  assert.equal(methodById('manual'), null);
+  assert.throws(() => requireMethod('manual'), /how you want to pay/);
 });

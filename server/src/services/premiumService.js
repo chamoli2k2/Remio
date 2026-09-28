@@ -15,7 +15,6 @@ const presentOrder = order => ({
   id: order.id, plan: order.plan, method: order.method, status: order.status,
   amount: order.amount, currency: order.currency, createdAt: order.createdAt,
   kind: order.kind || 'personal', team: order.team ? String(order.team) : null, seats: order.seats || 0,
-  hasProof: !!order.proofType && order.method === 'manual',
 });
 
 /**
@@ -129,7 +128,7 @@ function assertBillable(book, country) {
     'BILLING_COUNTRY_UNSUPPORTED');
 }
 
-async function newOrder(user, body, method, { proof = null } = {}) {
+async function newOrder(user, body, method) {
   const book = livePricebook();
   assertOnSale(user);
   assertBillable(book, body.country);
@@ -152,7 +151,6 @@ async function newOrder(user, body, method, { proof = null } = {}) {
   return PremiumOrder.create({
     user: user.id, method, currency, amount: toMinorUnits(total, currency), ...money,
     name: body.name, email, phone: body.phone, country: body.country, address: body.address,
-    ...(proof ? { proof, proofType: 'image/webp' } : {}),
     status: 'pending',
   });
 }
@@ -160,16 +158,6 @@ async function newOrder(user, body, method, { proof = null } = {}) {
 const describe = order => order.team
   ? `${order.seats} seat${order.seats === 1 ? '' : 's'} · ${teamPlanById(order.plan)?.label || 'Team'}`
   : `${planById(order.plan)?.label || 'Premium'} plan`;
-
-/** Manual flow: the buyer proves they paid, an admin confirms it later. */
-export async function submitOrder(user, body, proof) {
-  assertOnSale(user);
-  requireMethod('manual');
-  assert(proof?.length, 400, 'Upload a screenshot of the payment.', 'PROOF_REQUIRED');
-  const order = await newOrder(user, body, 'manual', { proof });
-  await notifyStaff('premium.requested', { actor: user, data: { orderId: order.id, plan: order.plan } });
-  return presentOrder(order);
-}
 
 /** Gateway flow, step one: reserve an order with Razorpay and hand the client what checkout needs. */
 export async function startCheckout(user, body) {
@@ -244,11 +232,3 @@ export async function myOrder(user, teamId = null) {
   return { order: order ? presentOrder(order) : null, subscription: mySubscription(user), methods: availableMethods() };
 }
 
-export async function proofFor(viewer, orderId) {
-  const order = await PremiumOrder.findById(orderId).select('+proof');
-  assert(order, 404, 'Request not found.');
-  const owner = String(order.user) === String(viewer.id);
-  assert(owner || hasDashboard(viewer), 404, 'Request not found.');
-  assert(order.proof, 404, 'No payment photo on this request.');
-  return { data: order.proof, type: order.proofType || 'image/webp' };
-}

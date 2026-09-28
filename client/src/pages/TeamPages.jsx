@@ -362,7 +362,6 @@ export function TeamCheckoutPage() {
           label="Submit request"
           instantLabel="Pay for the seats"
           extra={{ plan, seats: quote.seats }}
-          manualPath={`/teams/${id}/order`}
           checkoutPath={`/teams/${id}/checkout`}
           cancelPath={`/teams/${id}/order`}
           onDone={() => navigate(`/teams/${id}`)}

@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import sharp from 'sharp';
+import http from 'node:http';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { connectDatabase } from '../src/config/database.js';
 import { createApp } from '../src/app.js';
@@ -11,13 +12,37 @@ import { allModels, Review, User, Notification, Relationship, PremiumOrder, Team
 import { defaultPricebook } from '../../shared/pricing.js';
 import { BRAND } from '../../shared/brand.js';
 const enabled = process.env.RUN_INTEGRATION === '1';
-let mongo, app, owner, editor, outsider, folderId, cardId;
+let mongo, app, owner, editor, outsider, folderId, cardId, gateway;
+
+/**
+ * A stand-in for Razorpay's orders endpoint.
+ *
+ * Reserving an order is the first half of every purchase, so a suite that cannot call the gateway
+ * cannot test buying anything. Pointing the client at a local server instead exercises the real
+ * request building, the real error mapping, and the real order record, without live keys and
+ * without the tests depending on somebody else's uptime.
+ */
+async function startGateway() {
+  let n = 0;
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      const { amount, currency } = JSON.parse(body || '{}');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ id: `order_stub_${++n}`, amount, currency }));
+    });
+  });
+  await new Promise(done => server.listen(0, '127.0.0.1', done));
+  process.env.RAZORPAY_API_URL = `http://127.0.0.1:${server.address().port}`;
+  process.env.RAZORPAY_KEY_ID = 'rzp_test_stub';
+  process.env.RAZORPAY_KEY_SECRET = 'stub-secret';
+  return server;
+}
 const password = 'Integration-only-password-2026';
 before(async () => {
   if (!enabled) return;
-  // The UPI-transfer flow is retired in the product but still has to work for the old orders an
-  // admin can be asked to settle, so these tests keep exercising it.
-  process.env.MANUAL_PAYMENT = 'on';
+  gateway = await startGateway();
   // This suite reserves far more orders in a minute than a person would, and it is not the suite
   // that tests throttling. Said here rather than inherited from whichever file happened to run
   // first, which is what previously decided whether these tests saw a limiter at all.
@@ -33,7 +58,7 @@ before(async () => {
   const f = await owner.post('/api/folders').send({ title: 'Concurrency', visibility: 'private' }); assert.equal(f.status, 201); folderId = f.body.folder.id;
   const c = await owner.post(`/api/folders/${folderId}/cards`).send({ front: { text: 'Q' }, back: { text: 'A' } }); assert.equal(c.status, 201); cardId = c.body.card.id;
 });
-after(async () => { if (mongoose.connection.readyState) { await mongoose.connection.dropDatabase(); await mongoose.disconnect(); } if (mongo) await mongo.stop(); delete process.env.MANUAL_PAYMENT; delete process.env.DISABLE_RATE_LIMIT; });
+after(async () => { if (mongoose.connection.readyState) { await mongoose.connection.dropDatabase(); await mongoose.disconnect(); } if (mongo) await mongo.stop(); if (gateway) await new Promise(done => gateway.close(done)); for (const k of ['RAZORPAY_API_URL', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'DISABLE_RATE_LIMIT']) delete process.env[k]; });
 const integration = (name, fn) => test(name, { skip: !enabled }, fn);
 integration('private folders and media stay private, public access is revoked immediately', async () => {
   assert.equal((await outsider.get(`/api/folders/${folderId}`)).status, 404);
@@ -121,22 +146,22 @@ integration('dashboard is staff-only; premium routes reject a normal account', a
   assert.equal((await outsider.get('/api/projects')).status, 200);
   await owner.patch(`/api/admin/users/${outsiderId}`).send({ account: 'normal' });
   assert.equal((await outsider.get('/api/projects')).status, 402);
-  const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#22aa66' } }).png().toBuffer();
-  const order = () => outsider.post('/api/premium/order').field('name', 'Out Sider').field('phone', '+919999999999').field('country', 'India').field('address', '1 Demo Street');
-  assert.equal((await order().field('plan', 'galactic').attach('proof', png, 'upi.png')).status, 400, 'an unknown plan is rejected');
-  const buy = await order().field('plan', 'monthly').attach('proof', png, 'upi.png');
+  const order = plan => outsider.post('/api/premium/checkout').send({ plan, name: 'Out Sider', phone: '+919999999999', country: 'India', address: '1 Demo Street' });
+  assert.equal((await order('galactic')).status, 400, 'an unknown plan is rejected');
+  const buy = await order('monthly');
   assert.equal(buy.status, 201, JSON.stringify(buy.body));
   assert.equal(buy.body.order.plan, 'monthly');
   assert.equal(buy.body.order.currency, 'INR', 'an Indian account is billed in rupees');
   assert.equal(buy.body.order.amount, defaultPricebook.premiumPrice('monthly', { country: 'India' }) * 100);
-  assert.equal((await outsider.get(`/api/premium/orders/${buy.body.order.id}/proof`)).status, 200);
+  assert.ok(buy.body.checkout.orderId.startsWith('order_'), 'the gateway order id is handed to the browser');
+  assert.equal(buy.body.checkout.key, 'rzp_test_stub', 'and the publishable key with it');
 
   // The same plan, bought from abroad, is a different currency and a different number. The billing
   // country typed into the form is deliberately still India here: it is the account that prices the
   // order, so filling in a cheaper country must not buy a cheaper plan.
   await PremiumOrder.deleteMany({ user: (await User.findOne({ username: 'outsider' }))._id });
   await User.updateOne({ username: 'outsider' }, { $set: { country: 'United States', account: 'normal', premiumPlan: '', premiumExpiresAt: null } });
-  const abroad = await order().field('plan', 'monthly').attach('proof', png, 'upi.png');
+  const abroad = await order('monthly');
   assert.equal(abroad.status, 201, JSON.stringify(abroad.body));
   assert.equal(abroad.body.order.currency, 'USD');
   assert.equal(abroad.body.order.amount, defaultPricebook.premiumPrice('monthly', { country: 'United States' }) * 100, 'in cents');
@@ -145,14 +170,14 @@ integration('dashboard is staff-only; premium routes reject a normal account', a
   // country below still says India, which is exactly the loophole this closes.
   await PremiumOrder.deleteMany({ user: (await User.findOne({ username: 'outsider' }))._id });
   await User.updateOne({ username: 'outsider' }, { $set: { country: 'Nigeria', account: 'normal', premiumPlan: '', premiumExpiresAt: null } });
-  const refused = await order().field('plan', 'monthly').attach('proof', png, 'upi.png');
+  const refused = await order('monthly');
   assert.equal(refused.status, 400, JSON.stringify(refused.body));
   assert.equal(refused.body.code, 'COUNTRY_UNSUPPORTED', JSON.stringify(refused.body));
   assert.equal(await PremiumOrder.countDocuments({ user: (await User.findOne({ username: 'outsider' }))._id }), 0, 'a refusal leaves no order behind');
 
   await User.updateOne({ username: 'outsider' }, { $set: { country: 'India' } });
-  await order().field('plan', 'monthly').attach('proof', png, 'upi.png');
-  assert.equal((await outsider.post('/api/premium/order').send({ plan: 'monthly', name: 'No Photo', phone: '+919999999999', country: 'India', address: '1 Demo Street' })).status, 400);
+  await order('monthly');
+  assert.equal((await order('monthly')).status, 400, 'and a second order cannot be opened while one is in progress');
   // Usage by country is staff-only and counts the account's country, not the billing one.
   assert.equal((await outsider.get('/api/admin/countries')).status, 403, 'not for ordinary accounts');
   const usage = await owner.get('/api/admin/countries?days=30');
@@ -244,10 +269,8 @@ integration('a classroom: seats are sold, a seat unlocks Premium only inside the
   assert.equal(quoted.body.amount, seatRate * 6);
   assert.equal(quoted.body.currency, 'INR', 'quoted in the owner\'s own currency');
 
-  const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#4455cc' } }).png().toBuffer();
-  const buy = await teacher.post(`/api/teams/${teamId}/order`)
-    .field('plan', 'team-monthly').field('seats', '6').field('name', 'Teach Er').field('email', 'teach@example.test')
-    .field('phone', '+919999999999').field('country', 'India').field('address', '1 School Road').attach('proof', png, 'upi.png');
+  const buy = await teacher.post(`/api/teams/${teamId}/checkout`)
+    .send({ plan: 'team-monthly', seats: 6, name: 'Teach Er', email: 'teach@example.test', phone: '+919999999999', country: 'India', address: '1 School Road' });
   assert.equal(buy.status, 201, JSON.stringify(buy.body));
   assert.equal(buy.body.order.seats, 6);
   assert.equal(buy.body.order.amount, seatRate * 6 * 100, 'stored in the smallest unit of the currency');
@@ -415,13 +438,11 @@ integration('follows and connection requests notify the other person, and reads 
 
 
 integration('an invoice can only be addressed to a country we are registered in', async () => {
-  const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#884422' } }).png().toBuffer();
   const buyer = request.agent(app);
   assert.equal((await buyer.post('/api/auth/signup').send({ username: 'billed', name: 'Billed Person', email: 'billed@example.test', password, country: 'India' })).status, 201);
   await User.updateOne({ username: 'billed' }, { $set: { emailVerifiedAt: new Date() } });
-  const send = country => buyer.post('/api/premium/order')
-    .field('name', 'Billed Person').field('phone', '+919999999999').field('country', country)
-    .field('address', '1 Demo Street').field('plan', 'monthly').attach('proof', png, 'upi.png');
+  const send = country => buyer.post('/api/premium/checkout')
+    .send({ plan: 'monthly', name: 'Billed Person', phone: '+919999999999', country, address: '1 Demo Street' });
 
   // The form only offers the five markets, so this is what happens when a request does not come
   // from the form. It has to be refused server-side too: the country lands on the invoice.
@@ -444,18 +465,17 @@ integration('two people can be waiting to pay at the same time', async () => {
   // that is present and null is indexed like any other value. Defaulting them to null therefore put
   // every unpaid order under the same key, so the second one created anywhere in the collection
   // collided with the first and the buyer was told the record already existed.
-  const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#3355aa' } }).png().toBuffer();
   const submit = async username => {
     const agent = request.agent(app);
     assert.equal((await agent.post('/api/auth/signup').send({ username, name: username, email: `${username}@example.test`, password, country: 'India' })).status, 201);
     await User.updateOne({ username }, { $set: { emailVerifiedAt: new Date() } });
-    return agent.post('/api/premium/order')
-      .field('name', username).field('phone', '+919999999999').field('country', 'India')
-      .field('address', '2 Queue Lane').field('plan', 'monthly').attach('proof', png, 'upi.png');
+    return agent.post('/api/premium/checkout')
+      .send({ plan: 'monthly', name: username, phone: '+919999999999', country: 'India', address: '2 Queue Lane' });
   };
   const first = await submit('queuer');
   const second = await submit('waiter');
   assert.equal(first.status, 201, JSON.stringify(first.body));
   assert.equal(second.status, 201, JSON.stringify(second.body), 'a second unpaid order is not a duplicate of the first');
-  assert.equal(await PremiumOrder.countDocuments({ status: 'pending', method: 'manual' }) >= 2, true);
+  assert.notEqual(first.body.checkout.orderId, second.body.checkout.orderId, 'and each holds its own gateway order');
+  assert.equal(await PremiumOrder.countDocuments({ status: 'pending', method: 'razorpay' }) >= 2, true);
 });

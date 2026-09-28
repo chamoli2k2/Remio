@@ -23,7 +23,6 @@ let demoNotifications = [
   { id: 'n2', type: 'premium.requested', actor: { id: 'demo-sara', name: 'Sara Iyer', username: 'sara' }, data: { plan: 'quarterly' }, createdAt: new Date(Date.now() - 52 * 60000).toISOString(), readAt: null },
   { id: 'n3', type: 'follow', actor: { id: 'demo-alex', name: 'Alex Morgan', username: 'alex' }, data: {}, createdAt: new Date(Date.now() - 20 * 3600000).toISOString(), readAt: new Date().toISOString() },
 ];
-const demoProof = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="420"><rect width="300" height="420" fill="#f4f1fb"/><circle cx="150" cy="110" r="38" fill="#2c7a4f"/><path d="M132 110l13 13 24-26" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text x="150" y="182" font-family="Arial" font-size="19" font-weight="bold" fill="#242331" text-anchor="middle">Payment successful</text><text x="150" y="222" font-family="Arial" font-size="30" font-weight="bold" fill="#242331" text-anchor="middle">Rs 499.00</text><text x="150" y="256" font-family="Arial" font-size="13" fill="#7a7290" text-anchor="middle">To your-upi-id@bank</text><text x="150" y="278" font-family="Arial" font-size="13" fill="#7a7290" text-anchor="middle">UPI Ref 402198337654</text><text x="150" y="380" font-family="Arial" font-size="11" fill="#a09aae" text-anchor="middle">Sample screenshot (preview only)</text></svg>');
 // The gateway is the only way to pay, matching the real product. It cannot take money here.
 const demoAudit = [
   { id: 'a1', action: 'settings.update', target: 'price.IN.yearly', actor: 'founder', before: { 'price.IN.yearly': 1499 }, after: { 'price.IN.yearly': 1299 }, note: 'new year offer', at: new Date(Date.now() - 2 * 86400000).toISOString() },
@@ -65,8 +64,7 @@ function demoAnalytics(days, weeks) {
       ],
       byMethod: [
         { method: 'razorpay', label: 'razorpay', orders: 44, revenue: [{ currency: 'INR', gross: 1499 * 22 + 199 * 13 }, { currency: 'USD', gross: 45 * 7 + 6 * 4 }] },
-        { method: 'manual', label: 'manual', orders: 4, revenue: [{ currency: 'INR', gross: 199 * 2 }] },
-      ],
+            ],
       orders: { approved: 48, pending: 3, declined: 2 },
       conversion: { approvedOrders: 48, newAccounts: newInWindow, percent: Math.round((48 / Math.max(newInWindow, 1)) * 1000) / 10 },
     },
@@ -103,9 +101,9 @@ const demoCountries = [
   { country: 'Australia', accounts: 14, premium: 2, studying: 7, reviews: 260, joined: '2026-09-17T00:00:00.000Z' },
 ];
 const demoMethods = [
-  { id: 'razorpay', label: 'Pay online', blurb: 'UPI, card, net banking, or wallet. It turns on the moment the payment clears.', instant: true, requiresProof: false },
+  { id: 'razorpay', label: 'Pay online', blurb: 'UPI, card, net banking, or wallet. It turns on the moment the payment clears.', instant: true },
 ];
-let demoOrders = [{ id: 'demo-order-1', plan: 'quarterly', method: 'manual', name: 'Sara Iyer', email: 'sara@demo.test', phone: '+91 98765 43210', country: 'India', address: '221B Baker Street, Mumbai 400001', status: 'pending', hasProof: true, proofUrl: demoProof, user: { username: 'sara' }, createdAt: new Date().toISOString() }];
+let demoOrders = [{ id: 'demo-order-1', plan: 'quarterly', method: 'razorpay', name: 'Sara Iyer', email: 'sara@demo.test', phone: '+91 98765 43210', country: 'India', address: '221B Baker Street, Mumbai 400001', status: 'pending', user: { username: 'sara' }, createdAt: new Date().toISOString() }];
 let folders = sampleFolders.map((f, i) => ({ ...f, cards: undefined, id: `folder-${i}`, owner: i === 4 ? collaborators[1] : user, role: i === 4 ? 'viewer' : 'owner', version: 0, members: i === 0 ? [{ user: collaborators[0], role: 'editor' }] : [], memberCount: i === 0 ? 2 : 1, archived: false, cardCount: f.cards.length, createdAt: new Date().toISOString(), updatedAt: new Date(Date.now() - i * 3600000).toISOString() }));
 let cards = sampleFolders.flatMap((f, i) => f.cards.map(([front, back, tags], j) => ({ id: `card-${i}-${j}`, folder: `folder-${i}`, front: { text: front }, back: { text: back }, tags, hint: '', source: '', version: 0, progress: { version: 0, repetitions: 0, interval: 0, bookmarked: false, dueAt: null } })));
 let reviews = [], activity = [], revisions = {}, images = {};
@@ -183,7 +181,7 @@ export async function demoRequest(path, options = {}) {
   if (path === '/auth/me') return { user: clone(user) };
   // The preview has no settings to read, so it answers with the shipped ones. Everything is on and
   // nothing is overridden, which is the configuration a fresh install runs.
-  if (path === '/config') return { regions: DEFAULT_REGIONS, selling: DEFAULT_SELLING, planDays: null, flags: { signupOpen: true, explorePublic: true, imports: true, quiz: true, readOnly: false, razorpay: true, manual: false }, notice: '', limits: { imageMb: 5, importMb: 25, importCards: 2000, cardText: 10000, projectFolders: 40, dailyGoalMax: 200, minSeats: SEATS.min, maxSeats: SEATS.max } };
+  if (path === '/config') return { regions: DEFAULT_REGIONS, selling: DEFAULT_SELLING, planDays: null, flags: { signupOpen: true, explorePublic: true, imports: true, quiz: true, readOnly: false, razorpay: true }, notice: '', limits: { imageMb: 5, importMb: 25, importCards: 2000, cardText: 10000, projectFolders: 40, dailyGoalMax: 200, minSeats: SEATS.min, maxSeats: SEATS.max } };
   if (entity === 'users') {
     if (!id) { const q = new URLSearchParams(path.split('?')[1] || '').get('q') || ''; return { users: [user, ...collaborators].filter(u => u.username.startsWith(q.toLowerCase()) || u.name.toLowerCase().startsWith(q.toLowerCase())).map(u => ({ id: u.id, username: u.username, name: u.name })) }; }
     const profile = [user, ...collaborators].find(u => u.username === id); if (!profile) error('User not found.');

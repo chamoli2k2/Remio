@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, RotateCcw, Layers, Users, Brain, Globe2, LockKeyhole, Sparkles, Search, ChevronDown } from 'lucide-react';
+import { ArrowRight, RotateCcw, Layers, Users, Brain, Globe2, LockKeyhole, Sparkles, Search, ChevronDown, GraduationCap, Swords, Check } from 'lucide-react';
 import { api, imageUrl } from '../services/api';
 import { useQuery } from '../hooks/useApp';
 import { FolderIcon, Loading, Avatar, Empty } from '../components/ui';
@@ -58,6 +58,96 @@ function Faq() {
     </div>
   </section>;
 }
+/**
+ * What the product actually does, written out rather than hinted at.
+ *
+ * Grouped by what somebody is trying to do rather than by which part of the code it lives in, and
+ * tabbed rather than listed, because five short lists are read and one list of thirty is not.
+ * `premium` marks the handful behind a plan, said here so nobody discovers it mid-task.
+ */
+const GUIDE = [
+  { id: 'build', label: 'Build', icon: Layers, blurb: 'Turn what you are learning into cards worth coming back to.', items: [
+    ['Folders for anything', 'Group cards however you think: a subject, a book, a week of revision. Give one an icon and a colour so you can find it at a glance.'],
+    ['Two-sided cards', 'A question on the front, the answer on the back. Both sides take formatted text, lists, code, and maths, so a chemistry card and a programming card can each look right.'],
+    ['Images on a card', 'Drop a diagram, a screenshot, or a photo of a whiteboard straight onto either side.'],
+    ['Hints, sources, and tags', 'A nudge for when you are stuck, a note of where the fact came from, and tags to filter a big folder down to one topic.'],
+    ['Import a deck you already have', 'Bring in Anki, CSV, Markdown, or JSON. Your old decks do not have to be retyped.', 'premium'],
+    ['Export whenever you like', 'Download any folder as JSON or CSV. Nothing you make is locked in here.', 'premium'],
+    ['Projects', 'Gather related folders into a project you can reopen as one piece of work.', 'premium'],
+    ['Folder covers', 'Upload a thumbnail so a collection is recognisable rather than just titled.', 'premium'],
+    ['Archive instead of delete', 'Put a finished collection out of the way without losing it.'],
+  ] },
+  { id: 'study', label: 'Study', icon: Brain, blurb: 'Review the few cards you are about to forget, not all of them.', items: [
+    ['Spaced repetition that adapts', 'Scheduling runs on FSRS, the algorithm behind modern Anki. It learns how well you know each individual card rather than applying one rule to all of them.'],
+    ['Four honest ratings', 'Again, Hard, Good, Easy. Rate truthfully and a difficult card returns in a day while one you know drifts out to months.'],
+    ['Only what is due', 'Your daily session is the cards that have come round, so a big library does not mean a long sitting.'],
+    ['Quick review', 'Want to go through a whole folder before an exam? Flip the lot without touching your schedule.'],
+    ['Bookmarks', 'Flag a card to come back to, and filter a folder down to just those.'],
+    ['A daily goal you set', 'Pick a number of cards that fits your day. Miss a few days and nothing breaks: there is no streak to protect.'],
+    ['Progress worth reading', 'See what you have reviewed, how much you are retaining, and what is coming up, rather than a wall of statistics.'],
+    ['Works offline', 'Cards you have opened stay available when the connection drops, so a commute is still study time.'],
+  ] },
+  { id: 'share', label: 'Share', icon: Users, blurb: 'Private until you decide otherwise, then shared exactly as far as you want.', items: [
+    ['Private by default', 'Every new collection is yours alone. Nothing is published unless you publish it.'],
+    ['Share with named people', 'Invite somebody by username as a viewer. They can read and study; they cannot change anything.'],
+    ['Invite an editor', 'Give someone write access and you can both work on the same folder at once, seeing each other type. Viewers stay free.', 'premium'],
+    ['Publish to the community', 'Make a collection public and anyone can read it, study it, and take their own copy — without an account.'],
+    ['Copy anything public', 'Found a deck you like? Take a private copy and change it however you want. The original is untouched.'],
+    ['Friends and profiles', 'Follow the people whose collections you keep going back to, and let them find yours.'],
+    ['Your progress stays yours', 'Studying a shared folder tracks against your own memory. Nobody sees how you are doing on it.'],
+  ] },
+  { id: 'teach', label: 'Teach', icon: GraduationCap, blurb: 'Run a class or a study group without a spreadsheet.', items: [
+    ['Classrooms and teams', 'Create a group, buy the seats you need, and add people as students or teachers.'],
+    ['Join by code or link', 'Share a six-character code or a link. No manual invitations, one at a time.'],
+    ['Assignments with due dates', 'Point the group at a folder, set a deadline, and everybody gets a notification.'],
+    ['A report you can act on', 'See what proportion of the material each person has actually seen, and where the group is struggling.'],
+    ['Seats added mid-term are prorated', 'Three more students in week six are charged for the weeks that remain, not a whole fresh period.'],
+    ['Students keep their privacy', 'A teacher sees progress on the classroom’s own material and nothing else. Personal libraries stay personal.'],
+  ] },
+  { id: 'play', label: 'Play', icon: Swords, blurb: 'Turn a folder into a game when revision needs to be less lonely.', items: [
+    ['Live quiz rooms', 'Turn any folder into a timed multiple-choice game. Questions are built from your own cards, with wrong answers drawn from the rest of the folder.', 'premium'],
+    ['Anyone can join, free', 'Players enter a six-letter code. They do not need Premium, and they do not need an account.'],
+    ['Scored on speed and accuracy', 'Right answers score, faster right answers score more, and a live leaderboard updates as the round runs.'],
+    ['You choose the shape', 'Set how many questions and how long each one lasts before you open the room.'],
+  ] },
+];
+
+function Guide() {
+  const [open, setOpen] = useState(GUIDE[0].id);
+  const shown = GUIDE.find(g => g.id === open) || GUIDE[0];
+  return <section className="home-guide" id="guide">
+    <div className="home-guide-head">
+      <span className="eyebrow">THE GUIDE</span>
+      <h2>Everything {BRAND.name} does</h2>
+      <p>No tour to sit through and no account needed to read it. Pick an area and see exactly what you get.</p>
+    </div>
+    <div className="home-guide-tabs" role="tablist" aria-label={`What ${BRAND.name} does`}>
+      {GUIDE.map(group => {
+        const Icon = group.icon;
+        return <button key={group.id} role="tab" type="button" id={`guide-tab-${group.id}`}
+          aria-selected={group.id === open} aria-controls={`guide-panel-${group.id}`}
+          className={group.id === open ? 'is-open' : ''} onClick={() => setOpen(group.id)}>
+          <Icon size={16}/> {group.label}
+        </button>;
+      })}
+    </div>
+    <div className="home-guide-panel" role="tabpanel" id={`guide-panel-${shown.id}`} aria-labelledby={`guide-tab-${shown.id}`}>
+      <p className="home-guide-blurb">{shown.blurb}</p>
+      <ul className="home-guide-list">
+        {shown.items.map(([title, text, tier]) => <li key={title}>
+          <span className="home-guide-check"><Check size={13}/></span>
+          <div>
+            <h3>{title}{tier === 'premium' && <span className="home-guide-tier">Premium</span>}</h3>
+            <p>{text}</p>
+          </div>
+        </li>)}
+      </ul>
+    </div>
+    <p className="home-guide-foot">
+      Everything without a Premium label is free, forever, in every country. <Link to="/pricing">See what Premium costs</Link>.
+    </p>
+  </section>;
+}
 function PublicFolderCard({ folder }) {
   return <Link className={`home-folder ${folder.color}`} to={`/folders/${folder.id}`}>
     <div className="home-folder-cover">{folder.thumbnail ? <img className="tile-thumb" src={imageUrl(folder.thumbnail)} alt=""/> : <span className="folder-icon"><FolderIcon name={folder.icon} size={26}/></span>}<span className="visibility-badge"><Globe2 size={11}/> Public</span></div>
@@ -92,6 +182,7 @@ export default function HomePage() {
     <section className="home-steps" aria-label={`How ${BRAND.name} works`}>
       {[[Layers, 'Collect', 'Create folders for anything worth remembering. Add two-sided text or image cards, tags, hints, and sources.'], [Brain, 'Recall', `Study what is due. Rate each answer honestly and ${BRAND.name} brings difficult cards back sooner.`], [Users, 'Share', 'Invite collaborators as viewers or editors, publish a collection to the world, or keep it just for you.']].map(([Icon, title, text], i) => <div className="home-step" key={title}><span className="home-step-index">0{i + 1}</span><span className="home-step-icon"><Icon size={20}/></span><h3>{title}</h3><p>{text}</p></div>)}
     </section>
+    <Guide/>
     <section className="home-community" id="library">
       <div className="library-section-heading"><div><span className="eyebrow">THE COMMUNITY LIBRARY</span><h2>Public collections, ready to study</h2></div><Link to="/explore" className="text-button">Explore all <ArrowRight size={15}/></Link></div>
       <form className="home-search folder-search" onSubmit={e => e.preventDefault()}><Search size={16}/><input aria-label="Search public collections and people" placeholder="Search collections or people…" value={query} onChange={e => setParams(e.target.value ? { q: e.target.value } : {})}/></form>

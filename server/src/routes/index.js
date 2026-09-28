@@ -43,7 +43,6 @@ function sizedUpload(key, field) {
   };
 }
 const uploadImage = sizedUpload('limits.imageMb', 'image');
-const uploadProof = sizedUpload('limits.imageMb', 'proof');
 r.post('/auth/signup', authLimit, requireSignupOpen, validate(signupSchema), a(auth.signup));
 r.post('/auth/login', authLimit, validate(z.object({ identifier: z.string().min(1).max(254), password: z.string().min(1).max(128) })), a(auth.login));
 r.post('/auth/logout', a(auth.logout)); r.get('/auth/me', a(auth.me));
@@ -96,11 +95,9 @@ r.get('/notifications', requireAuth, a(notifications.list));
 r.post('/notifications/read', requireAuth, validate(z.object({ ids: z.array(idSchema).max(100).optional() })), a(notifications.read));
 const payLimit = rateLimit({ windowMs: 60000, limit: () => setting('throttle.paymentsPerMinute') });
 r.get('/premium/order', requireAuth, a(premium.mine));
-r.post('/premium/order', requireAuth, requireVerifiedEmail, payLimit, uploadProof, a(premium.submit));
 r.post('/premium/checkout', requireAuth, requireVerifiedEmail, payLimit, validate(premiumOrderSchema), a(premium.start));
 r.post('/premium/checkout/confirm', requireAuth, payLimit, validate(z.object({ orderId: z.string().min(4).max(64), paymentId: z.string().min(4).max(64), signature: z.string().min(16).max(256) })), a(premium.confirm));
 r.delete('/premium/order', requireAuth, a(premium.cancel));
-r.get('/premium/orders/:id/proof', requireAuth, a(premium.proof));
 r.get('/teams', requireAuth, a(teams.list));
 r.post('/teams', requireAuth, validate(teamSchema), a(teams.create));
 r.get('/teams/code/:code', requireAuth, a(teams.preview));
@@ -121,7 +118,6 @@ r.get('/teams/:id/progress', requireAuth, a(teams.progress));
 r.post('/teams/:id/quote', requireAuth, validate(seatQuoteSchema), a(teams.quote));
 r.get('/teams/:id/billing', requireAuth, a(teams.billing));
 r.post('/teams/:id/checkout', requireAuth, requireVerifiedEmail, payLimit, validate(teamOrderSchema), a(teams.buy));
-r.post('/teams/:id/order', requireAuth, requireVerifiedEmail, payLimit, uploadProof, a(teams.buyManual));
 r.delete('/teams/:id/order', requireAuth, a(teams.cancelBuy));
 r.get('/admin/users', requireAuth, requireDashboard, a(admin.users));
 r.patch('/admin/users/:id', requireAuth, requireDashboard, validate(z.object({ account: z.enum(['normal', 'premium', 'admin', 'superadmin']) })), a(admin.setAccount));

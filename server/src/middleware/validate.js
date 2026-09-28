@@ -29,7 +29,7 @@ export const projectSchema = z.object({ title: z.string().trim().min(1).max(80),
  * which the server already knows, so asking for it again would only invite a typo.
  */
 const billing = z.object({
-  method: z.enum(['manual', 'razorpay']).optional(),
+  method: z.literal('razorpay').optional(),
   name: z.string().trim().min(1).max(80),
   phone: z.string().trim().regex(PHONE_PATTERN, 'Enter a phone number we could actually reach you on.'),
   country: z.enum(COUNTRY_NAMES, 'Choose your country from the list.'),

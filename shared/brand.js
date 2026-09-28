@@ -10,6 +10,14 @@
 const name = 'Remio';
 const domain = 'remio.in';
 
+/**
+ * The one mailbox that exists today. The four roles below stay separate even though they all land
+ * here, because the split is about telling a reader what a message is for, and because giving
+ * billing or security its own address later is then one line rather than a hunt through the legal
+ * pages for every place an address is printed.
+ */
+const inbox = `support@${domain}`;
+
 /** Lowercase and safe for cookie names, storage keys, log prefixes, and filenames. */
 const slug = name.toLowerCase();
 
@@ -24,27 +32,26 @@ export const BRAND = {
   city: 'Bengaluru',
   country: 'India',
   /**
-   * Addresses printed on the contact and legal pages. Four real addresses on the domain rather than
-   * one inbox wearing four hats: they are read by different people for different reasons, a payment
-   * gateway checks that the address on the refund policy actually accepts mail, and a security
-   * researcher should not have to file a vulnerability through a general support queue. Alias them
-   * onto a single mailbox if the volume does not yet justify four.
+   * Addresses printed on the contact and legal pages. All four point at the single mailbox above
+   * for now; replace any one of them with its own address on the domain when the volume justifies
+   * it, and every page that prints it follows.
    */
   email: {
-    general: `support@${domain}`,
-    billing: `billing@${domain}`,
-    privacy: `privacy@${domain}`,
-    security: `security@${domain}`,
+    general: inbox,
+    billing: inbox,
+    privacy: inbox,
+    security: inbox,
   },
   /** Shown as the "last updated" date on the terms and privacy pages. */
   policyUpdated: '25 September 2026',
 
   /**
    * From header on anything the server sends. MAIL_FROM overrides it per environment.
-   * Deliberately an address nobody reads: a reply to a verification email belongs in support, and
-   * sending from the domain rather than a personal mailbox is what lets SPF and DKIM vouch for it.
+   * Sent from the real mailbox rather than a noreply address, because that address does not exist
+   * yet and mail from a sender nobody can reply to is both rejected more often and ruder than it
+   * needs to be. Move it to noreply@ once that mailbox exists and SPF and DKIM cover the domain.
    */
-  mailFrom: `${name} <noreply@${domain}>`,
+  mailFrom: `${name} <${inbox}>`,
 
   sessionCookie: `${slug}_session`,
   /** Keys this app owns in localStorage. */

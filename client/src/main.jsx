@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { demoReady } from './services/api';
 import { AppProvider } from './hooks/useApp';
 import { useTheme } from './hooks/useTheme';
 import App from './App';
@@ -10,6 +11,9 @@ import '@fontsource-variable/dm-sans';
 import '@fontsource-variable/manrope';
 import './styles.css';
 function ThemedToaster() { const { theme } = useTheme(); return <Toaster position="bottom-right" richColors theme={theme}/>; }
+// A real build resolves this immediately; a demo build waits for its fixtures, which `imageUrl`
+// reads synchronously during the very first render.
+await demoReady;
 createRoot(document.getElementById('root')).render(<React.StrictMode><ErrorBoundary><BrowserRouter><AppProvider><App/><ThemedToaster/></AppProvider></BrowserRouter></ErrorBoundary></React.StrictMode>);
 // What makes the app installable and able to open with no connection. Only from a build: the worker
 // is generated from the emitted filenames, and in development there are none. Registered after load

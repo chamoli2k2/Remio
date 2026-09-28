@@ -88,7 +88,7 @@ integration('a value outside its bounds is refused field by field, and nothing e
 });
 
 integration('settings that would break the product together are refused together', async () => {
-  const result = await boss.patch('/api/admin/settings').send({ values: { 'selling.razorpay': false, 'selling.manual': false } });
+  const result = await boss.patch('/api/admin/settings').send({ values: { 'selling.razorpay': false } });
   assert.equal(result.status, 400);
   assert.equal(result.body.code, 'SETTINGS_CONFLICT');
   assert.ok(result.body.details['selling.razorpay']);

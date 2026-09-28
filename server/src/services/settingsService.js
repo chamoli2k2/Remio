@@ -84,7 +84,6 @@ export function publicConfig() {
       quiz: setting('quiz.enabled'),
       readOnly: setting('maintenance.readOnly'),
       razorpay: setting('selling.razorpay'),
-      manual: setting('selling.manual'),
     },
     notice: setting('maintenance.notice'),
     limits: {

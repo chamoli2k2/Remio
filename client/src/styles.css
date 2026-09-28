@@ -751,3 +751,32 @@ html[data-theme=dark] .pricing-card,html[data-theme=dark] .pricing-plan,html[dat
 html[data-theme=dark] .pricing-card.is-premium{border-color:#6e56e8}
 html[data-theme=dark] .pricing-list li,html[data-theme=dark] .pricing-terms li{color:var(--text-2)}
 html[data-theme=dark] .pricing-terms a{color:#b3a2f7}
+
+/* The feature guide on the public home page. Tabs rather than one long list, because the point is
+   that somebody can find the part they care about without reading the other four sections. */
+.home-guide{margin:60px 0}
+.home-guide-head{max-width:62ch;margin-bottom:22px}
+.home-guide-head h2{font-size:31px;letter-spacing:-1.1px;margin:6px 0 0}
+.home-guide-head p{font-size:14px;color:var(--muted);margin-top:10px;line-height:1.7}
+.home-guide-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.home-guide-tabs>button{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:999px;background:#fff;color:#6f6580;padding:9px 16px;font-size:13px;font-weight:600;transition:background .15s,color .15s,border-color .15s}
+.home-guide-tabs>button:hover{border-color:#c9bdf0;color:var(--accent-dark)}
+.home-guide-tabs>button.is-open{background:var(--accent);border-color:var(--accent);color:#fff}
+.home-guide-panel{border:1px solid var(--border);border-radius:18px;background:#fff;padding:26px 28px}
+.home-guide-blurb{font-size:15px;color:#4d4459;margin:0 0 20px;line-height:1.6;font-weight:500}
+/* Two columns on a wide screen, one on a narrow one. auto-fit rather than a fixed count so a group
+   with an odd number of features does not leave a hole in the grid. */
+.home-guide-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px 30px}
+.home-guide-list>li{display:flex;gap:11px;align-items:flex-start}
+.home-guide-check{flex:none;width:21px;height:21px;margin-top:2px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:var(--soft);color:var(--accent)}
+.home-guide-list h3{font-size:14px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.home-guide-list p{font-size:13px;color:var(--muted);margin:5px 0 0;line-height:1.62}
+.home-guide-tier{font-size:9px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--accent-dark);background:var(--soft);border-radius:20px;padding:3px 7px}
+.home-guide-foot{font-size:13px;color:var(--muted);margin:16px 0 0}
+.home-guide-foot a{color:var(--accent-dark);text-decoration:underline}
+@media(max-width:600px){.home-guide{margin:44px 0}.home-guide-head h2{font-size:25px}.home-guide-panel{padding:20px}.home-guide-tabs>button{padding:8px 13px;font-size:12px}}
+html[data-theme=dark] .home-guide-tabs>button{background:var(--surface-2);border-color:var(--border);color:var(--text-2)}
+html[data-theme=dark] .home-guide-tabs>button.is-open{background:var(--accent);border-color:var(--accent);color:#fff}
+html[data-theme=dark] .home-guide-panel{background:var(--surface);border-color:var(--border)}
+html[data-theme=dark] .home-guide-blurb{color:var(--ink)}
+html[data-theme=dark] .home-guide-foot a{color:#b3a2f7}

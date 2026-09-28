@@ -106,8 +106,7 @@ export async function setAccount(actor, userId, account) {
 export async function listOrders(status) {
   const filter = status ? { status } : {};
   const rows = await PremiumOrder.find(filter).sort({ createdAt: -1 }).limit(80).populate('user', 'name username account');
-  // Only a manual order has a screenshot to review; a gateway order carries its payment id instead.
-  return rows.map(o => ({ ...o.toJSON(), hasProof: o.method === 'manual', proofUrl: o.method === 'manual' ? `/api/premium/orders/${o.id}/proof` : null }));
+  return rows.map(o => o.toJSON());
 }
 
 /** Approving by hand and a verified gateway payment converge on the same fulfilment. */

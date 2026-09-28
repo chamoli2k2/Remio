@@ -90,17 +90,13 @@ export default function PremiumPage() {
         it does is how someone decides whether to ask for it in their country. */}
     {unlocked ? null : !onSale ? <NotOnSaleHere/> : loading ? <Loading/> : order?.status === 'pending' ? <section className="premium-pending">
       <span className="premium-pending-icon"><Clock3 size={22}/></span>
-      <div><h2>Waiting for confirmation</h2><p>{order.method === 'manual'
-        ? `Your ${planById(order.plan)?.label || 'Premium'} request and payment screenshot are with our team. Premium turns on as soon as the transfer is verified.`
-        : `Your ${planById(order.plan)?.label || 'Premium'} payment is still settling with the gateway. Premium turns on as soon as it clears, usually within a minute.`}</p></div>
-      {order.hasProof && <a href={`/api/premium/orders/${order.id}/proof`} target="_blank" rel="noreferrer"><img className="proof-preview" src={`/api/premium/orders/${order.id}/proof`} alt="Your payment screenshot"/></a>}
+      <div><h2>Waiting for confirmation</h2><p>{`Your ${planById(order.plan)?.label || 'Premium'} payment is still settling with the gateway. Premium turns on as soon as it clears, usually within a minute.`}</p></div>
       {/* Closing the gateway window usually means changing your mind, but the order it left behind
-          would otherwise sit here with no way past it. A screenshot under review is different: an
-          admin may be halfway through it, so that one is left alone. */}
-      {order.method !== 'manual' && <Button className="ghost" loading={dropping} onClick={async () => {
+          would otherwise sit here with no way past it. */}
+      <Button className="ghost" loading={dropping} onClick={async () => {
         setDropping(true);
         try { await api('/premium/order', { method: 'DELETE' }); refetch(); } finally { setDropping(false); }
-      }}>Start over</Button>}
+      }}>Start over</Button>
     </section> : <div className="premium-checkout">
       <div className="premium-form-wrap">
         <div className="premium-card-head"><h2>Choose a plan</h2><p>Every plan unlocks the same features. Longer plans simply cost less per month.</p></div>
@@ -119,7 +115,6 @@ export default function PremiumPage() {
           amount={chosenPrice}
           summary={chosen ? `${chosen.label} · ${money(chosenPrice)}` : ''}
           extra={{ plan }}
-          manualPath="/premium/order"
           checkoutPath="/premium/checkout"
           cancelPath="/premium/order"
         />

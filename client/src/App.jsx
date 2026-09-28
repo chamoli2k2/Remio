@@ -1,27 +1,60 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Link, Navigate } from 'react-router-dom';
-import HomePage from './pages/HomePage';
 import { useApp } from './hooks/useApp';
-import Layout from './components/Layout';
-import LibraryPage from './pages/LibraryPage';
-import FolderPage from './pages/FolderPage';
-import StudyPage from './pages/StudyPage';
-import { AuthPage, SettingsPage, ProgressPage, VerifyEmailPage, ForgotPasswordPage, ResetPasswordPage } from './pages/AccountPages';
 import { Loading, Empty } from './components/ui';
-import { PublicShell, PublicFolderPage, PublicExplorePage, ProfilePage } from './pages/PublicPages';
-import RoomPage, { JoinRoomPage } from './pages/RoomPage';
-import FriendsPage from './pages/FriendsPage';
-import { ProjectsPage, ProjectPage } from './pages/ProjectPages';
-import { ContactPage, TermsPage, PrivacyPage, RefundsPage } from './pages/LegalPages';
-import PricingPage from './pages/PricingPage';
-import PremiumPage from './pages/PremiumPage';
-import DashboardPage from './pages/DashboardPage';
-import { TeamsPage, TeamPage, TeamCheckoutPage, TeamProgressPage, TeamJoinLinkPage } from './pages/TeamPages';
 import { hasDashboard } from '../../shared/account.js';
 import { BRAND } from '../../shared/brand.js';
+
+/**
+ * Only the landing page and the sign-in form are loaded up front.
+ *
+ * Everything below used to be a plain import, which meant one bundle containing the collaborative
+ * editor, the realtime client, and the admin dashboard — all of it downloaded by a stranger reading
+ * the home page, none of it reachable without an account. Split by route, the first visit fetches
+ * what it can actually see, and the rest arrives when somebody navigates to it.
+ */
+import HomePage from './pages/HomePage';
+import PublicShell from './components/PublicShell';
+import { AuthPage } from './pages/AccountPages';
+
+const page = (load, name = 'default') => lazy(() => load().then(m => ({ default: m[name] })));
+
+const LibraryPage = page(() => import('./pages/LibraryPage'));
+const FolderPage = page(() => import('./pages/FolderPage'));
+const StudyPage = page(() => import('./pages/StudyPage'));
+const FriendsPage = page(() => import('./pages/FriendsPage'));
+const PremiumPage = page(() => import('./pages/PremiumPage'));
+const DashboardPage = page(() => import('./pages/DashboardPage'));
+const PricingPage = page(() => import('./pages/PricingPage'));
+const Layout = page(() => import('./components/Layout'));
+const RoomPage = page(() => import('./pages/RoomPage'));
+const JoinRoomPage = page(() => import('./pages/RoomPage'), 'JoinRoomPage');
+const SettingsPage = page(() => import('./pages/AccountPages'), 'SettingsPage');
+const ProgressPage = page(() => import('./pages/AccountPages'), 'ProgressPage');
+const VerifyEmailPage = page(() => import('./pages/AccountPages'), 'VerifyEmailPage');
+const ForgotPasswordPage = page(() => import('./pages/AccountPages'), 'ForgotPasswordPage');
+const ResetPasswordPage = page(() => import('./pages/AccountPages'), 'ResetPasswordPage');
+const PublicFolderPage = page(() => import('./pages/PublicPages'), 'PublicFolderPage');
+const PublicExplorePage = page(() => import('./pages/PublicPages'), 'PublicExplorePage');
+const ProfilePage = page(() => import('./pages/PublicPages'), 'ProfilePage');
+const ProjectsPage = page(() => import('./pages/ProjectPages'), 'ProjectsPage');
+const ProjectPage = page(() => import('./pages/ProjectPages'), 'ProjectPage');
+const ContactPage = page(() => import('./pages/LegalPages'), 'ContactPage');
+const TermsPage = page(() => import('./pages/LegalPages'), 'TermsPage');
+const PrivacyPage = page(() => import('./pages/LegalPages'), 'PrivacyPage');
+const RefundsPage = page(() => import('./pages/LegalPages'), 'RefundsPage');
+const TeamsPage = page(() => import('./pages/TeamPages'), 'TeamsPage');
+const TeamPage = page(() => import('./pages/TeamPages'), 'TeamPage');
+const TeamCheckoutPage = page(() => import('./pages/TeamPages'), 'TeamCheckoutPage');
+const TeamProgressPage = page(() => import('./pages/TeamPages'), 'TeamProgressPage');
+const TeamJoinLinkPage = page(() => import('./pages/TeamPages'), 'TeamJoinLinkPage');
+
+/** One boundary around each route tree: a page arriving late shows the same spinner as one loading its data. */
+const Chunk = ({ children }) => <Suspense fallback={<Loading/>}>{children}</Suspense>;
 export default function App() {
   const { user, loading } = useApp();
   if (loading) return <div className="boot-screen"><img src="/favicon.svg" alt={BRAND.name}/><Loading/></div>;
-  if (!user) return <Routes>
+  if (!user) return <Chunk><Routes>
     <Route path="/" element={<PublicShell wide><HomePage/></PublicShell>}/>
     <Route path="/login" element={<AuthPage/>}/><Route path="/signup" element={<AuthPage mode="signup"/>}/>
     <Route path="/verify-email" element={<PublicShell><VerifyEmailPage/></PublicShell>}/>
@@ -32,8 +65,8 @@ export default function App() {
     <Route path="/teams/join/:code" element={<Navigate to={`/login?next=${encodeURIComponent(window.location.pathname)}`} replace/>}/>
     <Route path="/rooms/:code" element={<Navigate to={`/login?next=${encodeURIComponent(window.location.pathname)}`} replace/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
-  </Routes>;
+  </Routes></Chunk>;
   // After signing in, honour a safe same-app `next` path (used by quiz invite links).
   const next = new URLSearchParams(window.location.search).get('next'); const after = <Navigate to={next && /^\/[^/]/.test(next) ? next : '/'} replace/>;
-  return <Routes><Route path="login" element={after}/><Route path="signup" element={after}/><Route element={<Layout/>}><Route index element={<LibraryPage/>}/><Route path="shared" element={<LibraryPage mode="shared"/>}/><Route path="explore" element={<LibraryPage mode="explore"/>}/><Route path="archive" element={<LibraryPage mode="archive"/>}/><Route path="projects" element={<ProjectsPage/>}/><Route path="projects/:id" element={<ProjectPage/>}/><Route path="friends" element={<FriendsPage/>}/><Route path="teams" element={<TeamsPage/>}/><Route path="teams/join/:code" element={<TeamJoinLinkPage/>}/><Route path="teams/:id" element={<TeamPage/>}/><Route path="teams/:id/checkout" element={<TeamCheckoutPage/>}/><Route path="teams/:id/progress" element={<TeamProgressPage/>}/><Route path="folders/:id" element={<FolderPage/>}/><Route path="folders/:id/study" element={<StudyPage/>}/><Route path="u/:username" element={<ProfilePage/>}/><Route path="settings" element={<SettingsPage/>}/><Route path="verify-email" element={<VerifyEmailPage/>}/><Route path="forgot-password" element={<ForgotPasswordPage/>}/><Route path="reset-password" element={<ResetPasswordPage/>}/><Route path="progress" element={<ProgressPage/>}/><Route path="premium" element={<PremiumPage/>}/>{hasDashboard(user) && <Route path="dashboard" element={<DashboardPage/>}/>}<Route path="rooms" element={<JoinRoomPage/>}/><Route path="rooms/:code" element={<RoomPage/>}/><Route path="contact" element={<ContactPage/>}/><Route path="terms" element={<TermsPage/>}/><Route path="privacy" element={<PrivacyPage/>}/><Route path="refunds" element={<RefundsPage/>}/><Route path="pricing" element={<PricingPage/>}/><Route path="*" element={<Empty title="This page turned over" text="We couldn’t find what you were looking for." action={<Link to="/" className="button primary">Back to library</Link>}/>}/></Route></Routes>;
+  return <Chunk><Routes><Route path="login" element={after}/><Route path="signup" element={after}/><Route element={<Layout/>}><Route index element={<LibraryPage/>}/><Route path="shared" element={<LibraryPage mode="shared"/>}/><Route path="explore" element={<LibraryPage mode="explore"/>}/><Route path="archive" element={<LibraryPage mode="archive"/>}/><Route path="projects" element={<ProjectsPage/>}/><Route path="projects/:id" element={<ProjectPage/>}/><Route path="friends" element={<FriendsPage/>}/><Route path="teams" element={<TeamsPage/>}/><Route path="teams/join/:code" element={<TeamJoinLinkPage/>}/><Route path="teams/:id" element={<TeamPage/>}/><Route path="teams/:id/checkout" element={<TeamCheckoutPage/>}/><Route path="teams/:id/progress" element={<TeamProgressPage/>}/><Route path="folders/:id" element={<FolderPage/>}/><Route path="folders/:id/study" element={<StudyPage/>}/><Route path="u/:username" element={<ProfilePage/>}/><Route path="settings" element={<SettingsPage/>}/><Route path="verify-email" element={<VerifyEmailPage/>}/><Route path="forgot-password" element={<ForgotPasswordPage/>}/><Route path="reset-password" element={<ResetPasswordPage/>}/><Route path="progress" element={<ProgressPage/>}/><Route path="premium" element={<PremiumPage/>}/>{hasDashboard(user) && <Route path="dashboard" element={<DashboardPage/>}/>}<Route path="rooms" element={<JoinRoomPage/>}/><Route path="rooms/:code" element={<RoomPage/>}/><Route path="contact" element={<ContactPage/>}/><Route path="terms" element={<TermsPage/>}/><Route path="privacy" element={<PrivacyPage/>}/><Route path="refunds" element={<RefundsPage/>}/><Route path="pricing" element={<PricingPage/>}/><Route path="*" element={<Empty title="This page turned over" text="We couldn’t find what you were looking for." action={<Link to="/" className="button primary">Back to library</Link>}/>}/></Route></Routes></Chunk>;
 }

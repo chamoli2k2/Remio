@@ -101,8 +101,6 @@ export const SETTINGS = {
   },
   'selling.razorpay': bool('selling', 'Card, UPI, and net banking', true,
     'The gateway checkout. Needs the Razorpay keys in the environment to work at all; this only hides it.'),
-  'selling.manual': bool('selling', 'Bank transfer with a screenshot', false,
-    'Lets a buyer pay out of band and upload proof for an admin to approve by hand.'),
 
   // ── Pricing and plan lengths (generated) ───────────────────────────────────────────────────
   ...priceSettings(),
@@ -208,8 +206,8 @@ export function settingConflicts(effective) {
   if (effective['teams.minSeats'] > effective['teams.maxSeats']) {
     problems['teams.minSeats'] = 'The fewest seats cannot be more than the most.';
   }
-  if (!effective['selling.razorpay'] && !effective['selling.manual']) {
-    problems['selling.razorpay'] = 'Leave one way to pay switched on, or nobody can buy anything.';
+  if (!effective['selling.razorpay']) {
+    problems['selling.razorpay'] = 'This is the only way to pay, so switching it off stops anybody buying anything.';
   }
   if (!effective['selling.countries'].length) {
     problems['selling.countries'] = 'Premium has to be on sale somewhere. Switch the payment methods off instead to stop selling.';

@@ -1,7 +1,5 @@
 import * as teams from '../services/teamService.js';
 import * as premium from '../services/premiumService.js';
-import { toWebp } from './premiumController.js';
-import { teamOrderSchema } from '../middleware/validate.js';
 
 export const list = async (req, res) => res.json({ teams: await teams.myTeams(req.user) });
 export const create = async (req, res) => res.status(201).json({ team: await teams.createTeam(req.user, req.body) });
@@ -28,8 +26,4 @@ const withTeam = (req) => ({ ...req.body, teamId: req.params.id });
 export const quote = async (req, res) => res.json(await premium.quote(req.user, withTeam(req)));
 export const billing = async (req, res) => res.json(await premium.myOrder(req.user, req.params.id));
 export const buy = async (req, res) => res.status(201).json(await premium.startCheckout(req.user, withTeam(req)));
-export const buyManual = async (req, res) => {
-  const body = teamOrderSchema.parse(req.body); // multipart, so it cannot be validated by middleware
-  res.status(201).json({ order: await premium.submitOrder(req.user, { ...body, teamId: req.params.id }, await toWebp(req.file)) });
-};
 export const cancelBuy = async (req, res) => res.json(await premium.cancelOrder(req.user, req.params.id));
