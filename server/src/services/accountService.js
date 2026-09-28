@@ -12,6 +12,7 @@ import { publicOrigin } from '../utils/origin.js';
 import { record } from './settingsService.js';
 import { logger } from '../utils/logger.js';
 import { isSuperadmin } from '../../../shared/account.js';
+import * as storage from './storage.js';
 
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 /** A reset link hands out an account, so it is worth far less time than a confirmation link. */
@@ -214,6 +215,7 @@ async function eraseAccount(withHash) {
 
   const { email, name } = withHash;
   const id = withHash.id;
+  let storedKeys = [];
 
   await mongoose.connection.transaction(async session => {
     const opts = { session };
@@ -221,6 +223,11 @@ async function eraseAccount(withHash) {
     const folderIds = folders.map(f => f._id);
     const cards = await Card.find({ folder: { $in: folderIds } }).select('_id').session(session).lean();
     const cardIds = cards.map(c => c._id);
+
+    // Read before the rows go, used after the transaction commits: object storage cannot take
+    // part in a transaction, so the keys have to be carried out of it.
+    storedKeys = (await Media.find({ $or: [{ folder: { $in: folderIds } }, { uploadedBy: id }] }).select('key').session(session).lean())
+      .map(m => m.key).filter(Boolean);
 
     // Everything hanging off the folders this account owned.
     await CardDoc.deleteMany({ card: { $in: cardIds } }, opts);
@@ -264,6 +271,10 @@ async function eraseAccount(withHash) {
     await Session.deleteMany({ user: id }, opts);
     await User.deleteOne({ _id: id }, opts);
   });
+
+  // After the commit, and deliberately not awaited into the result: the account is gone either
+  // way, and a slow bucket should not hold up the response to somebody who just deleted it.
+  await storage.remove(storedKeys);
 
   await send({ to: email, ...accountDeletedEmail({ name }) });
   return { deleted: true };

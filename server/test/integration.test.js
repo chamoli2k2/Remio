@@ -8,7 +8,7 @@ import http from 'node:http';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { connectDatabase } from '../src/config/database.js';
 import { createApp } from '../src/app.js';
-import { allModels, Review, User, Notification, Relationship, PremiumOrder, Team, Folder } from '../src/models/index.js';
+import { allModels, Review, User, Notification, Relationship, PremiumOrder, Team, Folder, Media } from '../src/models/index.js';
 import { defaultPricebook } from '../../shared/pricing.js';
 import { BRAND } from '../../shared/brand.js';
 const enabled = process.env.RUN_INTEGRATION === '1';
@@ -557,4 +557,39 @@ integration('a superadmin can delete an account, and is stopped from the three w
   const entry = audit.body.entries.find(e => e.action === 'account.deleted' && e.target === 'deleteme');
   assert.ok(entry, 'the deletion is recorded');
   assert.equal(entry.note, 'Spam account');
+});
+
+integration('an image stored in the bucket is served as a signed redirect, and still only to people who may see it', async () => {
+  // Presigning is local arithmetic, so the whole branch can be exercised with make-believe
+  // credentials and no bucket. What is being tested is the routing and the permission check.
+  const before = { ...process.env };
+  Object.assign(process.env, { R2_BUCKET: 'test-bucket', R2_ACCOUNT_ID: 'acc123', R2_ACCESS_KEY_ID: 'key', R2_SECRET_ACCESS_KEY: 'secret' });
+  try {
+    const shelf = await owner.post('/api/folders').send({ title: 'Has a bucket image', visibility: 'private' });
+    const media = await Media.create({ folder: shelf.body.folder.id, uploadedBy: (await User.findOne({ username: 'owner' }))._id, key: 'f/x/stored.webp', contentType: 'image/webp', name: 'stored.webp' });
+
+    // The permission check runs before anything is signed, so a stranger never learns the key.
+    const refused = await outsider.get(`/api/media/${media.id}`).redirects(0);
+    assert.equal(refused.status, 404);
+    assert.ok(!refused.headers.location, 'and gets no link at all');
+
+    const allowed = await owner.get(`/api/media/${media.id}`).redirects(0);
+    assert.equal(allowed.status, 302, JSON.stringify(allowed.body));
+    const url = new URL(allowed.headers.location);
+    assert.equal(url.host, 'test-bucket.acc123.r2.cloudflarestorage.com');
+    assert.equal(url.pathname, '/f/x/stored.webp');
+    assert.ok(url.searchParams.get('X-Amz-Signature'), 'the link is signed');
+    assert.match(allowed.headers['cache-control'], /private/, 'and never cached by anything shared');
+
+    // A row written before the bucket existed still holds its bytes and is still served directly.
+    const png = await sharp({ create: { width: 4, height: 4, channels: 3, background: '#123456' } }).png().toBuffer();
+    const legacy = await Media.create({ folder: shelf.body.folder.id, uploadedBy: (await User.findOne({ username: 'owner' }))._id, data: png, contentType: 'image/png' });
+    const old = await owner.get(`/api/media/${legacy.id}`).redirects(0);
+    assert.equal(old.status, 200, 'the old path keeps working during and after a migration');
+    assert.equal(old.headers['cache-control'], 'private, no-store');
+  } finally {
+    for (const k of ['R2_BUCKET', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']) {
+      if (before[k] === undefined) delete process.env[k]; else process.env[k] = before[k];
+    }
+  }
 });

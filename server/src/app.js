@@ -19,6 +19,7 @@ import { setting } from './services/settingsService.js';
 import { themeScriptHash } from '../../shared/themeScript.js';
 import { jsonLdHash } from '../../shared/seo.js';
 import { isConfigured as googleConfigured } from './services/auth/googleToken.js';
+import { isConfigured as storageConfigured } from './services/storage.js';
 export function createApp() {
   const app = express(); app.disable('x-powered-by'); if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
   app.use(requestContext);
@@ -27,6 +28,7 @@ export function createApp() {
   // The gateway's checkout runs in its own script and iframe, so it only widens the policy when configured.
   const gateway = razorpayConfigured() ? ['https://checkout.razorpay.com', 'https://api.razorpay.com'] : [];
   const googleAuth = googleConfigured() ? ['https://accounts.google.com', 'https://gsi.google.com'] : [];
+  const media = storageConfigured() ? ['https://*.r2.cloudflarestorage.com'] : [];
   // The theme script is inlined into the HTML to save a blocking round trip, so the policy names
   // its hash rather than opening up inline scripts generally. HSTS is a year with subdomains, which
   // is what lets the domain be preloaded; harmless locally because browsers ignore it off HTTPS.
@@ -44,7 +46,7 @@ export function createApp() {
      */
     crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, jsonLdHash, ...gateway, ...googleAuth], "style-src": ["'self'", "'unsafe-inline'", ...googleAuth], "frame-src": ["'self'", ...gateway, ...googleAuth], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway, ...googleAuth] } },
+    contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...media, ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, jsonLdHash, ...gateway, ...googleAuth], "style-src": ["'self'", "'unsafe-inline'", ...googleAuth], "frame-src": ["'self'", ...gateway, ...googleAuth], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway, ...googleAuth] } },
   }));
   app.use(cors({ origin: origins, credentials: true }));
   // `limit` is a function because the value behind it changes while the process is running.

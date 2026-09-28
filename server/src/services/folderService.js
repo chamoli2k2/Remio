@@ -1,4 +1,5 @@
 import { Folder, Card, User, Media, Revision } from '../models/index.js';
+import * as storage from './storage.js';
 import { accessFolder, mutateFolder, recordEvent, roleOf } from './accessService.js';
 import { requireFolderPremium, entitledOnFolder, teamFolderRole, teamIdsFor } from './teamAccess.js';
 import { assert } from '../utils/errors.js';
@@ -49,20 +50,33 @@ export async function copyFolder(id, user) {
     const author = await User.findById(source.owner).session(session);
     const [copy] = await Folder.create([{ title: `${source.title} (copy)`, description: source.description, color: source.color, icon: source.icon, owner: user.id, visibility: 'private', copiedFrom: source.id, originalCreator: source.originalCreator || author.username }], { session });
     source.copyCount = (source.copyCount || 0) + 1; await source.save({ session });
+    /**
+     * One image on the copy, for one on the original.
+     *
+     * With object storage the bucket copies it server-side: the bytes never travel to us and back,
+     * and each copy gets its own object so deleting one folder cannot break another's images.
+     * Without it, the old behaviour — duplicate the buffer — still applies.
+     */
+    const duplicateImage = async original => {
+      if (!original.key) return Media.create([{ folder: copy.id, uploadedBy: user.id, data: original.data, name: original.name, contentType: original.contentType }], { session });
+      const to = storage.newKey(copy.id, original.contentType);
+      await storage.copy(original.key, to);
+      return Media.create([{ folder: copy.id, uploadedBy: user.id, key: to, name: original.name, contentType: original.contentType }], { session });
+    };
     const cards = await Card.find({ folder: source.id }).session(session);
     const imageMap = new Map();
     for (const card of cards) {
       const data = card.toObject(); delete data._id; delete data.__v; delete data.createdAt; delete data.updatedAt;
       for (const side of ['front', 'back']) if (data[side]?.image) {
         const key = String(data[side].image);
-        if (!imageMap.has(key)) { const original = await Media.findById(key).select('+data').session(session); if (original) { const [image] = await Media.create([{ folder: copy.id, uploadedBy: user.id, data: original.data, name: original.name, contentType: original.contentType }], { session }); imageMap.set(key, image.id); } }
+        if (!imageMap.has(key)) { const original = await Media.findById(key).select('+data').session(session); if (original) { const [image] = await duplicateImage(original); imageMap.set(key, image.id); } }
         data[side].image = imageMap.get(key) ?? null;
       }
       await Card.create([{ ...data, folder: copy.id, version: 0, createdBy: user.id, updatedBy: user.id }], { session });
     }
     if (source.thumbnail) {
       const original = await Media.findById(source.thumbnail).select('+data').session(session);
-      if (original) { const [thumb] = await Media.create([{ folder: copy.id, uploadedBy: user.id, data: original.data, name: original.name, contentType: original.contentType }], { session }); copy.thumbnail = thumb.id; await copy.save({ session }); }
+      if (original) { const [thumb] = await duplicateImage(original); copy.thumbnail = thumb.id; await copy.save({ session }); }
     }
     await recordEvent(copy, user, 'folder.copied', copy.title, session); return copy;
   });
