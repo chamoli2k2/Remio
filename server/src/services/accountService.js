@@ -9,6 +9,9 @@ import { assert } from '../utils/errors.js';
 import { hashToken } from '../middleware/auth.js';
 import { send, verificationEmail, passwordResetEmail, passwordChangedEmail, accountDeletedEmail } from './mailService.js';
 import { publicOrigin } from '../utils/origin.js';
+import { record } from './settingsService.js';
+import { logger } from '../utils/logger.js';
+import { isSuperadmin } from '../../../shared/account.js';
 
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 /** A reset link hands out an account, so it is worth far less time than a confirmation link. */
@@ -154,14 +157,63 @@ async function blockingTeams(userId) {
  */
 export async function deleteAccount(user, { password }) {
   const withHash = await User.findById(user.id).select('+passwordHash +email');
-  assert(withHash && await bcrypt.compare(password, withHash.passwordHash), 400, 'That password is not correct.');
+  // An account with no password has only ever signed in with Google, so there is nothing to
+  // compare against and no way to confirm it is really them at the keyboard.
+  assert(withHash?.passwordHash, 400, 'This account signs in with Google and has no password. Set one first, and then you can delete the account.', 'NO_PASSWORD');
+  assert(await bcrypt.compare(password, withHash.passwordHash), 400, 'That password is not correct.');
+  return eraseAccount(withHash);
+}
 
-  const blocked = await blockingTeams(user.id);
+/**
+ * Deleting somebody else's account, from the dashboard.
+ *
+ * Separate from the self-serve path because the guards are different, not because the deletion is:
+ * it calls the same erase below, so a person removed by staff loses exactly what they would have
+ * lost by asking, and the payment records are anonymised the same way rather than destroyed.
+ *
+ * Three refusals, each protecting against a different mistake. Deleting yourself here would skip
+ * the password confirmation the self-serve route asks for, so it is sent back to that route.
+ * Deleting another superadmin is refused outright: it is the one action with no way back and no
+ * second pair of eyes, and demoting first makes it a deliberate two-step. And the classroom check
+ * in the erase itself still applies, so a teacher cannot be removed out from under their students.
+ *
+ * `confirm` has to be the username being deleted. It is not security — an admin could send
+ * anything — it is the pause that stops the wrong row being clicked.
+ */
+export async function deleteAccountAsAdmin(actor, targetId, { confirm = '', note = '' } = {}) {
+  assert(String(actor.id) !== String(targetId), 400,
+    'Use Settings to delete your own account, where we can confirm it is you by your password.', 'SELF_DELETE');
+
+  const target = await User.findById(targetId).select('+email');
+  assert(target, 404, 'That account no longer exists.', 'NO_USER');
+  assert(!isSuperadmin(target), 403,
+    'A superadmin cannot be deleted from here. Move them to another role first, so removing them is never one click.', 'SUPERADMIN_TARGET');
+  assert(confirm.trim().toLowerCase() === target.username, 400,
+    `Type ${target.username} to confirm.`, 'CONFIRM_MISMATCH');
+
+  const { username, email } = target;
+  const result = await eraseAccount(target);
+  // Recorded after the fact, because the row it describes is gone and this is the only thing left
+  // that says it ever existed or who removed it.
+  await record(actor, 'account.deleted', { target: username, before: { username, email }, note });
+  logger.warn('an account was deleted by staff', { by: actor.username, username });
+  return result;
+}
+
+/**
+ * Removes an account and everything only it owned.
+ *
+ * Shared by the two ways an account can go: its owner asking, and a superadmin acting. Both erase
+ * exactly the same things, because a deletion that means one thing when you ask for it and another
+ * when somebody does it for you is a deletion nobody can describe in a privacy policy.
+ */
+async function eraseAccount(withHash) {
+  const blocked = await blockingTeams(withHash.id);
   assert(!blocked.length, 409,
-    `Hand over or close ${blocked.length === 1 ? 'this classroom' : 'these classrooms'} before deleting your account, so the people in ${blocked.length === 1 ? 'it' : 'them'} do not lose their work: ${blocked.join(', ')}.`);
+    `Hand over or close ${blocked.length === 1 ? 'this classroom' : 'these classrooms'} before deleting this account, so the people in ${blocked.length === 1 ? 'it' : 'them'} do not lose their work: ${blocked.join(', ')}.`);
 
   const { email, name } = withHash;
-  const id = user.id;
+  const id = withHash.id;
 
   await mongoose.connection.transaction(async session => {
     const opts = { session };

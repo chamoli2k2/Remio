@@ -1,10 +1,11 @@
 import { lazy, Suspense, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 import { messageFor, reportError } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
-import { Button, Loading, ErrorState, Empty, Modal } from '../components/ui';
+import { Button, Loading, ErrorState, Empty, Modal, Field } from '../components/ui';
 import Select, { optionsOf } from '../components/Select';
 import { ACCOUNTS, isSuperadmin, planById } from '../../../shared/account.js';
 // Split out because between them they are most of this page's weight and neither is on the tab
@@ -71,12 +72,48 @@ function Reports({ rows, onDone }) {
   </li>)}</ul>;
 }
 
+function DeleteUserModal({ person, onClose, onDone }) {
+  const [confirm, setConfirm] = useState(''), [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const matches = confirm.trim().toLowerCase() === person.username;
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true); setError('');
+    try {
+      await api(`/admin/users/${person.id}`, { method: 'DELETE', body: { confirm, note } });
+      toast.success(`@${person.username} has been deleted.`);
+      onDone();
+    } catch (err) { setError(messageFor(err)); setBusy(false); }
+  }
+  return <Modal open onClose={onClose} title={`Delete @${person.username}?`}
+    description="This removes the account and everything only it owned. It cannot be undone.">
+    <form className="form-stack" onSubmit={submit}>
+      <div className="danger-note">
+        <p><strong>{person.name}</strong> loses their collections, cards, study history, and any classroom they own on their own.</p>
+        <p>Payment records are kept with the personal details stripped out, because we have to be able to show a transaction happened. Nothing else survives.</p>
+      </div>
+      <Field label={`Type ${person.username} to confirm`}>
+        <input autoFocus autoComplete="off" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder={person.username}/>
+      </Field>
+      <Field label="Why · optional" hint="Kept in the audit trail, which is the only record left once the account is gone.">
+        <input maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder="Spam account, reported repeatedly"/>
+      </Field>
+      {error && <ErrorState message={error}/>}
+      <div className="modal-actions">
+        <Button type="button" className="secondary" onClick={onClose}>Cancel</Button>
+        <Button className="danger-button" type="submit" loading={busy} disabled={!matches}>Delete this account</Button>
+      </div>
+    </form>
+  </Modal>;
+}
+
 export default function DashboardPage() {
   const { user, refresh } = useApp();
   const [open, setOpen] = useState(null);
+  const [deleting, setDeleting] = useState(null);
   const [tab, setTab] = useState('users');
   const [q, setQ] = useState('');
-  const { data, loading, error } = useQuery(`/admin/users${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`);
+  const { data, loading, error, refetch } = useQuery(`/admin/users${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`);
   const { data: orders, loading: lo, error: eo } = useQuery('/admin/orders');
   const [days, setDays] = useState(30);
   const { data: usage, loading: lu, error: eu } = useQuery(`/admin/countries?days=${days}`, null, { enabled: tab === 'countries' });
@@ -106,12 +143,13 @@ export default function DashboardPage() {
       <button role="tab" aria-selected={tab === 'reports'} className={tab === 'reports' ? 'active' : ''} onClick={() => setTab('reports')}>Reports {reports?.open ? <span>{reports.open}</span> : null}</button>
       <button role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>Settings</button>
     </div>
+    {deleting && <DeleteUserModal person={deleting} onClose={() => setDeleting(null)} onDone={() => { setDeleting(null); refetch(); }}/>}
     {tab === 'reports' && (lr ? <Loading/> : er ? <ErrorState message={er}/> : !(reports?.reports || []).length
       ? <Empty title="Nothing reported" text="Notices about published collections arrive here. Nothing is waiting."/>
       : <Reports rows={reports.reports} onDone={refetchReports}/>)}
     {tab === 'users' && <>
       <form className="folder-search dash-search" onSubmit={e => e.preventDefault()}><input aria-label="Search users" placeholder="Search name, username, email" value={q} onChange={e => setQ(e.target.value)}/></form>
-      {loading ? <Loading/> : error ? <ErrorState message={error}/> : !people.length ? <Empty title="No users" text="Try another search."/> : <div className="dash-table-wrap"><table className="dash-table"><thead><tr><th>Person</th><th>Email</th><th>Subscription</th><th>Role</th></tr></thead><tbody>{people.map(p => <tr key={p.id}><td><strong>{p.name}</strong><span>@{p.username}</span></td><td>{p.email || 'Not given'}</td><td><Subscription person={p}/></td><td>{p.id === user.id ? <span className="dash-self">{p.account} · you</span> : <Select compact label={`Role for ${p.username}`} value={p.account || 'normal'} onChange={v => setAccount(p.id, v)} options={optionsOf(ACCOUNTS)}/>}</td></tr>)}</tbody></table></div>}
+      {loading ? <Loading/> : error ? <ErrorState message={error}/> : !people.length ? <Empty title="No users" text="Try another search."/> : <div className="dash-table-wrap"><table className="dash-table"><thead><tr><th>Person</th><th>Email</th><th>Subscription</th><th>Role</th>{isSuperadmin(user) && <th aria-label="Delete"/>}</tr></thead><tbody>{people.map(p => <tr key={p.id}><td><strong>{p.name}</strong><span>@{p.username}</span></td><td>{p.email || 'Not given'}</td><td><Subscription person={p}/></td><td>{p.id === user.id ? <span className="dash-self">{p.account} · you</span> : <Select compact label={`Role for ${p.username}`} value={p.account || 'normal'} onChange={v => setAccount(p.id, v)} options={optionsOf(ACCOUNTS)}/>}</td>{isSuperadmin(user) && <td>{p.id !== user.id && !isSuperadmin(p) && <button type="button" className="icon-button dash-delete" aria-label={`Delete ${p.username}`} title={`Delete ${p.username}`} onClick={() => setDeleting(p)}><Trash2 size={15}/></button>}</td>}</tr>)}</tbody></table></div>}
     </>}
     {tab === 'orders' && (lo ? <Loading/> : eo ? <ErrorState message={eo}/> : !(orders?.orders || []).length ? <Empty title="No Premium orders" text="Every purchase through the gateway appears here."/> : <ul className="order-grid">{orders.orders.map(o => <li key={o.id}>
       <button type="button" className="order-card" onClick={() => setOpen(o)}>

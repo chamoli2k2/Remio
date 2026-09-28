@@ -520,3 +520,41 @@ integration('anyone can report a published collection, and upholding it takes th
   assert.ok(after, 'but it still exists');
   assert.equal((await request(app).get(`/api/folders/${folderId}`)).status, 404, 'and a stranger can no longer read it');
 });
+
+integration('a superadmin can delete an account, and is stopped from the three ways that go wrong', async () => {
+  const victim = request.agent(app);
+  assert.equal((await victim.post('/api/auth/signup').send({ username: 'deleteme', name: 'Delete Me', email: 'deleteme@example.test', password, country: 'India', acceptedTerms: true })).status, 201);
+  const victimId = (await User.findOne({ username: 'deleteme' }))._id.toString();
+  const folder = await victim.post('/api/folders').send({ title: 'Work that should go', visibility: 'private' });
+  assert.equal(folder.status, 201);
+
+  assert.equal((await outsider.delete(`/api/admin/users/${victimId}`).send({ confirm: 'deleteme' })).status, 403, 'not for an ordinary account');
+
+  // The owner agent is a superadmin in this suite. Each refusal below guards a different mistake.
+  const wrongName = await owner.delete(`/api/admin/users/${victimId}`).send({ confirm: 'someone-else' });
+  assert.equal(wrongName.status, 400, JSON.stringify(wrongName.body));
+  assert.equal(wrongName.body.code, 'CONFIRM_MISMATCH', 'the username has to be typed back');
+
+  const ownerId = (await User.findOne({ username: 'owner' }))._id.toString();
+  const self = await owner.delete(`/api/admin/users/${ownerId}`).send({ confirm: 'owner' });
+  assert.equal(self.body.code, 'SELF_DELETE', 'deleting yourself here would skip the password check');
+
+  await User.updateOne({ username: 'editor' }, { $set: { account: 'superadmin' } });
+  const boss = (await User.findOne({ username: 'editor' }))._id.toString();
+  const peer = await owner.delete(`/api/admin/users/${boss}`).send({ confirm: 'editor' });
+  assert.equal(peer.body.code, 'SUPERADMIN_TARGET', 'one superadmin cannot remove another in a single click');
+  await User.updateOne({ username: 'editor' }, { $set: { account: 'premium' } });
+
+  assert.ok(await User.findById(victimId), 'none of those refusals deleted anything');
+
+  const done = await owner.delete(`/api/admin/users/${victimId}`).send({ confirm: 'DeleteMe', note: 'Spam account' });
+  assert.equal(done.status, 200, JSON.stringify(done.body));
+  assert.equal(await User.countDocuments({ _id: victimId }), 0, 'the account is gone');
+  assert.equal(await Folder.countDocuments({ _id: folder.body.folder.id }), 0, 'and so is the work only it owned');
+
+  // The audit line is the only thing left that says the account ever existed.
+  const audit = await owner.get('/api/admin/audit');
+  const entry = audit.body.entries.find(e => e.action === 'account.deleted' && e.target === 'deleteme');
+  assert.ok(entry, 'the deletion is recorded');
+  assert.equal(entry.note, 'Spam account');
+});

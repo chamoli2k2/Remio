@@ -926,3 +926,15 @@ html[data-theme=dark] .google-signin-error{color:#f0a9ad}
   .auth-story{overflow:hidden}
   .auth-form{overflow-y:auto}
 }
+
+/* Deleting a person from the dashboard. Quiet until hovered: it sits in every row and should not
+   be the thing your eye lands on when you are there to change somebody's plan. */
+.dash-delete{color:#b9a8c4;width:30px;height:30px}
+.dash-delete:hover{color:#a4343a;background:#fdeceD}
+.danger-note{background:#fdecee;border:1px solid #f6d3d7;border-radius:11px;padding:14px 16px;display:flex;flex-direction:column;gap:9px}
+.danger-note p{font-size:13px;line-height:1.6;color:#8a3a41;margin:0}
+.danger-button{background:#b23b45;color:#fff;border-color:#b23b45}
+.danger-button:hover:not(:disabled){background:#9c323b}
+html[data-theme=dark] .dash-delete:hover{color:#f0a9ad;background:#4a2327}
+html[data-theme=dark] .danger-note{background:#3a2024;border-color:#5b3036}
+html[data-theme=dark] .danger-note p{color:#f0b9bd}

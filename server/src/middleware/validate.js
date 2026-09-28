@@ -78,4 +78,10 @@ export const googleSignInSchema = z.object({
   acceptedTerms: z.boolean().optional(),
 });
 
+/** The username, typed back, plus an optional reason that lands in the audit trail. */
+export const deleteUserSchema = z.object({
+  confirm: z.string().trim().min(1).max(24),
+  note: z.string().trim().max(200).optional().default(''),
+});
+
 export const validate = schema => (req, _res, next) => { try { req.body = schema.parse(req.body); next(); } catch (e) { next(e); } };

@@ -15,7 +15,7 @@ import * as notifications from '../controllers/notificationController.js';
 import * as teams from '../controllers/teamController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePremium, requireDashboard, requireSuperadmin, requireVerifiedEmail } from '../middleware/account.js';
-import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, cardSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema } from '../middleware/validate.js';
+import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, cardSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema } from '../middleware/validate.js';
 import { requireImports, requireSignupOpen } from '../middleware/config.js';
 import { throttle as rateLimit } from '../middleware/throttle.js';
 import { megabytes, setting } from '../services/settingsService.js';
@@ -130,6 +130,9 @@ r.post('/folders/:id/report', reportLimit, validate(reportSchema), a(moderation.
 r.get('/admin/reports', requireAuth, requireDashboard, a(moderation.list));
 r.patch('/admin/reports/:id', requireAuth, requireDashboard, validate(reportDecisionSchema), a(moderation.decide));
 r.get('/admin/users', requireAuth, requireDashboard, a(admin.users));
+// Superadmin rather than admin, and rate-limited: an admin moves people between roles all day,
+// but erasing somebody's work is the one action here with nothing to undo it.
+r.delete('/admin/users/:id', requireAuth, requireSuperadmin, authLimit, validate(deleteUserSchema), a(admin.deleteUser));
 r.patch('/admin/users/:id', requireAuth, requireDashboard, validate(z.object({ account: z.enum(['normal', 'premium', 'admin', 'superadmin']) })), a(admin.setAccount));
 // Prices and switches, read by every visitor so the page can quote the right currency.
 r.get('/config', a(config.publicConfig));
