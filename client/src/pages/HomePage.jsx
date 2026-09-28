@@ -20,7 +20,7 @@ function HeroCard() {
   const next = () => { setFlipped(false); setIndex(i => (i + 1) % sample.length); };
   return <div className="home-hero-card-wrap"><div className="home-hero-card-shadow"/><article className={`home-hero-card ${flipped ? 'answer-visible' : ''}`}>
     <div className="home-hero-card-top"><span>{String(index + 1).padStart(2, '0')} / {flipped ? 'ANSWER' : 'QUESTION'}</span><span className="tag">{card.tag}</span></div>
-    <button type="button" className="home-hero-card-body" aria-label={flipped ? 'Show question' : 'Reveal answer'} onClick={() => setFlipped(f => !f)}><p>{flipped ? card.back : card.front}</p><small>{flipped ? 'Tap to see the question' : 'Tap to reveal the answer'}</small></button>
+    <button type="button" className="home-hero-card-body" data-face={flipped ? 'back' : 'front'} aria-label={flipped ? 'Show question' : 'Reveal answer'} onClick={() => setFlipped(f => !f)}><p>{flipped ? card.back : card.front}</p><small>{flipped ? 'Tap to see the question' : 'Tap to reveal the answer'}</small></button>
     <div className="home-hero-card-actions">{flipped ? <><button type="button" className="rating again" onClick={next}><span>Again</span></button><button type="button" className="rating good" onClick={next}><span>Good</span></button><button type="button" className="rating easy" onClick={next}><span>Easy</span></button></> : <button type="button" className="text-button" onClick={() => setFlipped(true)}><RotateCcw size={14}/> Flip the card</button>}</div>
   </article></div>;
 }

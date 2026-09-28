@@ -813,3 +813,24 @@ html[data-theme=dark] .report-note{color:var(--text-2)}
 html[data-theme=dark] .report-queue>li{background:var(--surface);border-color:var(--border)}
 html[data-theme=dark] .report-detail{color:var(--text-2)}
 html[data-theme=dark] .report-reason.is-illegal,html[data-theme=dark] .report-reason.is-harmful{background:#4a2327;color:#f0a9ad}
+
+/* Turning a card over.
+   Half a turn rather than a whole one: the face swings in from edge-on, which reads as a flip
+   without the card having to carry both faces in the DOM at once. That matters more than it
+   sounds — the back of a card is rendered markdown and maths, so a two-faced card would double
+   that work for every card in a folder to animate one of them.
+   Only transform and opacity are animated, so it runs on the compositor and never touches layout,
+   and only the card you clicked has the attribute that starts it. */
+.flashcard-item,.home-hero-card,.study-card{perspective:1100px}
+.card-content[data-face],.home-hero-card-body[data-face],.study-card-body[data-face]{transform-origin:50% 50%}
+/* Two names for one movement. An animation restarts when its name changes, so turning to the back
+   and turning to the front each retrigger; a single name would play once and never again. */
+@keyframes card-turn-back{from{transform:rotateY(-82deg);opacity:.3}to{transform:none;opacity:1}}
+@keyframes card-turn-front{from{transform:rotateY(82deg);opacity:.3}to{transform:none;opacity:1}}
+.card-content[data-face=back],.home-hero-card-body[data-face=back],.study-card-body[data-face=back]{animation:card-turn-back .24s cubic-bezier(.22,.68,.3,1) both}
+.card-content[data-face=front],.home-hero-card-body[data-face=front],.study-card-body[data-face=front]{animation:card-turn-front .24s cubic-bezier(.22,.68,.3,1) both}
+/* Somebody who has asked their system for less movement gets the content change and none of the
+   turn. The card still swaps; it simply does not spin to do it. */
+@media(prefers-reduced-motion:reduce){
+  .card-content[data-face],.home-hero-card-body[data-face],.study-card-body[data-face]{animation:none}
+}
