@@ -97,7 +97,7 @@ const termsSections = [
   {
     id: 'plans', title: 'Plans and payment', body: <>
       <p>Creating an account, building collections, studying with spaced repetition, publishing to the community, and tracking your own progress are all free, and we intend to keep them that way.</p>
-      <p>Premium adds projects, card import and export, folder covers, hosting live quizzes, and inviting editors. Classrooms are billed per seat. Prices are shown in Indian rupees and include any taxes we are required to add.</p>
+      <p>Premium adds projects, card import and export, folder covers, hosting live quizzes, and inviting editors. Classrooms are billed per seat. Prices are shown in rupees in India and in US dollars elsewhere we sell, follow the country on your account, and include any taxes we are required to add. The current figures are on our <Link to="/pricing">pricing page</Link>.</p>
       <ul>
         <li><strong>Nothing renews automatically.</strong> Every plan is a single payment that buys a fixed period, and we do not store a mandate against your card or UPI ID. When the period ends, your account simply returns to the free tier and your content stays where it is.</li>
         <li>You can pay online through our payment gateway, which unlocks your plan as soon as the payment clears, or by UPI transfer with a screenshot, which a person reviews, usually within one working day.</li>
@@ -287,6 +287,25 @@ export function TermsPage() {
     title="Terms of use"
     lede="The agreement between you and us, written to be read. Plain language, no traps, and a refund policy you can actually rely on."
     sections={termsSections}/>;
+}
+
+/**
+ * The refund policy on a URL of its own.
+ *
+ * Built from the same section objects the terms are, rather than a second copy, because a refund
+ * policy that quietly drifts out of step with the terms is worse than not having one. It exists
+ * separately because a payment gateway, and the card networks behind it, expect a cancellation and
+ * refund policy to be reachable as its own page — a fragment link part-way down a longer document
+ * does not satisfy that, however complete the wording is.
+ */
+const refundSections = termsSections.filter(s => ['plans', 'refunds'].includes(s.id));
+
+export function RefundsPage() {
+  return <LegalPage
+    eyebrow="LEGAL"
+    title="Cancellation and refunds"
+    lede="What your money buys, what happens when a plan ends, and how to get it back if you are not happy."
+    sections={refundSections}/>;
 }
 
 export function PrivacyPage() {

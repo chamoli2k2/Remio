@@ -707,3 +707,47 @@ html[data-theme=dark] .sel.is-open .sel-trigger{border-color:#7c6ae0}
 html[data-theme=dark] .sel-empty{color:var(--text-4)}
 html[data-theme=dark] .sel-pop{background:var(--surface-2);border-color:var(--border);box-shadow:0 14px 34px rgba(0,0,0,.42)}
 html[data-theme=dark] .sel-item.is-active{background:var(--soft);color:var(--ink)}
+
+/* Public pricing page. Laid out like the legal pages rather than the app: a column of readable
+   width, because it is read by somebody who has not signed up yet. */
+.pricing{max-width:1000px;margin:0 auto;padding:6px 0 30px}
+.pricing-head{margin-bottom:28px}
+.pricing-head h1{font-size:38px;letter-spacing:-1.3px;line-height:1.16;margin:4px 0 0}
+.pricing-lede{font-size:15px;color:var(--muted);line-height:1.7;max-width:64ch;margin-top:12px}
+.pricing-region{display:flex;align-items:center;gap:10px;margin-top:18px}
+.pricing-region>span{font-size:13px;color:var(--muted)}
+.pricing-tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-bottom:34px}
+.pricing-card{border:1px solid var(--border);border-radius:16px;background:#fff;padding:26px 26px 24px;display:flex;flex-direction:column}
+/* The paid tier carries the accent so the eye lands on it, without hiding that free is a real option. */
+.pricing-card.is-premium{border-color:#c5b8f2;box-shadow:0 14px 40px rgba(72,44,160,.09)}
+.pricing-card h2{font-size:20px;display:flex;align-items:center;gap:8px}
+.pricing-card h2 svg{color:var(--accent)}
+.pricing-amount{font-size:33px;font-weight:700;letter-spacing:-1.1px;margin:12px 0 0}
+.pricing-amount>span{display:block;font-size:12px;font-weight:500;letter-spacing:0;color:var(--muted);margin-top:5px}
+.pricing-blurb{font-size:13px;color:var(--muted);margin:12px 0 16px;line-height:1.6}
+.pricing-list{list-style:none;margin:0 0 22px;padding:0;display:flex;flex-direction:column;gap:9px;flex:1}
+.pricing-list li{display:flex;gap:9px;font-size:13px;line-height:1.55;color:#4d4459}
+.pricing-list svg{flex:none;margin-top:2px;color:var(--accent)}
+.pricing-list strong{color:var(--ink)}
+.pricing-plans{margin-bottom:34px}
+.pricing-plans h2{font-size:21px;display:flex;align-items:center;gap:9px}
+.pricing-plans h2 svg{color:var(--accent)}
+.pricing-note{font-size:13px;color:var(--muted);margin:8px 0 16px;max-width:70ch;line-height:1.65}
+.pricing-plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.pricing-plan{position:relative;border:1px solid var(--border);border-radius:14px;background:#fff;padding:18px 19px}
+.pricing-plan>strong{font-size:14px}
+.pricing-tag{position:absolute;top:15px;right:15px;font-size:10px;font-weight:700;letter-spacing:.4px;color:var(--accent-dark);background:var(--soft);border-radius:20px;padding:3px 8px}
+.pricing-plan-amount{display:block;font-size:26px;font-weight:700;letter-spacing:-.9px;margin-top:9px}
+.pricing-plan-term{display:block;font-size:12px;color:var(--muted);margin-top:4px}
+.pricing-plan p{font-size:12px;color:var(--muted);margin:10px 0 0;line-height:1.55}
+.pricing-terms{border:1px solid var(--border);border-radius:16px;background:#fff;padding:26px}
+.pricing-terms h2{font-size:19px;margin-bottom:14px}
+.pricing-terms ul{margin:0;padding-left:19px;display:flex;flex-direction:column;gap:11px}
+.pricing-terms li{font-size:13px;line-height:1.7;color:#4d4459}
+.pricing-terms a{color:var(--accent-dark);text-decoration:underline}
+.pricing-fineprint{font-size:12px;color:var(--muted);margin:18px 0 0}
+@media(max-width:600px){.pricing-head h1{font-size:29px}.pricing-card{padding:21px}}
+html[data-theme=dark] .pricing-card,html[data-theme=dark] .pricing-plan,html[data-theme=dark] .pricing-terms{background:var(--surface);border-color:var(--border)}
+html[data-theme=dark] .pricing-card.is-premium{border-color:#6e56e8}
+html[data-theme=dark] .pricing-list li,html[data-theme=dark] .pricing-terms li{color:var(--text-2)}
+html[data-theme=dark] .pricing-terms a{color:#b3a2f7}

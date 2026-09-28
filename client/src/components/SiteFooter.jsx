@@ -11,9 +11,11 @@ export default function SiteFooter() {
       </p>
       <div className="site-footer-links">
         <nav aria-label="Site">
+          <Link to="/pricing">Pricing</Link>
           <Link to="/contact">Contact</Link>
           <Link to="/terms">Terms</Link>
           <Link to="/privacy">Privacy</Link>
+          <Link to="/refunds">Refunds</Link>
         </nav>
         <span className="site-footer-year">© {new Date().getFullYear()}</span>
       </div>
