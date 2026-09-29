@@ -96,9 +96,8 @@ const pwa = () => {
         '',
       ].join('\n'));
 
-      const pages = [['/', '1.0'], ['/pricing', '0.9'], ['/explore', '0.8'], ['/signup', '0.7'], ['/login', '0.5'], ['/terms', '0.3'], ['/privacy', '0.3'], ['/refunds', '0.3'], ['/contact', '0.3']];
-      await writeFile(at('sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
-        pages.map(([loc, priority]) => `  <url><loc>${site}${loc}</loc><priority>${priority}</priority></url>`).join('\n')}\n</urlset>\n`);
+      // No sitemap written here: the API serves it, because only the API can see which
+      // collections are published, and those are the pages worth finding.
 
       /**
        * What a language model reads to describe the product accurately instead of inferring it

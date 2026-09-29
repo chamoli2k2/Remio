@@ -593,3 +593,58 @@ integration('an image stored in the bucket is served as a signed redirect, and s
     }
   }
 });
+
+integration('each page tells a crawler what it is, and a private collection tells it nothing', async () => {
+  const shown = await owner.post('/api/folders').send({ title: 'Kubernetes fundamentals', description: 'Pods, services, and why your deployment is pending.', visibility: 'global' });
+  assert.equal(shown.status, 201);
+  assert.equal((await owner.post(`/api/folders/${shown.body.folder.id}/cards`).send({ front: { text: 'What is a pod?' }, back: { text: 'The smallest deployable unit.' } })).status, 201);
+  const hidden = await owner.post('/api/folders').send({ title: 'My private revision notes', visibility: 'private' });
+  assert.equal(hidden.status, 201);
+
+  const head = async path => (await request(app).get(path)).text;
+  const titleOf = html => /<title>([^<]*)<\/title>/.exec(html)?.[1];
+  const tag = (html, name) => new RegExp(`<meta (?:name|property)="${name}" content="([^"]*)"`).exec(html)?.[1];
+
+  // Every page used to answer with the product's own name, which made a hundred pages look like
+  // one page repeated.
+  const home = await head('/');
+  const pricing = await head('/pricing');
+  assert.notEqual(titleOf(home), titleOf(pricing), 'two pages, two titles');
+  assert.match(titleOf(pricing), /^Pricing ·/);
+  assert.match(tag(pricing, 'og:url'), /\/pricing$/);
+  assert.match(tag(pricing, 'description'), /free tier is the whole product/i);
+
+  // A published collection describes itself, so a shared link previews as the deck and can rank
+  // for its subject rather than for the brand.
+  const open = await head(`/folders/${shown.body.folder.id}`);
+  assert.match(titleOf(open), /^Kubernetes fundamentals — flashcards/);
+  assert.match(tag(open, 'og:description'), /why your deployment is pending/);
+  assert.match(tag(open, 'og:url'), new RegExp(`/folders/${shown.body.folder.id}$`));
+
+  // A private one gets the default. Its title is not a small leak: it would be published to
+  // anybody who could guess the URL.
+  const shut = await head(`/folders/${hidden.body.folder.id}`);
+  assert.equal(titleOf(shut), titleOf(home), 'no per-page title');
+  assert.ok(!shut.includes('My private revision notes'), 'and the name never appears');
+
+  // Signed-in areas have nothing for a crawler and should not compete with the pages that do.
+  assert.match(tag(await head('/dashboard'), 'robots'), /noindex/);
+
+  const sitemap = (await request(app).get('/sitemap.xml')).text;
+  assert.match(sitemap, new RegExp(`/folders/${shown.body.folder.id}<`), 'the published collection is listed');
+  assert.ok(!sitemap.includes(hidden.body.folder.id), 'the private one is not');
+});
+
+integration('a request that looks like a file gets a 404 rather than the app', async () => {
+  // Crawlers ask for conventions we do not ship. Answering "where is your icon" with a page of
+  // HTML and a 200 is why Google drew a grey globe instead of the logo.
+  for (const probe of ['/favicon.ico', '/apple-touch-icon.png', '/browserconfig.xml', '/nope.js']) {
+    const res = await request(app).get(probe);
+    assert.equal(res.status, 404, `${probe} should be a 404`);
+    assert.doesNotMatch(res.headers['content-type'] || '', /html/, `${probe} must not answer with HTML`);
+  }
+  // Real routes are untouched: none of them has a dot in the last segment.
+  for (const route of ['/', '/pricing', '/u/owner', '/explore']) {
+    assert.equal((await request(app).get(route)).status, 200, route);
+  }
+});

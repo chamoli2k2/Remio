@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import routes from './routes/index.js';
 import healthRoutes from './routes/health.js';
@@ -20,6 +21,7 @@ import { themeScriptHash } from '../../shared/themeScript.js';
 import { jsonLdHash } from '../../shared/seo.js';
 import { isConfigured as googleConfigured } from './services/auth/googleToken.js';
 import { isConfigured as storageConfigured } from './services/storage.js';
+import { metaFor, applyMeta, sitemap } from './services/pageMeta.js';
 export function createApp() {
   const app = express(); app.disable('x-powered-by'); if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
   app.use(requestContext);
@@ -62,6 +64,11 @@ export function createApp() {
   app.use(express.json({ limit: '256kb' })); app.use(cookieParser()); app.use('/api', optionalAuth, readOnlyGuard, routes);
   app.use('/api', notFoundHandler);
   const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..', 'dist');
+  // Ahead of the static handler, because this one knows what has been published and a file written
+  // at build time cannot.
+  app.get('/sitemap.xml', asyncHandler(async (_req, res) => {
+    res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(await sitemap());
+  }));
   app.use(express.static(dist));
   /**
    * A build asset that is not there is a 404, not the app.
@@ -73,7 +80,39 @@ export function createApp() {
    * type of text/html": a confusing way to say 404, and one that hides the actual cause.
    */
   app.use('/assets', (_req, res) => res.status(404).type('text/plain').send('Not found'));
-  app.get('/{*path}', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+
+  /**
+   * A request that looks like a file, and is not one, is a 404.
+   *
+   * Crawlers probe for conventions we do not ship — `/favicon.ico` above all, which browsers and
+   * Google ask for at the root whatever the HTML says. Falling through to the app meant answering
+   * "where is your icon" with a page of HTML and a 200, and Google cannot read HTML as an image,
+   * so it drew the grey globe instead of our logo. A 404 sends it to the `<link rel="icon">` tags.
+   *
+   * Only the last segment is tested for a dot, because no route in this app has one: usernames are
+   * letters, numbers and underscores, and ids are hexadecimal.
+   */
+  app.get('/{*path}', (req, res, next) => {
+    const last = req.path.split('/').pop() || '';
+    if (!last.includes('.')) return next();
+    res.status(404).type('text/plain').send('Not found');
+  });
+
+  /**
+   * The app shell, with this route's own title and description written into it.
+   *
+   * Read once and held, because it is sent on every page load and re-reading it per request would
+   * be a disk hit to produce a string that never changes. Only the handful of meta tags differ,
+   * and those are substituted per request.
+   */
+  const shellPath = path.join(dist, 'index.html');
+  let shell = null;
+  app.get('/{*path}', asyncHandler(async (req, res) => {
+    if (shell === null) shell = await readFile(shellPath, 'utf8').catch(() => '');
+    // No build on disk is a development server, where Vite serves the app instead.
+    if (!shell) return res.sendFile(shellPath);
+    res.type('html').send(applyMeta(shell, await metaFor(req.path)));
+  }));
   app.use(errorHandler);
   return app;
 }
