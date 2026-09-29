@@ -207,3 +207,34 @@ integration('a hand-typed window cannot ask for an aggregation over all of histo
   assert.equal((await admin.get('/api/admin/analytics?days=nonsense')).body.growth.days, 30);
   assert.equal((await admin.get('/api/admin/analytics?days=-5')).body.growth.days, 1, 'a negative window lands on the floor rather than the default');
 });
+
+integration('the banner is set from the dashboard and reaches every visitor', async () => {
+  // Nothing set means no banner at all, which is how it spends most of its life.
+  assert.equal((await request(app).get('/api/config')).body.notice, '');
+
+  const saved = await boss.patch('/api/admin/settings').send({ values: {
+    'maintenance.notice': '25% off Premium until Friday',
+    'maintenance.noticeLink': '/pricing',
+    'maintenance.noticeOffer': true,
+  }, note: 'Launch sale' });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+
+  // Served unauthenticated, because the banner is for signed-out visitors too.
+  const open = await request(app).get('/api/config');
+  assert.equal(open.body.notice, '25% off Premium until Friday');
+  assert.equal(open.body.noticeLink, '/pricing');
+  assert.equal(open.body.noticeOffer, true);
+
+  // A banner appears on every page, so a link that is neither a path here nor an https address
+  // would be a broken or hostile link everywhere at once.
+  for (const bad of ['javascript:alert(1)', '//evil.example', 'pricing', 'http://insecure.example']) {
+    const refused = await boss.patch('/api/admin/settings').send({ values: { 'maintenance.noticeLink': bad } });
+    assert.equal(refused.status, 400, `${bad}: ${JSON.stringify(refused.body)}`);
+    assert.equal(refused.body.code, 'SETTINGS_INVALID');
+  }
+  assert.equal((await request(app).get('/api/config')).body.noticeLink, '/pricing', 'and none of them replaced the good one');
+
+  // Clearing the message is how it is taken down; no separate switch to forget.
+  await boss.patch('/api/admin/settings').send({ values: { 'maintenance.notice': '' } });
+  assert.equal((await request(app).get('/api/config')).body.notice, '');
+});

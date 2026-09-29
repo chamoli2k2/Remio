@@ -185,7 +185,7 @@ export async function demoRequest(path, options = {}) {
   if (path === '/auth/me') return { user: clone(user) };
   // The preview has no settings to read, so it answers with the shipped ones. Everything is on and
   // nothing is overridden, which is the configuration a fresh install runs.
-  if (path === '/config') return { regions: DEFAULT_REGIONS, selling: DEFAULT_SELLING, planDays: null, flags: { signupOpen: true, explorePublic: true, imports: true, quiz: true, readOnly: false, razorpay: true, google: false }, notice: '', limits: { imageMb: 5, importMb: 25, importCards: 2000, cardText: 10000, projectFolders: 40, dailyGoalMax: 200, minSeats: SEATS.min, maxSeats: SEATS.max } };
+  if (path === '/config') return { regions: DEFAULT_REGIONS, selling: DEFAULT_SELLING, planDays: null, flags: { signupOpen: true, explorePublic: true, imports: true, quiz: true, readOnly: false, razorpay: true, google: false }, notice: '', noticeLink: '', noticeOffer: false, limits: { imageMb: 5, importMb: 25, importCards: 2000, cardText: 10000, projectFolders: 40, dailyGoalMax: 200, minSeats: SEATS.min, maxSeats: SEATS.max } };
   if (entity === 'users') {
     if (!id) { const q = new URLSearchParams(path.split('?')[1] || '').get('q') || ''; return { users: [user, ...collaborators].filter(u => u.username.startsWith(q.toLowerCase()) || u.name.toLowerCase().startsWith(q.toLowerCase())).map(u => ({ id: u.id, username: u.username, name: u.name })) }; }
     const profile = [user, ...collaborators].find(u => u.username === id); if (!profile) error('User not found.');

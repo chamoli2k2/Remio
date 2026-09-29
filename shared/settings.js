@@ -90,8 +90,12 @@ export const SETTINGS = {
     'Off stops new rooms being hosted. Rooms already running are not closed.'),
   'maintenance.readOnly': bool('access', 'Read-only mode', false,
     'Everything can be read, nothing can be written. For a migration, or for buying yourself an hour.'),
-  'maintenance.notice': { group: 'access', type: 'text', label: 'Banner notice', fallback: '', maxLength: 240,
-    help: 'Shown at the top of every page while it is set. Leave empty for no banner.' },
+  'maintenance.notice': { group: 'access', type: 'text', label: 'Banner message', fallback: '', maxLength: 240,
+    help: 'Shown across the top of every page while it is set, to signed-in and signed-out visitors alike. Leave empty for no banner.' },
+  'maintenance.noticeLink': { group: 'access', type: 'text', label: 'Banner link', fallback: '', maxLength: 200, link: true,
+    help: 'Optional. Where the banner goes when clicked — a path like /pricing, or a full https:// address.' },
+  'maintenance.noticeOffer': bool('access', 'Style the banner as an offer', false,
+    'Draws it in the accent colour with a tag, for a sale or a launch. Left off it reads as a plain notice, which is what you want for planned downtime.'),
 
   // ── Selling ─────────────────────────────────────────────────────────────────────────────────
   'selling.countries': {
@@ -163,6 +167,11 @@ export function parseSetting(key, raw) {
   if (spec.type === 'text') {
     const s = String(raw ?? '').trim();
     if (s.length > spec.maxLength) throw new Error(`${spec.label} has to be ${spec.maxLength} characters or fewer.`);
+    // A banner is on every page, so a malformed link here is malformed everywhere at once. Only a
+    // path on this site or an explicit https address; anything else, including javascript:, is out.
+    if (spec.link && s && !/^\/[^/\\]/.test(s) && !/^https:\/\/[^\s]+$/.test(s)) {
+      throw new Error(`${spec.label} has to start with / for a page here, or https:// for somewhere else.`);
+    }
     return s;
   }
   if (spec.type === 'countries') {

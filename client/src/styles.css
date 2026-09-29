@@ -938,3 +938,24 @@ html[data-theme=dark] .google-signin-error{color:#f0a9ad}
 html[data-theme=dark] .dash-delete:hover{color:#f0a9ad;background:#4a2327}
 html[data-theme=dark] .danger-note{background:#3a2024;border-color:#5b3036}
 html[data-theme=dark] .danger-note p{color:#f0b9bd}
+
+/* The announcement strip. Above the header in both shells, so it scrolls away instead of taking a
+   permanent slice of the viewport; the sticky topbar carries on sticking once it has passed. */
+.notice-banner{display:flex;align-items:center;gap:10px;padding:9px 20px;background:#f3f1fa;border-bottom:1px solid #ece7fa;font-size:12.5px;color:#6f6580;line-height:1.5}
+.notice-body{display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;color:inherit}
+a.notice-body:hover .notice-go{text-decoration:underline}
+.notice-text{min-width:0}
+.notice-tag{display:inline-flex;align-items:center;gap:5px;flex:none;font-size:9.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;border-radius:20px;padding:4px 9px;background:#fff;color:var(--accent-dark)}
+.notice-go{display:inline-flex;align-items:center;gap:5px;flex:none;font-weight:600;color:var(--accent-dark)}
+.notice-close{flex:none;border:0;background:transparent;color:inherit;opacity:.55;display:inline-flex;align-items:center;padding:4px;border-radius:6px}
+.notice-close:hover{opacity:1;background:#ffffff8c}
+/* An offer is meant to be noticed; a notice about downtime is not. Same component, two voices. */
+.notice-banner.is-offer{background:linear-gradient(90deg,#5f45d6,#7d5ce6);border-bottom-color:#5233c4;color:#fff}
+.notice-banner.is-offer .notice-tag{background:#ffffff26;color:#fff}
+.notice-banner.is-offer .notice-go{color:#fff}
+.notice-banner.is-offer .notice-close:hover{background:#ffffff26}
+@media(max-width:760px){.notice-banner{padding:8px 16px;font-size:11.5px}.notice-go{display:none}}
+html[data-theme=dark] .notice-banner{background:var(--surface-2);border-bottom-color:var(--border);color:var(--text-2)}
+html[data-theme=dark] .notice-tag{background:var(--soft);color:#b3a2f7}
+html[data-theme=dark] .notice-banner.is-offer{background:linear-gradient(90deg,#4a35ad,#6547c9);color:#fff}
+html[data-theme=dark] .notice-banner.is-offer .notice-tag{background:#ffffff26;color:#fff}

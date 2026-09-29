@@ -89,6 +89,8 @@ export function publicConfig() {
     },
     googleClientId: googleClientId(),
     notice: setting('maintenance.notice'),
+    noticeLink: setting('maintenance.noticeLink'),
+    noticeOffer: setting('maintenance.noticeOffer'),
     limits: {
       imageMb: setting('limits.imageMb'),
       importMb: setting('limits.importMb'),
