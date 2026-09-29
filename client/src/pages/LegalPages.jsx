@@ -214,7 +214,7 @@ const privacySections = [
   {
     id: 'summary', title: 'The short version', body: <>
       <div className="legal-callout">
-        <p>We collect what {COMPANY.name} needs to work and nothing more. Your cards are yours, your private collections stay private, and we do not sell your data or run advertising on it. You can get a copy of everything or have it deleted by asking us.</p>
+        <p>We collect what {COMPANY.name} needs to work and nothing more. Your cards are yours, your private collections stay private, and nothing you write is ever used to target an advertisement. You can get a copy of everything or have it deleted by asking us.</p>
       </div>
       <p>The rest of this page is the detail behind that paragraph. If anything here is unclear, write to {COMPANY.privacy} and we will explain it properly.</p>
     </>,
@@ -239,8 +239,8 @@ const privacySections = [
     id: 'never', title: 'What we do not do', body: <>
       <ul>
         <li>We do not sell, rent, or trade your personal data. There is no version of this where that changes quietly.</li>
-        <li>We do not run advertising networks, tracking pixels, or cross-site trackers.</li>
-        <li>We do not build an advertising profile from what you study.</li>
+        <li><strong>We never use your cards, your collections, or your study history to target advertising,</strong> and we never send any of it to an advertiser. What you are learning is not a signal we sell.</li>
+        <li>We do not run analytics trackers, and we do not build a profile of you ourselves.</li>
         <li>We do not read your private collections. The narrow exceptions are when you ask support to look at something specific, and where the law genuinely compels us.</li>
       </ul>
     </>,
@@ -255,6 +255,13 @@ const privacySections = [
         <li>to reply when you contact us;</li>
         <li>to send you the occasional message that actually matters, such as a security notice or a change to these policies. We do not send marketing email you did not ask for.</li>
       </ul>
+    </>,
+  },
+  {
+    id: 'location', title: 'How we work out your country', body: <>
+      <p>When you first arrive we read the network address your request came from, work out which country it is likely to be in, and throw the address away. It is not written to our database and it is not in our logs.</p>
+      <p>We use it for two things: filling in the country box when you sign up, so you are not scrolling a list of two hundred, and deciding whether this is a country where we show ads. You can change the country on your account at any time, and your choice always overrules our guess.</p>
+      <p>It never decides what you are charged. The price you pay follows the country saved on your account, which only you can set.</p>
     </>,
   },
   {
@@ -276,10 +283,31 @@ const privacySections = [
     </>,
   },
   {
+    id: 'ads', title: 'Advertising', body: <>
+      <p>The free tier carries advertising in some countries. We would rather tell you exactly how it works than leave you to guess from a policy.</p>
+      <h3>Where they appear, and where they never will</h3>
+      <ul>
+        <li>On the explore page, under a published collection, and on the screen you reach when a study session finishes.</li>
+        <li><strong>Never inside a study session.</strong> No ad appears next to a card you are reading or a button you are rating with. That is partly to protect you from clicking one by accident, and mostly because interrupting the thing you came here to do would make the product worse.</li>
+        <li>Never on a page about your account, your payments, or your progress.</li>
+        <li><strong>Never for a Premium account.</strong> No ads, and no ad script loaded at all.</li>
+      </ul>
+      <h3>What the advertiser gets, and does not</h3>
+      <ul>
+        <li>Ads are served by Google AdSense. Where they appear, Google may set cookies and use your device's information and approximate location to choose them.</li>
+        <li><strong>Your cards, collections, tags, notes and study history are never shared with anyone for advertising.</strong> They are not sent to Google, they do not influence which ad you see, and they never will. An advertiser cannot learn what you are studying.</li>
+        <li>We do not pass your name, email address or account details to an advertiser.</li>
+      </ul>
+      <h3>Turning personalisation off</h3>
+      <p>Use <strong>Your privacy choices</strong> in the footer of any page. From then on ads in that browser are chosen from the page's own content rather than from anything about you. We also honour the Global Privacy Control signal automatically, so if your browser sends one you are already opted out.</p>
+      <p>And if you would rather see none at all, Premium removes them entirely — that is one of the things it is for.</p>
+    </>,
+  },
+  {
     id: 'cookies', title: 'Cookies and local storage', body: <>
       <p>We use one cookie: a signed session cookie that keeps you logged in. Removing it logs you out, and nothing else depends on it.</p>
       <p>Your browser also stores a couple of preferences locally, such as light or dark mode and how wide you dragged the sidebar. These never leave your device and are not sent to us.</p>
-      <p>There are no advertising cookies and no third-party analytics cookies on {COMPANY.name}.</p>
+      <p>There are no analytics cookies on {COMPANY.name}. On the free tier, in some countries, Google AdSense sets advertising cookies on the pages where ads appear — the section on advertising below says which pages, and how to turn the personalisation off. A Premium account is shown no ads, so no advertising cookie is ever set on it.</p>
     </>,
   },
   {
@@ -331,8 +359,10 @@ const privacySections = [
       <p>Several states — California, Virginia, Colorado, Connecticut, Utah, Texas and others — give you specific rights over your personal information. We give the same rights to everyone, wherever they live, so there is no separate form to fill in.</p>
       <h3>The short version</h3>
       <ul>
-        <li><strong>We do not sell your personal information,</strong> and we never have. We do not share it for cross-context behavioural advertising either. There is no “Do Not Sell” switch here because there is nothing to switch off.</li>
-        <li><strong>We do not show you advertising</strong> and we run no advertising trackers.</li>
+        <li><strong>We do not sell your personal information for money,</strong> and we never have.</li>
+        <li><strong>We do share it for advertising, in the sense California means.</strong> Where we show ads, Google AdSense may use cookies and your device's information to personalise them, and under the CCPA that counts as sharing for cross-context behavioural advertising even though no money changes hands and no data leaves us in bulk.</li>
+        <li><strong>You can stop that in one click.</strong> Use <strong>Your privacy choices</strong> at the bottom of any page, and ads here stop being personalised for this browser. If your browser sends a Global Privacy Control signal we honour it before you ask.</li>
+        <li><strong>Premium accounts see no ads at all,</strong> so none of this applies to them.</li>
         <li><strong>What we collect</strong> is your account details, the content you make, your study history, and — if you buy something — billing details and a record of the order. The section above sets this out in full.</li>
         <li><strong>You can see it, correct it, take it, or have it deleted.</strong> Most of it you can do yourself in Settings; for the rest, write to {COMPANY.privacy}.</li>
         <li><strong>We will not treat you differently for exercising any of this.</strong> No worse price, no reduced service.</li>

@@ -959,3 +959,14 @@ html[data-theme=dark] .notice-banner{background:var(--surface-2);border-bottom-c
 html[data-theme=dark] .notice-tag{background:var(--soft);color:#b3a2f7}
 html[data-theme=dark] .notice-banner.is-offer{background:linear-gradient(90deg,#4a35ad,#6547c9);color:#fff}
 html[data-theme=dark] .notice-banner.is-offer .notice-tag{background:#ffffff26;color:#fff}
+
+/* Advertising. Space reserved before anything loads, because an ad that arrives and pushes the
+   page down is both the most irritating thing on the web and what turns a layout-shift score of
+   zero into a bad one. Labelled, because an unlabelled ad in a study app reads as content. */
+.ad-slot{display:flex;flex-direction:column;gap:6px;margin:26px 0 4px;min-height:116px}
+.ad-slot-label{font-size:9px;letter-spacing:1.3px;text-transform:uppercase;color:#a79db6}
+.ad-slot-unit{display:block;width:100%;min-height:90px;background:#f6f4fa;border:1px solid var(--border);border-radius:11px;overflow:hidden}
+.privacy-choice{border:0;background:transparent;color:inherit;font:inherit;padding:0;text-decoration:underline;text-decoration-color:var(--border);cursor:pointer}
+.privacy-choice.is-set{display:inline-flex;align-items:center;gap:5px;text-decoration:none;opacity:.75;cursor:default}
+html[data-theme=dark] .ad-slot-label{color:var(--text-4)}
+html[data-theme=dark] .ad-slot-unit{background:var(--surface-2);border-color:var(--border)}

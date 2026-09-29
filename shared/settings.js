@@ -33,6 +33,7 @@ export const SETTING_GROUPS = [
   { id: 'limits', label: 'Limits', blurb: 'Caps on what one account can upload, import, and hold.' },
   { id: 'throttle', label: 'Rate limits', blurb: 'How often an endpoint may be called before it starts refusing. Requests per window, per IP.' },
   { id: 'teams', label: 'Teams', blurb: 'Seat bounds and invite rules.' },
+  { id: 'ads', label: 'Advertising', blurb: 'Whether ads are shown, to whom, and where. Never to anyone with Premium, and never inside a study session.' },
 ];
 
 const bool = (group, label, fallback, help) => ({ group, type: 'boolean', label, fallback, help });
@@ -106,6 +107,34 @@ export const SETTINGS = {
   'selling.razorpay': bool('selling', 'Card, UPI, and net banking', true,
     'The gateway checkout. Needs the Razorpay keys in the environment to work at all; this only hides it.'),
 
+  // ── Advertising ─────────────────────────────────────────────────────────────────────────────
+  'ads.enabled': bool('ads', 'Show ads', false,
+    'The master switch. Off means no ad script is loaded at all, for anybody — not merely hidden.'),
+  'ads.publisherId': { group: 'ads', type: 'text', label: 'AdSense publisher id', fallback: '', maxLength: 40, pattern: /^ca-pub-\d{10,20}$/,
+    patternHelp: 'It has to look like ca-pub- followed by digits.',
+    help: 'Looks like ca-pub-0000000000000000. Without it nothing can be served, whatever the switch above says.' },
+  'ads.slotId': { group: 'ads', type: 'text', label: 'Ad unit id', fallback: '', maxLength: 24, pattern: /^\d{6,20}$/,
+    patternHelp: 'It is the string of digits from the ad unit you created in AdSense.',
+    help: 'The display unit every placement uses. One unit is enough; AdSense reports per page on its own.' },
+  'ads.countries': {
+    group: 'ads', type: 'countries', label: 'Countries that see ads', fallback: [],
+    help: 'Ads are shown only to visitors we place in one of these. Leaving the European Economic Area and the United Kingdom out of this list is what keeps consent law out of scope; adding them means you need a consent banner first.',
+    options: () => COUNTRIES.map(c => ({ value: c.code, label: c.name, region: c.region })),
+  },
+  'ads.personalised': bool('ads', 'Personalised ads', false,
+    'On uses the visitor\'s interests, which pays more and, in California, counts as sharing personal information — so the opt-out link is shown and honoured. Off serves ads based only on the page.'),
+  // Placements. There is deliberately no switch for "during a study session": an ad beside the
+  // rating buttons would collect accidental clicks, which is the fastest way to lose an AdSense
+  // account, and it would wreck the one screen the product exists for.
+  'ads.onExplore': bool('ads', 'On the explore page', true,
+    'Below the grid of public collections.'),
+  'ads.onPublicFolder': bool('ads', 'On a public collection', true,
+    'Under the cards, where somebody who has finished reading them will be.'),
+  'ads.onLibrary': bool('ads', 'On the library page', false,
+    'In a signed-in free account\'s own library. The most intrusive of these, so it starts off.'),
+  'ads.afterStudy': bool('ads', 'After a study session', true,
+    'On the finished screen, which is a natural pause rather than an interruption.'),
+
   // ── Pricing and plan lengths (generated) ───────────────────────────────────────────────────
   ...priceSettings(),
   ...planSettings(),
@@ -172,6 +201,7 @@ export function parseSetting(key, raw) {
     if (spec.link && s && !/^\/[^/\\]/.test(s) && !/^https:\/\/[^\s]+$/.test(s)) {
       throw new Error(`${spec.label} has to start with / for a page here, or https:// for somewhere else.`);
     }
+    if (spec.pattern && s && !spec.pattern.test(s)) throw new Error(`${spec.label}: ${spec.patternHelp}`);
     return s;
   }
   if (spec.type === 'countries') {
@@ -217,6 +247,15 @@ export function settingConflicts(effective) {
   }
   if (!effective['selling.razorpay']) {
     problems['selling.razorpay'] = 'This is the only way to pay, so switching it off stops anybody buying anything.';
+  }
+  if (effective['ads.enabled'] && !effective['ads.publisherId']) {
+    problems['ads.publisherId'] = 'Ads cannot be served without a publisher id.';
+  }
+  if (effective['ads.enabled'] && !effective['ads.slotId']) {
+    problems['ads.slotId'] = 'Ads cannot be served without an ad unit id.';
+  }
+  if (effective['ads.enabled'] && !effective['ads.countries'].length) {
+    problems['ads.countries'] = 'Choose at least one country, or nobody will see an ad and the switch will look broken.';
   }
   if (!effective['selling.countries'].length) {
     problems['selling.countries'] = 'Premium has to be on sale somewhere. Switch the payment methods off instead to stop selling.';

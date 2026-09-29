@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { BRAND } from '../../../shared/brand.js';
+import PrivacyChoice from './PrivacyChoice';
 export default function SiteFooter() {
   return <footer className="site-footer">
     {/* The inner box carries the page's own max width so the wordmark lines up with the content above it. */}
@@ -16,6 +17,7 @@ export default function SiteFooter() {
           <Link to="/terms">Terms</Link>
           <Link to="/privacy">Privacy</Link>
           <Link to="/refunds">Refunds</Link>
+          <PrivacyChoice/>
         </nav>
         <span className="site-footer-year">© {new Date().getFullYear()}</span>
       </div>

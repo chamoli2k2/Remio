@@ -238,3 +238,70 @@ integration('the banner is set from the dashboard and reaches every visitor', as
   await boss.patch('/api/admin/settings').send({ values: { 'maintenance.notice': '' } });
   assert.equal((await request(app).get('/api/config')).body.notice, '');
 });
+
+integration('ads are gated on the switch, a publisher, a unit, and the visitor being somewhere on the list', async () => {
+  const config = (country = null) => {
+    const r = request(app).get('/api/config');
+    return (country ? r.set('cf-ipcountry', country) : r).then(res => res.body);
+  };
+
+  // Off by default, and off means no publisher id reaches the browser at all — there is nothing
+  // for a client to load even if it wanted to.
+  const before = await config('IN');
+  assert.equal(before.ads.eligible, false);
+  assert.equal(before.ads.publisherId, '');
+
+  // Switching it on without the two things that make it work is refused rather than silently
+  // doing nothing, which would look like a broken feature.
+  const half = await boss.patch('/api/admin/settings').send({ values: { 'ads.enabled': true } });
+  assert.equal(half.status, 400, JSON.stringify(half.body));
+  assert.deepEqual(Object.keys(half.body.details).sort(), ['ads.countries', 'ads.publisherId', 'ads.slotId']);
+
+  for (const bad of ['pub-123', 'ca-pub-abc', 'ca-pub-']) {
+    const refused = await boss.patch('/api/admin/settings').send({ values: { 'ads.publisherId': bad } });
+    assert.equal(refused.status, 400, `${bad} should be refused`);
+  }
+
+  const on = await boss.patch('/api/admin/settings').send({ values: {
+    'ads.enabled': true, 'ads.publisherId': 'ca-pub-1234567890123456', 'ads.slotId': '1234567890',
+    'ads.countries': ['IN', 'US', 'CA'], 'ads.personalised': true,
+  }, note: 'Ads on for three markets' });
+  assert.equal(on.status, 200, JSON.stringify(on.body));
+
+  // A visitor in a chosen market is eligible; one outside it is not, and the country list itself
+  // is never sent to the browser.
+  for (const country of ['IN', 'US', 'CA']) {
+    const c = await config(country);
+    assert.equal(c.ads.eligible, true, `${country} should see ads`);
+    assert.equal(c.ads.publisherId, 'ca-pub-1234567890123456');
+    assert.equal(c.ads.countries, undefined, 'the list of markets is not the browser’s business');
+  }
+  for (const country of ['GB', 'DE', 'FR', 'AU', 'NG']) {
+    assert.equal((await config(country)).ads.eligible, false, `${country} should not see ads`);
+  }
+  // Unknown location is treated as not eligible rather than as the default market: showing an ad
+  // to somebody we cannot place is how the European Economic Area gets served by accident.
+  assert.equal((await config(null)).ads.eligible, false, 'no country means no ads');
+
+  // The placement switches travel so the client can leave one off without a deploy.
+  assert.equal((await config('IN')).ads.placements.afterStudy, true);
+  await boss.patch('/api/admin/settings').send({ values: { 'ads.afterStudy': false } });
+  assert.equal((await config('IN')).ads.placements.afterStudy, false);
+
+  // And the master switch really is one: off takes the publisher id away again.
+  await boss.patch('/api/admin/settings').send({ values: { 'ads.enabled': false } });
+  const off = await config('IN');
+  assert.equal(off.ads.eligible, false);
+  assert.equal(off.ads.publisherId, '', 'nothing to load once it is off');
+});
+
+integration('the country we guess fills the form in but never decides the price', async () => {
+  const seen = c => request(app).get('/api/config').set('cf-ipcountry', c).then(r => r.body);
+  assert.equal((await seen('CA')).country, 'Canada');
+  assert.equal((await seen('DE')).country, 'Germany', 'we say where we think you are even where we do not sell');
+  // Cloudflare's "do not know" and Tor markers are not countries.
+  for (const unknown of ['XX', 'T1']) assert.equal((await seen(unknown)).country, null);
+  // The guess is not the account, and the account is what prices an order.
+  const priced = await request(app).get('/api/config').set('cf-ipcountry', 'US');
+  assert.equal(priced.body.regions.IN.currency, 'INR', 'the pricebook is the same for everyone');
+});

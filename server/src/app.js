@@ -31,6 +31,17 @@ export function createApp() {
   const gateway = razorpayConfigured() ? ['https://checkout.razorpay.com', 'https://api.razorpay.com'] : [];
   const googleAuth = googleConfigured() ? ['https://accounts.google.com', 'https://gsi.google.com'] : [];
   const media = storageConfigured() ? ['https://*.r2.cloudflarestorage.com'] : [];
+
+  /**
+   * The ad network, and only while ads are enabled.
+   *
+   * This is the widest thing in the policy and there is no honest way to narrow it much: an ad
+   * creative is arbitrary third-party markup, so images and frames have to be broadly allowed.
+   * That is the cost of the feature, which is a good reason for the master switch to be a switch.
+   */
+  const adNetwork = setting('ads.enabled') && setting('ads.publisherId')
+    ? ['https://pagead2.googlesyndication.com', 'https://googleads.g.doubleclick.net', 'https://tpc.googlesyndication.com', 'https://www.google.com', 'https://adservice.google.com']
+    : [];
   // The theme script is inlined into the HTML to save a blocking round trip, so the policy names
   // its hash rather than opening up inline scripts generally. HSTS is a year with subdomains, which
   // is what lets the domain be preloaded; harmless locally because browsers ignore it off HTTPS.
@@ -48,7 +59,7 @@ export function createApp() {
      */
     crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...media, ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, jsonLdHash, ...gateway, ...googleAuth], "style-src": ["'self'", "'unsafe-inline'", ...googleAuth], "frame-src": ["'self'", ...gateway, ...googleAuth], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway, ...googleAuth] } },
+    contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...media, ...(adNetwork.length ? ['https:'] : []), ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, jsonLdHash, ...gateway, ...googleAuth, ...adNetwork], "style-src": ["'self'", "'unsafe-inline'", ...googleAuth], "frame-src": ["'self'", ...gateway, ...googleAuth, ...adNetwork], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway, ...googleAuth, ...adNetwork] } },
   }));
   app.use(cors({ origin: origins, credentials: true }));
   // `limit` is a function because the value behind it changes while the process is running.

@@ -91,6 +91,20 @@ export function publicConfig() {
     notice: setting('maintenance.notice'),
     noticeLink: setting('maintenance.noticeLink'),
     noticeOffer: setting('maintenance.noticeOffer'),
+    // The country question is answered per request in the controller, which is what decides
+    // `eligible`. Everything here is the same for everybody.
+    ads: {
+      countries: setting('ads.countries'),
+      publisherId: setting('ads.enabled') ? setting('ads.publisherId') : '',
+      slotId: setting('ads.enabled') ? setting('ads.slotId') : '',
+      personalised: setting('ads.personalised'),
+      placements: {
+        explore: setting('ads.onExplore'),
+        publicFolder: setting('ads.onPublicFolder'),
+        library: setting('ads.onLibrary'),
+        afterStudy: setting('ads.afterStudy'),
+      },
+    },
     limits: {
       imageMb: setting('limits.imageMb'),
       importMb: setting('limits.importMb'),
