@@ -10,6 +10,7 @@ import { allModels, User, Card, Folder, Media, Setting, AgentToken, AgentBatch }
 import { reload } from '../src/services/settingsService.js';
 import * as mediaService from '../src/services/mediaService.js';
 import * as tools from '../src/services/agent/tools.js';
+import { cardSchema } from '../src/middleware/validate.js';
 import { BRAND } from '../../shared/brand.js';
 import { AGENT_LIMITS, SCOPE_IDS } from '../../shared/agent.js';
 
@@ -453,6 +454,10 @@ integration('the same picture stored twice in a collection is stored once', asyn
   const first = await mediaService.store(png, { folder: folder.id, user: ownerId, name: 'a.png' });
   assert.equal(first.reused, false);
   assert.match(first.media.sha256, /^[a-f\d]{64}$/);
+  // The attach step must stringify this. `cardSchema` is the HTTP schema and will not take an ObjectId.
+  const asId = cardSchema.safeParse({ front: { text: 'Q', image: first.media._id }, back: { text: 'A' } });
+  assert.equal(asId.success, false, 'passing the ObjectId is the bug that skipped every pictured card');
+  assert.equal(cardSchema.parse({ front: { text: 'Q', image: String(first.media._id) }, back: { text: 'A' } }).front.image, String(first.media._id));
 
   // Same bytes, different name and a different address: the fingerprint is of what we stored, so
   // neither of those makes it a different picture.

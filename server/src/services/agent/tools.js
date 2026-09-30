@@ -225,7 +225,13 @@ export async function addCards(user, grant, { collectionId, cards: input, reques
         const { media: row, reused } = await media.persist(image, {
           folder: folder.id, user: user.id, sourceUrl: url, name: nameFromUrl(url), session,
         });
-        byUrl.set(url, row._id);
+        /**
+         * A string, not the ObjectId. `cardSchema` is what the HTTP API uses, and that API
+         * receives JSON — so `image` is typed as a 24-character string. Passing `row._id`
+         * here is what produced "expected string, received ObjectId" after a successful
+         * fetch: the picture was stored, then every card that named it was refused.
+         */
+        byUrl.set(url, String(row._id));
         if (!reused) fresh.push(row._id);
       }
 

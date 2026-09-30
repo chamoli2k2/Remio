@@ -6,7 +6,8 @@ import { SCOPES, SCOPE_IDS, DEFAULT_SCOPES, TOOL_SCOPES, TOOL_NAMES, AGENT_LIMIT
 import { isPublicAddress, fetchImage } from '../src/services/fetchImage.js';
 import { ingest } from '../src/services/images.js';
 import { validRedirect, authorizationServerMetadata, protectedResourceMetadata, challengeHeader } from '../src/services/agent/oauth.js';
-import { agentCardSchema, agentCollectionSchema } from '../src/middleware/validate.js';
+import mongoose from 'mongoose';
+import { agentCardSchema, agentCollectionSchema, cardSchema } from '../src/middleware/validate.js';
 import { SETTINGS } from '../../shared/settings.js';
 import * as tools from '../src/services/agent/tools.js';
 
@@ -138,6 +139,22 @@ test('an assistant cannot smuggle in a picture or a visibility change', () => {
   assert.equal(collection.visibility, undefined);
   assert.equal(collection.owner, undefined);
   assert.equal(collection.title, 'Deck');
+});
+
+test('a stored image attaches as a string, because that is what the card schema accepts', () => {
+  /**
+   * The trap that refused every card with a picture: `Media.create` hands back `_id` as an
+   * ObjectId, and `cardSchema` is the HTTP schema, which only ever sees a 24-character string.
+   * Covers worked because they never go through this schema. Passing the ObjectId through
+   * produced "expected string, received ObjectId" after a successful fetch.
+   */
+  const id = new mongoose.Types.ObjectId();
+  const asObject = cardSchema.safeParse({ front: { text: 'Q', image: id }, back: { text: 'A' } });
+  assert.equal(asObject.success, false);
+  assert.match(JSON.stringify(asObject.error.issues), /expected string|ObjectId/i);
+
+  const attached = cardSchema.parse({ front: { text: 'Q', image: String(id) }, back: { text: 'A' } });
+  assert.equal(attached.front.image, String(id));
 });
 
 test('a source that is not a URL is dropped rather than failing the whole batch', () => {
