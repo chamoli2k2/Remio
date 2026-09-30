@@ -70,10 +70,20 @@ export default function AdSlot({ placement, label = 'Advertisement' }) {
   const slot = useRef(null);
   const pushed = useRef(false);
   const [failed, setFailed] = useState(false);
+  /**
+   * Nothing renders until this has mounted.
+   *
+   * Whether an ad may be shown depends on Global Privacy Control and a stored opt-out, and the
+   * server can see neither — so deciding during the first render would mean deciding differently
+   * from the server and losing the page it sent. An ad has no business in a crawler's copy of the
+   * page either, which this also takes care of.
+   */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const ads = config.ads || {};
-  const shown = !!ads.eligible && !!ads.placements?.[placement] && !hasPremium(user);
-  const personalised = !!ads.personalised && !personalisationRefused();
+  const shown = mounted && !!ads.eligible && !!ads.placements?.[placement] && !hasPremium(user);
+  const personalised = mounted && !!ads.personalised && !personalisationRefused();
 
   useEffect(() => {
     if (!shown || pushed.current || !slot.current) return;

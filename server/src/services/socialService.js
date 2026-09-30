@@ -1,5 +1,5 @@
 import { User, Relationship, Folder } from '../models/index.js';
-import { presentFolder } from './folderService.js';
+import { presentFolders } from './folderService.js';
 import { notify } from './notificationService.js';
 import { assert } from '../utils/errors.js';
 
@@ -38,7 +38,7 @@ export async function publicProfile(username, viewer) {
   const folders = await Folder.find({ owner: user.id, visibility: 'global', archived: false }).sort({ updatedAt: -1 }).limit(50);
   const [relation, presented] = await Promise.all([
     relationFlags(viewer?.id, user.id),
-    Promise.all(folders.map(f => presentFolder(f, viewer))),
+    presentFolders(folders, viewer),
   ]);
   return { profile: { ...publicUser(user), relation }, folders: presented };
 }

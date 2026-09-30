@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import routes from './routes/index.js';
 import healthRoutes from './routes/health.js';
-import { optionalAuth } from './middleware/auth.js';
+import { optionalAuth, sessionToken } from './middleware/auth.js';
 import { requestContext, notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { webhook as premiumWebhook } from './controllers/premiumController.js';
 import { isConfigured as razorpayConfigured } from './services/payments/razorpay.js';
@@ -22,6 +22,7 @@ import { jsonLdHash } from '../../shared/seo.js';
 import { isConfigured as googleConfigured } from './services/auth/googleToken.js';
 import { isConfigured as storageConfigured } from './services/storage.js';
 import { metaFor, applyMeta, sitemap } from './services/pageMeta.js';
+import { renderPage, applyRender } from './services/ssr.js';
 export function createApp() {
   const app = express(); app.disable('x-powered-by'); if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
   app.use(requestContext);
@@ -80,7 +81,15 @@ export function createApp() {
   app.get('/sitemap.xml', asyncHandler(async (_req, res) => {
     res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(await sitemap());
   }));
-  app.use(express.static(dist));
+  /**
+   * `index: false` matters more than it looks.
+   *
+   * Left on, this handler answers a request for `/` with dist/index.html directly — so the home
+   * page never reached the handler below, and was the one page served without its own title,
+   * description or canonical link, and now without being pre-rendered either. Turning it off makes
+   * `/` fall through to the app handler like every other route.
+   */
+  app.use(express.static(dist, { index: false }));
   /**
    * A build asset that is not there is a 404, not the app.
    *
@@ -117,12 +126,31 @@ export function createApp() {
    * and those are substituted per request.
    */
   const shellPath = path.join(dist, 'index.html');
+  const root = path.dirname(dist);
   let shell = null;
   app.get('/{*path}', asyncHandler(async (req, res) => {
     if (shell === null) shell = await readFile(shellPath, 'utf8').catch(() => '');
     // No build on disk is a development server, where Vite serves the app instead.
     if (!shell) return res.sendFile(shellPath);
-    res.type('html').send(applyMeta(shell, await metaFor(req.path)));
+    const page = applyMeta(shell, await metaFor(req.path));
+
+    /**
+     * A public page is sent with its content already rendered into it; everything else is sent as
+     * the shell and drawn in the browser.
+     *
+     * The session is read from the cookie rather than looked up, because this only needs to know
+     * whether to decline. A cookie that turns out to be invalid costs that request its
+     * pre-rendering and nothing else, which is a better trade than a database round trip on the
+     * path that serves every page.
+     *
+     * Only the rendered ones say they are cacheable by anything shared. They are identical for
+     * every signed-out visitor by construction — that is the same property the render cache relies
+     * on — whereas the shell is the entry point to somebody's account.
+     */
+    const rendered = await renderPage({ root, pathname: req.path, signedIn: !!sessionToken(req) });
+    if (!rendered) return res.type('html').send(page);
+    res.type('html').set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+    res.send(applyRender(page, rendered));
   }));
   app.use(errorHandler);
   return app;

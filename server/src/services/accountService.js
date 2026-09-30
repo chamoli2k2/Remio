@@ -226,8 +226,10 @@ async function eraseAccount(withHash) {
 
     // Read before the rows go, used after the transaction commits: object storage cannot take
     // part in a transaction, so the keys have to be carried out of it.
-    storedKeys = (await Media.find({ $or: [{ folder: { $in: folderIds } }, { uploadedBy: id }] }).select('key').session(session).lean())
-      .map(m => m.key).filter(Boolean);
+    // Each image's resized copies go with it, or erasing an account would leave the thumbnails of
+    // its pictures in the bucket — the same content, at a smaller size, still there.
+    storedKeys = (await Media.find({ $or: [{ folder: { $in: folderIds } }, { uploadedBy: id }] }).select('key variants').session(session).lean())
+      .filter(m => m.key).flatMap(m => storage.allKeysFor(m.key, m.variants));
 
     // Everything hanging off the folders this account owned.
     await CardDoc.deleteMany({ card: { $in: cardIds } }, opts);

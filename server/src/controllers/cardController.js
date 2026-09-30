@@ -7,6 +7,7 @@ import { requireFolderPremium } from '../services/teamAccess.js';
 import { assert } from '../utils/errors.js';
 import { parseFile, toCsv, MAX_CARDS } from '../services/importService.js';
 import { cardSchema } from '../middleware/validate.js';
+import { imageWidth } from '../../../shared/images.js';
 import { BRAND } from '../../../shared/brand.js';
 export const list = async (req, res) => res.json({ cards: await cards.listCards(req.params.id, req.user) });
 export const create = async (req, res) => res.status(201).json({ card: await cards.createCard(req.params.id, req.user, req.body) });
@@ -17,13 +18,16 @@ export const bookmark = async (req, res) => { const card = await Card.findById(r
 export const upload = async (req, res) => {
   assert(req.file, 400, 'Choose an image.');
   // Decode and re-encode instead of trusting extensions or MIME headers; strips metadata.
-  let data; try { data = await sharp(req.file.buffer, { limitInputPixels: 25000000 }).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer(); } catch { assert(false, 400, 'Upload a valid JPG, PNG, or WebP image.'); }
+  // Decoding reports the result's real dimensions, which are recorded so no resized copy wider
+  // than the picture itself is ever offered to a browser.
+  let data, info; try { ({ data, info } = await sharp(req.file.buffer, { limitInputPixels: 25000000 }).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer({ resolveWithObject: true })); } catch { assert(false, 400, 'Upload a valid JPG, PNG, or WebP image.'); }
   assert(data.length <= 3 * 1024 * 1024, 400, 'Image is too large after processing.');
   const media = await mutateFolder(req.params.id, req.user, 'editor', async (folder, session) => {
     const stored = storage.isConfigured() ? storage.newKey(folder.id) : '';
     if (stored) await storage.put(stored, data, 'image/webp');
     const [m] = await Media.create([{
       folder: folder.id, uploadedBy: req.user.id, name: req.file.originalname.slice(0, 150),
+      width: info.width, height: info.height,
       ...(stored ? { key: stored } : { data }),
     }], { session });
     return m;
@@ -49,15 +53,59 @@ export const exportFile = async (req, res) => {
   if (req.query.format === 'csv') return res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${name}.csv"` }).send(toCsv(list));
   res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="${name}.json"` }).send(JSON.stringify({ app: BRAND.slug, version: 1, exportedAt: new Date().toISOString(), folder: { title: folder.title, description: folder.description, tags: [...new Set(list.flatMap(c => c.tags))] }, cards: list }, null, 2));
 };
+/**
+ * The key for `media` at `width`, resizing it the first time anybody asks.
+ *
+ * Generated on demand rather than at upload, so the ladder can change without a migration and a
+ * width nobody requests is never paid for. Once made, the copy is permanent and the row records
+ * it, so this is a one-off cost per image per size and every later request is a plain redirect.
+ *
+ * Two requests racing for the same missing size both resize and both store it. That is fine: the
+ * key is derived, so they write identical bytes to the same place, and `$addToSet` is indifferent
+ * to being told twice. Locking would cost every request to save a duplicated resize on the first.
+ *
+ * Falling back to the original on failure is deliberate. A resize that did not work is a slow
+ * image, not a broken page.
+ */
+async function variantFor(media, width) {
+  if (media.variants?.includes(width)) return storage.variantKey(media.key, width);
+  // Upscaling would hand back the same pixels, larger. The original is already the best answer.
+  if (media.width && width >= media.width) return media.key;
+  try {
+    const key = storage.variantKey(media.key, width);
+    const resized = await sharp(await storage.get(media.key)).resize({ width, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
+    await storage.put(key, resized, 'image/webp');
+    await Media.updateOne({ _id: media.id }, { $addToSet: { variants: width } });
+    return key;
+  } catch { return media.key; }
+}
+
 export const image = async (req, res) => {
   const media = await Media.findById(req.params.id).select('+data');
   assert(media, 404, 'Image not found.');
-  await accessFolder(media.folder, req.user);
+  const folder = await accessFolder(media.folder, req.user);
+  /**
+   * A published collection's images are cached quite differently from a private one's.
+   *
+   * For a private image the short signature is the protection: the link belongs to one viewer and
+   * stops working soon after it leaves them, and nothing shared may keep it. An image on a page
+   * anyone can read has nothing to protect, so it is cached publicly and for long enough that a
+   * returning visitor asks the server for none of them.
+   */
+  const published = folder.visibility === 'global';
+  res.set('Cache-Control', published
+    ? `public, max-age=${storage.PUBLIC_REDIRECT_CACHE_SECONDS}`
+    : `private, max-age=${storage.REDIRECT_CACHE_SECONDS}`);
+
   if (media.key) {
-    // Private on purpose: the link is signed for this viewer's benefit and must not be cached by
-    // anything shared. Shorter than the signature, so a reused redirect cannot outlive it.
-    res.set('Cache-Control', `private, max-age=${storage.REDIRECT_CACHE_SECONDS}`);
-    return res.redirect(302, await storage.signedUrl(media.key));
+    const width = imageWidth(req.query.w);
+    const key = width ? await variantFor(media, width) : media.key;
+    return res.redirect(302, await storage.signedUrl(key, published ? storage.PUBLIC_SIGNED_SECONDS : storage.SIGNED_SECONDS));
   }
-  res.set({ 'Content-Type': media.contentType, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' }).send(media.data);
+  // Held in the database, which happens only where object storage is unconfigured. `?w=` is
+  // ignored rather than resized per request: this path exists so a fresh clone works, and spending
+  // CPU on every image to optimise it would be tuning the arrangement nobody deploys.
+  res.set({ 'Content-Type': media.contentType, 'X-Content-Type-Options': 'nosniff' });
+  if (!published) res.set('Cache-Control', 'private, no-store');
+  res.send(media.data);
 };

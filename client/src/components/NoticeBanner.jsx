@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Megaphone, X } from 'lucide-react';
 import { useApp } from '../hooks/useApp';
@@ -30,7 +30,15 @@ const readDismissed = () => { try { return localStorage.getItem(STORE) || ''; } 
 export default function NoticeBanner() {
   const { config } = useApp();
   const text = (config.notice || '').trim();
-  const [dismissed, setDismissed] = useState(readDismissed);
+  /**
+   * Read after mounting rather than during the first render.
+   *
+   * The server has no localStorage, so a first render that consulted it would reach a different
+   * answer from the one already sent and React would throw away markup it could have kept. One
+   * frame with the banner still up is a fair price for that.
+   */
+  const [dismissed, setDismissed] = useState('');
+  useEffect(() => setDismissed(readDismissed()), []);
 
   if (!text || dismissed === keyFor(text)) return null;
 

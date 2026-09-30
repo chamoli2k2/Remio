@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { S3Client, PutObjectCommand, GetObjectCommand, CopyObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { IMAGE_WIDTHS } from '../../../shared/images.js';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AppError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -59,6 +60,37 @@ const EXTENSIONS = { 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jp
 export const newKey = (folderId, contentType = 'image/webp') =>
   `f/${folderId}/${crypto.randomUUID()}.${EXTENSIONS[contentType] || 'bin'}`;
 
+/**
+ * Where a resized copy of `key` lives.
+ *
+ * Derived from the original rather than random, because unlike the original this one is looked up:
+ * the request says "that image, 640 wide" and this has to answer without a search. Prefixed by
+ * width so a bucket listing groups them, and so deleting one size is a prefix delete.
+ *
+ * It leaks the original key to anyone holding a resized link, which is deliberate — they already
+ * have the picture. The randomness in the original is there to stop the bucket being walked from
+ * nothing, and a derived key gives away only an image its holder can already see.
+ */
+export const variantKey = (key, width) => `d/${width}/${key}`;
+
+/**
+ * Every key belonging to an original, for deleting it and its resized copies together.
+ *
+ * Nothing for an image that was never stored in the bucket, rather than a key built around an
+ * empty string: `d/320/` is not an object anybody wrote, and asking to delete it would make a
+ * successful cleanup look partly failed.
+ */
+export const allKeysFor = (key, variants = []) =>
+  (key ? [key, ...variants.filter(w => IMAGE_WIDTHS.includes(w)).map(w => variantKey(key, w))] : []);
+
+/** Reads an object back. Only used to resize an original that was uploaded before this existed. */
+export async function get(key) {
+  try {
+    const out = await s3().send(new GetObjectCommand({ Bucket: bucket(), Key: key }));
+    return Buffer.from(await out.Body.transformToByteArray());
+  } catch (cause) { throw fail('read an image', cause); }
+}
+
 const fail = (action, cause) => {
   logger.error(`object storage could not ${action}`, { error: cause?.message });
   return new AppError(502, 'We could not store that image just now. Please try again.', 'STORAGE_UNAVAILABLE', { cause });
@@ -114,6 +146,21 @@ export async function remove(keys) {
  */
 export const SIGNED_SECONDS = 600;
 export const REDIRECT_CACHE_SECONDS = 240;
+
+/**
+ * The same two numbers for an image in a published collection, where the brevity above buys
+ * nothing.
+ *
+ * A short signature protects a private image: the link is one viewer's, and it stops being useful
+ * quickly if it escapes. For a collection anyone may read, there is nothing to protect — the link
+ * only reaches a picture already on a public page — so it lasts long enough that a browser stops
+ * asking for it. That turns a repeat visit from one redirect per image into none.
+ *
+ * Six days, not seven: signature v4 refuses anything beyond a week, and the cache window has to
+ * stay inside the signature so a cached redirect cannot outlive the link it points at.
+ */
+export const PUBLIC_SIGNED_SECONDS = 6 * 24 * 60 * 60;
+export const PUBLIC_REDIRECT_CACHE_SECONDS = 5 * 24 * 60 * 60;
 
 export const signedUrl = (key, seconds = SIGNED_SECONDS) =>
   getSignedUrl(s3(), new GetObjectCommand({ Bucket: bucket(), Key: key }), { expiresIn: seconds });

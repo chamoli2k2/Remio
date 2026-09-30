@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { sanitize } from '../services/purify';
 import { renderCloze, hasCloze } from '../../../shared/cloze.js';
 marked.setOptions({ gfm: true, breaks: true });
 // KaTeX is ~300 KB, so it is loaded on demand the first time a card actually contains math.
@@ -8,22 +8,14 @@ let katexPromise; const loadKatex = () => (katexPromise ||= Promise.all([import(
 const MATH_RE = /\$\$([\s\S]+?)\$\$|(?<![\\$\w])\$(?!\s)((?:\\.|[^$\n])+?)(?<!\s)\$(?!\w)/g;
 const hasMath = text => { MATH_RE.lastIndex = 0; return MATH_RE.test(text); };
 const SENTINELS = { '\uE000': '<mark class="cloze">', '\uE001': '</mark>', '\uE002': '<mark class="cloze cloze-hidden">', '\uE003': '</mark>' };
-// Note: ALLOWED_URI_REGEXP is applied to every attribute value (KaTeX's svg `d`/`viewBox` included), so links are
-// restricted in the hook below instead of by tightening that regexp.
-const PURIFY = { ADD_ATTR: ['target', 'rel'], FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'form', 'input'] };
-DOMPurify.addHook('afterSanitizeAttributes', node => {
-  if (node.tagName !== 'A') return;
-  if (!/^(?:https?:|mailto:|#)/i.test(node.getAttribute('href') || '')) node.removeAttribute('href');
-  node.setAttribute('target', '_blank'); node.setAttribute('rel', 'noopener noreferrer');
-});
-/** Markdown + LaTeX + cloze renderer. Output is sanitised with DOMPurify; only http(s)/mailto links survive. */
+/** Markdown + LaTeX + cloze renderer. Output is sanitised in services/purify; only http(s)/mailto links survive. */
 export function renderRich(text, { cloze = 'show', katex = null } = {}) {
   let src = renderCloze(text, cloze);
   const math = [];
   if (katex) src = src.replace(MATH_RE, (_m, block, inline) => { const i = math.push(katex.renderToString(block ?? inline, { displayMode: !!block, throwOnError: false, output: 'html' })) - 1; return `\uE010${i}\uE011`; });
   let html = marked.parse(src);
   html = html.replace(/[\uE000-\uE003]/g, ch => SENTINELS[ch]).replace(/\uE010(\d+)\uE011/g, (_m, i) => math[Number(i)]);
-  return DOMPurify.sanitize(html, PURIFY);
+  return sanitize(html);
 }
 /** Plain-text summary for previews and search: cloze answers kept, Markdown syntax and math delimiters dropped. */
 export const plainText = text => renderCloze(text, 'show', { open: '', close: '' }).replace(/\$\$?/g, '').replace(/[*_`>#]+/g, '').trim();

@@ -62,7 +62,7 @@ const PRIVATE_PREFIXES = ['/settings', '/dashboard', '/premium', '/progress', '/
 async function folderMeta(id) {
   // Only a published collection. Anything else gets the default, which reveals nothing about
   // whether that id exists at all.
-  const folder = await Folder.findById(id).select('title description visibility owner').catch(() => null);
+  const folder = await Folder.findById(id).select('title description visibility owner thumbnail').catch(() => null);
   if (!folder || folder.visibility !== 'global') return null;
   const [owner, count] = await Promise.all([
     User.findById(folder.owner).select('username').catch(() => null),
@@ -74,6 +74,15 @@ async function folderMeta(id) {
     title: `${folder.title} — flashcards · ${BRAND.name}`,
     description: summarise(folder.description ? `${folder.description}${by}` : `${cards} on ${folder.title}. Study them free, no account needed.${by}`),
     canonical: `${site}/folders/${folder.id}`,
+    /**
+     * The collection's own cover, where it has one, rather than the app icon.
+     *
+     * This is what a link to it looks like when shared, and what a search result shows beside it.
+     * Every published collection sharing one picture — the product logo — is the reason a shared
+     * deck looked like a link to the homepage. The media route is public for a published folder,
+     * so a crawler can follow it without a session.
+     */
+    ...(folder.thumbnail ? { image: `${site}/api/media/${folder.thumbnail}` } : {}),
   };
 }
 
@@ -103,6 +112,9 @@ export async function metaFor(path) {
     return DEFAULTS;
   } catch { return DEFAULTS; }
 }
+
+/** For text inside an XML element, where only these three characters can end it early. */
+const escapeXml = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const escapeAttr = value => String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -145,14 +157,22 @@ let cached = { xml: '', at: 0 };
 export async function sitemap() {
   if (cached.xml && Date.now() - cached.at < SITEMAP_TTL) return cached.xml;
 
-  const entry = (loc, priority, lastmod) =>
-    `  <url><loc>${site}${loc}</loc>${lastmod ? `<lastmod>${lastmod.toISOString().slice(0, 10)}</lastmod>` : ''}<priority>${priority}</priority></url>`;
+  /**
+   * `image` puts the collection's cover in the sitemap alongside the page it belongs to.
+   *
+   * Google will find an image on a page it crawls, but declaring it is what gets it considered for
+   * image search with a caption attached — and image search is a second way to be found for a
+   * topic, with far less competition than the page itself.
+   */
+  const entry = (loc, priority, lastmod, image) =>
+    `  <url><loc>${site}${loc}</loc>${lastmod ? `<lastmod>${lastmod.toISOString().slice(0, 10)}</lastmod>` : ''}<priority>${priority}</priority>` +
+    `${image ? `<image:image><image:loc>${site}/api/media/${image.id}</image:loc><image:title>${escapeXml(image.title)}</image:title></image:image>` : ''}</url>`;
 
   let published = [];
   try {
     // Only what a stranger can already open.
     const open = await Folder.find({ visibility: 'global', archived: { $ne: true } })
-      .select('updatedAt').sort({ updatedAt: -1 }).limit(5000).lean();
+      .select('updatedAt title thumbnail').sort({ updatedAt: -1 }).limit(5000).lean();
     // And only the ones with cards in them. An empty collection is a page with nothing to rank
     // for that spends crawl budget saying so. Counted in one pass rather than per folder, because
     // the count is assembled at presentation time and is not on the document.
@@ -164,9 +184,9 @@ export async function sitemap() {
     published = open.filter(f => filled.has(String(f._id)));
   } catch { /* a sitemap of the fixed pages beats no sitemap at all */ }
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${[
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${[
     ...FIXED.map(([loc, priority]) => entry(loc, priority)),
-    ...published.map(f => entry(`/folders/${f._id}`, '0.6', f.updatedAt)),
+    ...published.map(f => entry(`/folders/${f._id}`, '0.6', f.updatedAt, f.thumbnail ? { id: f.thumbnail, title: f.title } : null)),
   ].join('\n')}\n</urlset>\n`;
 
   cached = { xml, at: Date.now() };

@@ -183,10 +183,37 @@ const pwa = () => {
   };
 };
 
+/**
+ * Two builds come out of this config, chosen by `--ssr`.
+ *
+ * The browser build is the default and everything below describes it. The server build is one file
+ * for Node to import, and it deliberately shares none of that: no chunking (there is nothing to
+ * cache and no network between the server and its own disk), no service worker, no brand-filled
+ * index.html — the server has one already. What it must share is the source, so that what gets
+ * rendered and what hydrates it are the same components.
+ *
+ *   vite build                 → dist/         the browser's app
+ *   vite build --ssr           → dist-ssr/     entry-server.js, imported by Express
+ */
+const ssr = process.argv.includes('--ssr');
+
 export default defineConfig({
-  plugins: [react(), brandHtml(), pwa()],
+  plugins: ssr ? [react()] : [react(), brandHtml(), pwa()],
   server: { host: '0.0.0.0', port: 4173, strictPort: true, allowedHosts: ['terminal.local'], proxy: { '/api': 'http://127.0.0.1:4000', '/socket.io': { target: 'http://127.0.0.1:4000', ws: true } } },
-  build: {
+  build: ssr ? {
+    ssr: true,
+    outDir: 'dist-ssr',
+    sourcemap: false,
+    // Left for Node to resolve rather than bundled. jsdom carries native bindings, and React has
+    // to be the one instance the rest of the process already loaded — a second copy would give the
+    // app's hooks a different dispatcher and fail in ways that read as random.
+    rollupOptions: {
+      // Named here rather than left to the CLI, so `vite build --ssr` with no argument still knows
+      // what to build and does not fall back to index.html.
+      input: 'client/src/entry-server.jsx',
+      external: ['react', 'react-dom', 'react-dom/static', 'react-router-dom', 'jsdom'],
+    },
+  } : {
     outDir: 'dist',
     sourcemap: false,
     rollupOptions: {

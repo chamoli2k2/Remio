@@ -30,7 +30,9 @@ test('a rename still accepts sessions and preferences issued under the old name'
 /** Walk the source, skipping build output and dependencies. */
 function* sources(dir) {
   for (const entry of readdirSync(dir)) {
-    if (['node_modules', 'dist', '.git', '.local-data', 'coverage'].includes(entry)) continue;
+    // Build output is not source. `dist-ssr` is the server-rendering bundle, and it contains the
+    // product name as many times as the components it was built from mention it through BRAND.
+    if (['node_modules', 'dist', 'dist-ssr', '.git', '.local-data', 'coverage'].includes(entry)) continue;
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) yield* sources(path);
     else if (/\.(js|jsx)$/.test(entry)) yield path;

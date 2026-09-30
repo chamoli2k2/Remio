@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, RotateCcw, Layers, Users, Brain, Globe2, LockKeyhole, Sparkles, Search, ChevronDown, GraduationCap, Swords, Check } from 'lucide-react';
-import { api, imageUrl } from '../services/api';
+import { api } from '../services/api';
 import { useQuery } from '../hooks/useApp';
+import Img from '../components/Img';
 import { FolderIcon, Loading, Avatar, Empty } from '../components/ui';
 import { BRAND } from '../../../shared/brand.js';
 function matchesFolder(folder, query) {
@@ -150,7 +151,7 @@ function Guide() {
 }
 function PublicFolderCard({ folder }) {
   return <Link className={`home-folder ${folder.color}`} to={`/folders/${folder.id}`}>
-    <div className="home-folder-cover">{folder.thumbnail ? <img className="tile-thumb" src={imageUrl(folder.thumbnail)} alt=""/> : <span className="folder-icon"><FolderIcon name={folder.icon} size={26}/></span>}<span className="visibility-badge"><Globe2 size={11}/> Public</span></div>
+    <div className="home-folder-cover">{folder.thumbnail ? <Img className="tile-thumb" id={folder.thumbnail} alt={`${folder.title} flashcard collection`} sizes="(max-width: 900px) 100vw, 320px" max={folder.thumbnailWidth}/> : <span className="folder-icon"><FolderIcon name={folder.icon} size={26}/></span>}<span className="visibility-badge"><Globe2 size={11}/> Public</span></div>
     <div className="home-folder-body"><h3>{folder.title}</h3><p>{folder.description || 'A public collection of flashcards.'}</p>
       <div className="home-folder-meta"><span><Avatar user={folder.owner} small/> @{folder.owner?.username}</span><span>{folder.cardCount} cards · {folder.likeCount || 0} likes · {folder.copyCount || 0} copies</span></div></div>
   </Link>;
