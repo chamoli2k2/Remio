@@ -271,6 +271,14 @@ export async function demoRequest(path, options = {}) {
     if (action === 'images') { const file = body.get('image'); const imageId = uuid(); images[imageId] = URL.createObjectURL(file); return { id: imageId, url: images[imageId] }; }
     if (action === 'members') { if (folder.role !== 'owner') error('Only the owner can manage access.'); const target = collaborators.find(c => c.username === body.username.replace('@', '')); if (!target) error('In this preview, try @alex or @maya. Real invitations require the backend.'); folder.members = folder.members.filter(m => m.user.id !== target.id); if (body.role !== 'remove') folder.members.push({ user: target, role: body.role }); folder.memberCount = folder.members.length + 1; folder.version++; return { folder: clone(folder) }; }
     if (action === 'archive') { folder.archived = body.archived; return { ok: true }; }
+    if (!action && method === 'DELETE') {
+      if (folder.role !== 'owner') error('Only the owner can delete this folder.');
+      if (String(body?.confirm || '').trim() !== folder.title) error(`Type the folder name exactly to delete it: “${folder.title}”.`);
+      const gone = cards.filter(c => c.folder === id);
+      cards = cards.filter(c => c.folder !== id);
+      folders = folders.filter(f => f.id !== id);
+      return { deleted: true, title: folder.title, cards: gone.length };
+    }
     if (action === 'cards' && method === 'POST') { const card = { ...body, id: uuid(), folder: id, version: 0, progress: { version: 0, repetitions: 0, interval: 0 } }; cards.push(card); folder.cardCount++; activity.unshift({ id: uuid(), folder: id, actor: clone(user), action: 'card.created', detail: body.front.text || 'Image card', createdAt: new Date().toISOString() }); return { card: clone(card) }; }
     if (!action && method === 'PATCH') { if (body.version !== folder.version) error('This folder changed. Please refresh.'); Object.assign(folder, body, { version: folder.version + 1 }); return { folder: clone(folder) }; }
   }

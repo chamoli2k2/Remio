@@ -1,6 +1,7 @@
-import { Folder, Card, User, Media, Revision } from '../models/index.js';
+import { Folder, Card, User, Media, Revision, CardDoc, Progress, Review, Activity, Assignment, AgentBatch, Project } from '../models/index.js';
 import * as storage from './storage.js';
 import { accessFolder, mutateFolder, recordEvent, roleOf } from './accessService.js';
+import { queueEvent } from '../realtime/bus.js';
 import { requireFolderPremium, entitledOnFolder, teamFolderRole, teamIdsFor } from './teamAccess.js';
 import { assert } from '../utils/errors.js';
 const populate = [{ path: 'owner', select: 'name username' }, { path: 'members.user', select: 'name username' }, { path: 'team', select: 'name kind' }];
@@ -135,6 +136,64 @@ export async function copyFolder(id, user) {
     await recordEvent(copy, user, 'folder.copied', copy.title, session); return copy;
   });
 }
+/**
+ * Permanent deletion of a collection and everything that only existed because of it.
+ *
+ * Archive is the reversible path; this is the other one. Cards, pictures, study history,
+ * assignments and the record of what an assistant wrote here all go with it, because a folder
+ * that is "gone" with a pile of orphaned rows is not gone. Copies other people already made
+ * keep their own cards — those are their folders now.
+ *
+ * The title has to be typed back, and the check is here rather than only in the dialog, because
+ * a confirm that the client can skip is not a confirm. The match is exact after trim, against
+ * the title as it is stored, so a rename between opening the dialog and submitting is refused
+ * rather than deleting the wrong thing.
+ *
+ * Owner only. An editor can add and remove cards; ending the collection itself is the owner's.
+ */
+export async function deleteFolder(id, user, confirm) {
+  const typed = String(confirm || '').trim();
+  const { keys, title, cards } = await mutateFolder(id, user, 'owner', async (folder, session) => {
+    assert(typed === folder.title, 400,
+      `Type the folder name exactly to delete it: “${folder.title}”.`);
+
+    const cardIds = (await Card.find({ folder: folder._id }).select('_id').session(session).lean()).map(c => c._id);
+    const mediaRows = await Media.find({ folder: folder._id }).select('key variants').session(session).lean();
+    const keys = mediaRows.flatMap(row => storage.allKeysFor(row.key, row.variants));
+
+    const opts = { session };
+    await CardDoc.deleteMany({ card: { $in: cardIds } }, opts);
+    await Revision.deleteMany({ folder: folder._id }, opts);
+    await Progress.deleteMany({ card: { $in: cardIds } }, opts);
+    await Review.deleteMany({ $or: [{ folder: folder._id }, { card: { $in: cardIds } }] }, opts);
+    await Card.deleteMany({ folder: folder._id }, opts);
+    await Media.deleteMany({ folder: folder._id }, opts);
+    await Assignment.deleteMany({ folder: folder._id }, opts);
+    await AgentBatch.deleteMany({ folder: folder._id }, opts);
+    await Activity.deleteMany({ folder: folder._id }, opts);
+    await Project.updateMany({ folders: folder._id }, { $pull: { folders: folder._id } }, opts);
+    await User.updateMany({ savedFolders: folder._id }, { $pull: { savedFolders: folder._id } }, opts);
+
+    // Watchers are told before the row is gone, so the live page can leave rather than sit on a
+    // collection that will 404 on the next poll. Activity is already deleted, so this is not
+    // written as a folder event — there is nowhere left to hang one.
+    queueEvent(session, {
+      type: 'folder.deleted',
+      folderId: String(folder.id),
+      aggregateId: String(folder.id),
+      detail: folder.title,
+      actor: { id: String(user.id), name: user.name, username: user.username },
+      at: new Date().toISOString(),
+    });
+
+    await Folder.deleteOne({ _id: folder._id }, opts);
+    return { keys, title: folder.title, cards: cardIds.length };
+  });
+
+  if (keys.length) await storage.remove(keys);
+  return { deleted: true, title, cards };
+}
+
 export async function likeFolder(id, user, liked) {
   await accessFolder(id, user);
   if (liked) {

@@ -1,5 +1,7 @@
-import { Card, Media, Progress, Revision } from '../models/index.js';
+import { Card, Folder, Media, Progress, Revision, Review, CardDoc } from '../models/index.js';
 import { accessFolder, mutateFolder, recordEvent } from './accessService.js';
+import * as media from './mediaService.js';
+import * as storage from './storage.js';
 import { assert } from '../utils/errors.js';
 import { previewSchedule } from './studyService.js';
 import { currentRetrievability, DEFAULT_RETENTION } from './fsrs.js';
@@ -53,8 +55,27 @@ export async function updateCard(id, user, body) {
 }
 export async function deleteCard(id, user) {
   const current = await Card.findById(id); assert(current, 404, 'Card not found.');
-  return mutateFolder(current.folder, user, 'editor', async (folder, session) => {
-    await Card.deleteOne({ _id: id }, { session }); await Revision.deleteMany({ card: id }, { session }); await Progress.deleteMany({ card: id }, { session });
+  const imageIds = [current.front?.image, current.back?.image].filter(Boolean);
+  const { orphaned } = await mutateFolder(current.folder, user, 'editor', async (folder, session) => {
+    await Card.deleteOne({ _id: id }, { session });
+    await Revision.deleteMany({ card: id }, { session });
+    await Progress.deleteMany({ card: id }, { session });
+    await Review.deleteMany({ card: id }, { session });
+    await CardDoc.deleteMany({ card: id }, { session });
+    /**
+     * Pictures this card used are only removed once nothing else points at them. Another card
+     * or the cover may share the same image, and deleting on the strength of this card alone
+     * would break those.
+     */
+    const unused = [];
+    for (const mid of imageIds) {
+      const stillUsed = await Card.exists({ folder: folder._id, $or: [{ 'front.image': mid }, { 'back.image': mid }] }).session(session)
+        || await Folder.exists({ _id: folder._id, thumbnail: mid }).session(session);
+      if (!stillUsed) unused.push(mid);
+    }
+    const purged = await media.purge(unused, { session });
     await recordEvent(folder, user, 'card.deleted', stripCloze(current.front.text).slice(0, 100), session, id);
+    return { orphaned: purged.keys };
   });
+  if (orphaned.length) await storage.remove(orphaned);
 }

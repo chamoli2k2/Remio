@@ -8,7 +8,7 @@ import http from 'node:http';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { connectDatabase } from '../src/config/database.js';
 import { createApp } from '../src/app.js';
-import { allModels, Review, User, Notification, Relationship, PremiumOrder, Team, Folder, Media } from '../src/models/index.js';
+import { allModels, Review, User, Notification, Relationship, PremiumOrder, Team, Folder, Card, Media } from '../src/models/index.js';
 import { defaultPricebook } from '../../shared/pricing.js';
 import { BRAND } from '../../shared/brand.js';
 const enabled = process.env.RUN_INTEGRATION === '1';
@@ -633,6 +633,47 @@ integration('each page tells a crawler what it is, and a private collection tell
   const sitemap = (await request(app).get('/sitemap.xml')).text;
   assert.match(sitemap, new RegExp(`/folders/${shown.body.folder.id}<`), 'the published collection is listed');
   assert.ok(!sitemap.includes(hidden.body.folder.id), 'the private one is not');
+});
+
+integration('deleting a folder takes its cards with it, and only after the name is typed', async () => {
+  const made = await owner.post('/api/folders').send({ title: 'Throwaway deck', visibility: 'private' });
+  assert.equal(made.status, 201);
+  const id = made.body.folder.id;
+  const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#4c1d95' } }).png().toBuffer();
+  const image = await owner.post(`/api/folders/${id}/images`).attach('image', png, 'gone.png');
+  assert.equal(image.status, 201);
+  const card = await owner.post(`/api/folders/${id}/cards`).send({
+    front: { text: 'What is this?', image: image.body.id }, back: { text: 'A picture' },
+  });
+  assert.equal(card.status, 201);
+  await owner.post(`/api/folders/${id}/members`).send({ username: 'editor', role: 'editor' });
+
+  assert.equal((await editor.delete(`/api/folders/${id}`).send({ confirm: 'Throwaway deck' })).status, 403,
+    'an editor can delete cards, not the collection');
+  assert.equal((await outsider.delete(`/api/folders/${id}`).send({ confirm: 'Throwaway deck' })).status, 404);
+  assert.equal((await owner.delete(`/api/folders/${id}`).send({ confirm: 'throwaway deck' })).status, 400,
+    'the title is matched exactly, not case-folded');
+  assert.equal((await owner.delete(`/api/folders/${id}`).send({ confirm: 'Something else' })).status, 400);
+  assert.equal(await Card.countDocuments({ folder: id }), 1, 'a refused confirm leaves the cards');
+
+  const gone = await owner.delete(`/api/folders/${id}`).send({ confirm: 'Throwaway deck' });
+  assert.equal(gone.status, 200, JSON.stringify(gone.body));
+  assert.equal(gone.body.deleted, true);
+  assert.equal(gone.body.cards, 1);
+  assert.equal((await owner.get(`/api/folders/${id}`)).status, 404);
+  assert.equal(await Card.countDocuments({ folder: id }), 0);
+  assert.equal(await Media.countDocuments({ folder: id }), 0);
+});
+
+integration('deleting a card is permanent and does not touch the rest of the folder', async () => {
+  const made = await owner.post('/api/folders').send({ title: 'Keep this', visibility: 'private' });
+  const id = made.body.folder.id;
+  const a = await owner.post(`/api/folders/${id}/cards`).send({ front: { text: 'Stay' }, back: { text: 'Yes' } });
+  const b = await owner.post(`/api/folders/${id}/cards`).send({ front: { text: 'Go' }, back: { text: 'No' } });
+  assert.equal((await owner.delete(`/api/cards/${b.body.card.id}`)).status, 200);
+  const left = (await owner.get(`/api/folders/${id}/cards`)).body.cards;
+  assert.deepEqual(left.map(c => c.id), [a.body.card.id]);
+  assert.equal((await owner.get(`/api/folders/${id}`)).status, 200);
 });
 
 integration('a request that looks like a file gets a 404 rather than the app', async () => {

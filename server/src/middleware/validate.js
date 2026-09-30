@@ -26,6 +26,8 @@ export const verifyEmailSchema = z.object({ token: z.string().regex(/^[a-f\d]{64
 export const forgotPasswordSchema = z.object({ email: z.email().toLowerCase() });
 export const resetPasswordSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, 'That reset link is not valid.'), newPassword: z.string().min(10).max(128) });
 export const folderSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), color: z.enum(['violet', 'blue', 'orange', 'green', 'pink', 'slate']).default('violet'), icon: z.enum(['layers', 'code', 'globe', 'brain', 'book', 'flask', 'terminal', 'palette']).default('layers'), visibility: z.enum(['private', 'global']).default('private'), thumbnail: idSchema.nullable().optional() });
+/** The title as stored, typed back. The service re-checks it against the live name. */
+export const folderDeleteSchema = z.object({ confirm: z.string().min(1).max(80) });
 export const projectSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), visibility: z.enum(['private', 'global']).default('private') });
 /**
  * The billing fields are shared, because seats and a personal plan are bought through one pipeline.

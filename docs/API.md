@@ -29,6 +29,7 @@ All routes use the `/api` prefix. The browser sends the HttpOnly `remio_session`
 | POST | `/folders/:id/members` | Owner; username and viewer/editor/remove role |
 | POST | `/folders/:id/copy` | Signed-in reader; independent private copy |
 | PATCH | `/folders/:id/archive` | Owner; archived boolean |
+| DELETE | `/folders/:id` | Owner; permanent. Body `{ confirm }` must match the folder title exactly. Deletes the folder, its cards, pictures, study history, and assignments |
 | PATCH | `/folders/:id/save` | Reader; `{ saved }` likes/unlikes. `likeCount` on the folder; viewer’s `liked` flag |
 | GET | `/folders/:id/activity` | Member-only activity details |
 | GET | `/folders/:id/cards` | Reader; includes only caller’s progress (FSRS `stability`, `difficulty`, `state`, `retrievability`, and a `preview` of the interval for each rating) |

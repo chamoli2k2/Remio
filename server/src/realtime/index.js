@@ -102,7 +102,7 @@ export function attachRealtime(httpServer, origins) {
   // Committed domain events fan out to everyone watching the folder. Membership changes re-check every watcher's access.
   onEvent(async event => {
     io.to(room(event.folderId)).emit('folder:event', event);
-    if (event.type !== 'folder.members.changed' && event.type !== 'folder.updated') return;
+    if (event.type !== 'folder.members.changed' && event.type !== 'folder.updated' && event.type !== 'folder.deleted') return;
     for (const socketId of [...(io.sockets.adapter.rooms.get(room(event.folderId)) || [])]) {
       const socket = io.sockets.sockets.get(socketId); if (!socket) continue;
       try { await accessFolder(event.folderId, socket.data.user); } catch {

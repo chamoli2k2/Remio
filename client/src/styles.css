@@ -1053,3 +1053,6 @@ html[data-theme=dark] .ad-slot-unit{background:var(--surface-2);border-color:var
   .consent-facts>div{flex-direction:column;gap:2px}
   .consent-facts dd{text-align:left}
 }
+
+.archive-item-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.dropdown .danger{color:#b23b45}
