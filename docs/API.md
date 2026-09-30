@@ -152,6 +152,7 @@ registered at all.
 | `collections:read` | List collections and search their cards. |
 | `collections:write` | Create new collections. Always private, always owned by the user. |
 | `cards:write` | Add new cards to a collection. |
+| `images:write` | Fetch pictures from web addresses the assistant supplies. |
 
 ### Tools
 
@@ -160,7 +161,8 @@ registered at all.
 | `list_collections` | `collections:read` | Read only. |
 | `search_cards` | `collections:read` | Read only. Used to avoid writing the same material twice. |
 | `create_collection` | `collections:write` | `visibility` is not a parameter and is forced to private. |
-| `add_cards` | `cards:write` | At most 50 per call. Requires a `requestId` for idempotency. |
+| `add_cards` | `cards:write` | At most 50 per call. Requires a `requestId` for idempotency. A card naming an image also needs `images:write`. |
+| `set_collection_cover` | `images:write` | Private collections only. Records the previous cover so undo restores it. |
 
 The surface is additive by design. There is no tool that deletes, edits an existing card, or
 publishes, because an assistant summarising a document is reading text an attacker may have
@@ -178,3 +180,33 @@ rather than writing a second copy. MCP clients retry on timeout, so this is requ
 Beyond the ordinary rate limits there is a per-account daily card allowance (`agent.cardsPerDay`),
 counted across every connection and refunded by undoing a batch. A rate limit alone does not stop
 a model in a loop from exhausting a generous per-minute allowance over an afternoon.
+
+### Images
+
+A language model can look at a picture but cannot reproduce its bytes, so the only thing it can
+pass us is a link. Images are therefore given as `frontImage` / `backImage` on a card, or as
+`imageUrl` on `set_collection_cover`, and fetched server-side.
+
+Fetching somebody else's URL on demand is server-side request forgery if it is done naively, so
+`services/fetchImage.js` holds four rules: https only; the *resolved address* is checked rather
+than the hostname; the connection is pinned to the address that was checked, which is what closes
+the DNS-rebinding window that defeats most such validation; and redirects are followed by hand
+with every hop re-validated. Private, loopback, link-local, carrier-NAT and multicast ranges are
+refused, `169.254.169.254` among them. IPv6 is not resolved at all — see the note in that file for
+why that is a deliberate simplification rather than a gap. Every refusal reads the same so the
+tool cannot be used to map our network.
+
+What arrives is then decoded and re-encoded as WebP by `services/images.js`, which is the same
+path a person's upload takes. The stored file is written by us from a pixel buffer, so appended
+payloads, EXIF and polyglots do not survive it. The input format is checked against an allowlist
+first — JPEG, PNG and WebP — because re-encoding protects the output but not the decoder, and SVG
+is an XML document with its own facilities for pulling in external entities.
+
+Three things keep this from becoming free file hosting:
+
+- `agent.imagesPerDay` is a separate, much tighter allowance than the card one, refunded by undo,
+  and settable to zero to switch fetching off without disabling assistants.
+- Stored bytes are fingerprinted, and an image a collection already has is reused rather than
+  stored again — so the same diagram on twenty cards costs one object.
+- Undoing a batch deletes the objects it created, resized variants included, once nothing else
+  references them.

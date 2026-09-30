@@ -103,11 +103,16 @@ export async function usageToday(userId) {
   const since = new Date(); since.setUTCHours(0, 0, 0, 0);
   const [row] = await AgentBatch.aggregate([
     { $match: { user: new mongoose.Types.ObjectId(String(userId)), createdAt: { $gte: since }, undoneAt: null } },
-    { $group: { _id: null, cards: { $sum: '$cardCount' } } },
+    { $group: { _id: null, cards: { $sum: '$cardCount' }, images: { $sum: '$imageCount' } } },
   ]);
   const limit = setting('agent.cardsPerDay');
+  const imageLimit = setting('agent.imagesPerDay');
   const used = row?.cards || 0;
-  return { used, limit, left: Math.max(0, limit - used) };
+  const imagesUsed = row?.images || 0;
+  return {
+    used, limit, left: Math.max(0, limit - used),
+    images: { used: imagesUsed, limit: imageLimit, left: Math.max(0, imageLimit - imagesUsed) },
+  };
 }
 
 export async function requireQuota(userId, wanted) {
@@ -115,6 +120,26 @@ export async function requireQuota(userId, wanted) {
   assert(left >= wanted, 429,
     `That would take today's assistant total past ${limit} cards — ${used} have been added already. The allowance resets at midnight UTC, and undoing a batch gives it back straight away.`,
     'AGENT_QUOTA');
+}
+
+/**
+ * The same for images, checked before anything is fetched rather than after.
+ *
+ * What it charges is what was *stored*, so a picture the collection already had is free and a
+ * URL that turned out not to be an image costs nothing against tomorrow's total. That is the
+ * right behaviour for an honest caller and it does leave a gap: a model whose every URL fails
+ * pays nothing and could keep trying. The bound on that case is the per-minute rate limit and
+ * the small per-call ceiling rather than this, because a failed fetch costs no storage — it is
+ * a bandwidth question, not a bucket one, and the two want different instruments.
+ */
+export async function requireImageQuota(userId, wanted) {
+  if (!wanted) return;
+  const { images } = await usageToday(userId);
+  assert(images.limit > 0, 403,
+    'Fetching images is switched off for assistants at the moment.', 'AGENT_IMAGES_OFF');
+  assert(images.left >= wanted, 429,
+    `That would take today's assistant total past ${images.limit} images — ${images.used} have been fetched already. The allowance resets at midnight UTC, and undoing a batch gives it back straight away.`,
+    'AGENT_IMAGE_QUOTA');
 }
 
 /** A grant as the settings page shows it. Never includes a secret; there is nothing here to leak. */

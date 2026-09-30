@@ -82,6 +82,20 @@ function ConnectForm({ onCreated, max, count }) {
   </form>;
 }
 
+/**
+ * A batch in a few words: what it added, or what it did if it added nothing.
+ *
+ * Setting a cover writes no cards, so the count alone would describe it as "0 cards" — which
+ * reads like a failure rather than the thing that happened.
+ */
+function summarise({ cardCount, imageCount, cover }) {
+  const parts = [];
+  if (cardCount) parts.push(`${cardCount} ${cardCount === 1 ? 'card' : 'cards'}`);
+  if (cover) parts.push(cardCount ? 'a cover' : 'A cover');
+  else if (imageCount) parts.push(`${imageCount} ${imageCount === 1 ? 'image' : 'images'}`);
+  return parts.join(' and ') || 'Nothing';
+}
+
 /** What assistants have written lately, and the button that takes it back. */
 function Batches() {
   // Keyed by its own path, like every other query here, so the plain GET needs no loader and a
@@ -95,7 +109,7 @@ function Batches() {
 
   return <ul className="assistant-batches">{batches.map(b => <li key={b.id}>
     <div>
-      <strong>{b.cardCount} {b.cardCount === 1 ? 'card' : 'cards'}</strong>
+      <strong>{summarise(b)}</strong>
       {' in '}
       {b.collectionId ? <Link to={`/folders/${b.collectionId}`}>{b.collection}</Link> : <span>{b.collection}</span>}
       <small>{b.by} · {ago(b.createdAt)}</small>
@@ -106,7 +120,8 @@ function Batches() {
         setBusy(b.id);
         try {
           const d = await api(`/agent/batches/${b.id}/undo`, { method: 'POST' });
-          toast.success(`Removed ${d.removed} ${d.removed === 1 ? 'card' : 'cards'} from ${d.collection}`);
+          const images = d.imagesRemoved ? ` and ${d.imagesRemoved} ${d.imagesRemoved === 1 ? 'image' : 'images'}` : '';
+          toast.success(`Removed ${d.removed} ${d.removed === 1 ? 'card' : 'cards'}${images} from ${d.collection}`);
           // Prefixes, so one call each covers the list and the usage counter above it, and every
           // cached collection page and library listing — all of which just lost cards.
           store.invalidate('/agent', '/folders');
@@ -159,7 +174,7 @@ export default function AssistantPanel() {
           */}
         <div className="assistant-note">
           <ShieldCheck size={17}/>
-          <p>An assistant can only <strong>add</strong>. It cannot delete a card, change one you already have, or publish anything — so if a document you feed it tries to tell it to, there is nothing there to do. Everything it writes is listed below and can be undone.</p>
+          <p>An assistant can only <strong>add</strong>. It cannot delete a card, change one you already have, or publish anything — so if a document you feed it tries to tell it to, there is nothing there to do. Pictures are downloaded from ordinary web addresses, re-encoded into our own file before they are kept, and only ever added to a private collection. Everything it writes is listed below and can be undone.</p>
         </div>
 
         {fresh
@@ -190,7 +205,13 @@ export default function AssistantPanel() {
         }}><TriangleAlert size={15}/> Disconnect all</Button>}
 
         <h3>What they have written</h3>
-        <p className="muted assistant-usage">{usage.used} of {usage.limit} cards added today. The allowance resets at midnight UTC, and undoing gives it back.</p>
+        {/* Two allowances, because fetching a picture costs something writing text does not.
+            The image one is only worth the words once it is switched on. */}
+        <p className="muted assistant-usage">
+          {usage.used} of {usage.limit} cards added today
+          {usage.images?.limit ? `, and ${usage.images.used} of ${usage.images.limit} images fetched` : ''}.
+          {' '}The allowance resets at midnight UTC, and undoing gives it back.
+        </p>
         <Batches/>
       </>}
     <p className="muted assistant-who">Connections belong to @{user.username} and act only on collections you own or can edit.</p>

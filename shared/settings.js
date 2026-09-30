@@ -141,6 +141,18 @@ export const SETTINGS = {
     'The master switch. Off refuses every assistant call and hides the connection settings; nothing already written is touched, and existing connections start working again the moment it goes back on.'),
   'agent.cardsPerDay': count('agent', 'Cards an assistant may add a day', 500, 10, 20_000,
     'Counted per account across every assistant it has connected, and separate from the rate limit below: a model in a loop can exhaust a generous per-minute allowance in an afternoon without ever tripping it.', 'cards'),
+  /**
+   * A separate, much tighter allowance, because an image costs something a card does not.
+   *
+   * A card is a few hundred bytes of text. An image is an outbound request to a stranger's
+   * server, up to three megabytes in the bucket, and a resize for every width a browser later
+   * asks for. Sharing one counter would let a model spend the whole day's cards on pictures.
+   *
+   * Zero is a supported value and turns the feature off without touching the master switch,
+   * which is the setting to reach for if fetching ever becomes a problem.
+   */
+  'agent.imagesPerDay': count('agent', 'Images an assistant may fetch a day', 100, 0, 2_000,
+    'Counted per account, and only images we actually stored — one the collection already had costs nothing. Set to zero to stop assistants fetching images while leaving everything else working.', 'images'),
   'agent.grantsPerUser': count('agent', 'Assistants one account may connect', 10, 1, 50,
     'Each connected assistant, whether added by pasting a token or through the approval screen.', 'connections'),
   'agent.tokenDays': count('agent', 'A connection expires after', 90, 1, 365,

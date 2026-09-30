@@ -109,7 +109,9 @@ export async function copyFolder(id, user) {
       // Dimensions travel with the copy; the resized versions do not. Copying those too would mean
       // several bucket operations per image for sizes this folder may never be asked for, and they
       // are regenerated on first use anyway.
-      const shape = { name: original.name, contentType: original.contentType, width: original.width, height: original.height };
+      // The fingerprint travels with the copy, or the new folder would not recognise the image it
+      // already has the next time somebody adds it, and would store a third set of identical bytes.
+      const shape = { name: original.name, contentType: original.contentType, width: original.width, height: original.height, sha256: original.sha256, bytes: original.bytes, sourceUrl: original.sourceUrl };
       if (!original.key) return Media.create([{ folder: copy.id, uploadedBy: user.id, data: original.data, ...shape }], { session });
       const to = storage.newKey(copy.id, original.contentType);
       await storage.copy(original.key, to);

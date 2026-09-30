@@ -39,6 +39,15 @@ export const SCOPES = {
     label: 'Add cards',
     detail: 'Add new cards to a collection. It cannot edit or delete a card that is already there.',
   },
+  /**
+   * Separate from `cards:write` because it is the only permission that makes this server fetch
+   * something from an address the assistant chose, and that is a different kind of trust from
+   * writing text. Somebody who wants cards but not outbound requests can have exactly that.
+   */
+  'images:write': {
+    label: 'Fetch images for cards',
+    detail: 'Download pictures from web addresses it gives us and attach them to new cards or use one as a cover. Every image is re-encoded before it is stored, and only public https addresses are fetched.',
+  },
 };
 
 export const SCOPE_IDS = Object.keys(SCOPES);
@@ -69,6 +78,18 @@ export const TOOL_SCOPES = {
   search_cards: 'collections:read',
   create_collection: 'collections:write',
   add_cards: 'cards:write',
+  set_collection_cover: 'images:write',
+};
+
+/**
+ * Tools that need a second scope for part of what they do.
+ *
+ * `add_cards` writes text with `cards:write` alone; the moment a card names an image it also
+ * needs `images:write`, checked at the point the URL appears rather than up front, so a grant
+ * without it still works for everything except the pictures.
+ */
+export const CONDITIONAL_SCOPES = {
+  add_cards: { images: 'images:write' },
 };
 
 export const TOOL_NAMES = Object.keys(TOOL_SCOPES);
@@ -82,9 +103,18 @@ export const TOOL_NAMES = Object.keys(TOOL_SCOPES);
  * tries to write five hundred cards fails, retries, and either duplicates the work or wedges.
  * Fifty is comfortably inside every client's patience, and a model asked for two hundred cards
  * will simply call four times.
+ *
+ * `imagesPerCall` is much smaller, and for two further reasons. Each image is a request to
+ * somebody else's server, so a call naming twenty can spend longer waiting than the client will
+ * wait for the whole call. And multiplied by the per-image byte ceiling it is the amplification
+ * factor of the feature — how much traffic one small tool call can make the server pull in — on
+ * an instance with little memory to spare. Six distinct pictures is more than a batch of fifty
+ * cards usually wants, the same URL repeated across cards is free, and a model needing more
+ * calls twice.
  */
 export const AGENT_LIMITS = {
   cardsPerCall: 50,
+  imagesPerCall: 6,
   searchResults: 20,
   collectionsPerPage: 50,
 };

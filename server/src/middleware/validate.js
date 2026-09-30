@@ -50,7 +50,10 @@ export const assignmentSchema = z.object({ folderId: idSchema, title: z.string()
 const side = z.object({ text: z.string().max(10000).default(''), image: idSchema.nullable().optional() });
 const filled = v => v.text.trim() || v.image;
 // A cloze card ({{c1::…}} on the front) needs no back: the hidden text is the answer.
-export const cardSchema = z.object({ front: side.refine(filled, 'Add text or an image to the front'), back: side, tags: z.array(z.string().trim().toLowerCase().min(1).max(30)).max(10).default([]).transform(v => [...new Set(v)]), hint: z.string().max(1000).default(''), source: z.union([z.literal(''), z.url().refine(v => /^https?:\/\//.test(v), 'Use an http or https URL')]).default('') })
+// Shared with the assistant's card schema below, which no longer pipes through this one and so
+// would otherwise quietly stop deduplicating tags.
+const tagList = z.array(z.string().trim().toLowerCase().min(1).max(30)).max(10).default([]).transform(v => [...new Set(v)]);
+export const cardSchema = z.object({ front: side.refine(filled, 'Add text or an image to the front'), back: side, tags: tagList, hint: z.string().max(1000).default(''), source: z.union([z.literal(''), z.url().refine(v => /^https?:\/\//.test(v), 'Use an http or https URL')]).default('') })
   .refine(v => filled(v.back) || hasCloze(v.front.text), { path: ['back'], message: 'Add text or an image to the back, or use a cloze deletion like {{c1::answer}} on the front' });
 /**
  * A card as an assistant writes one.
@@ -59,9 +62,12 @@ export const cardSchema = z.object({ front: side.refine(filled, 'Add text or an 
  * producing JSON gets a flat shape right and a nested one wrong often enough to matter, and the
  * cost of translating is four lines here against a retry loop in every conversation.
  *
- * There is no `image` field at all, and that is not an oversight: an assistant cannot be given a
- * media id it did not upload, and it has no way to upload one. Pictures are added by the person,
- * in the app, afterwards.
+ * Images are named by URL, never by media id. An assistant has no way to learn the id of an
+ * existing image and must not be able to guess at one: ids are the only thing standing between a
+ * card and a picture from a collection the user cannot see. A URL, by contrast, is something the
+ * model genuinely has — it is the one form of image a language model can pass along, since it can
+ * look at a picture but cannot reproduce its bytes. What arrives here is only the address; the
+ * fetching, checking and storing all happen in `agent/tools.js`.
  *
  * `source` is swept rather than rejected. Models habitually put "Chapter 4, page 112" in a field
  * named source, and the honest options are to throw away one useful metadata string or to fail
@@ -69,16 +75,35 @@ export const cardSchema = z.object({ front: side.refine(filled, 'Add text or an 
  * when it is not one.
  */
 const agentSource = z.string().trim().max(2000).default('').transform(v => (/^https?:\/\/\S+$/i.test(v) ? v : ''));
+export const agentImageUrl = z.union([
+  z.literal(''),
+  z.url().max(2000).refine(v => /^https:\/\//i.test(v), 'Image URLs have to start with https'),
+]).default('');
+/**
+ * The two "is this card actually a card" rules, restated here because an image changes the
+ * answer and at this point the images are addresses rather than ids.
+ *
+ * The result is not piped into `cardSchema`, as the other agent schemas are. It cannot be: a card
+ * whose only front content is a URL is not yet a valid card and only becomes one once that URL
+ * has been fetched and turned into a media id. `addCards` runs `cardSchema` over the finished
+ * shape instead, so the guarantee is unchanged — an assistant still cannot reach a card the app
+ * itself would refuse — it is just enforced one step later, where the card is complete.
+ */
 export const agentCardSchema = z.object({
   front: z.string().max(10000).default(''),
   back: z.string().max(10000).default(''),
   hint: z.string().max(1000).default(''),
-  tags: z.array(z.string().trim().toLowerCase().min(1).max(30)).max(10).default([]),
+  tags: tagList,
   source: agentSource,
-}).transform(c => ({ front: { text: c.front }, back: { text: c.back }, hint: c.hint, tags: c.tags, source: c.source }))
-  // Piped into the real thing, so an assistant can never reach a shape the app itself would refuse:
-  // the cloze rule, the tag caps and the length limits are enforced once, where they already were.
-  .pipe(cardSchema);
+  frontImage: agentImageUrl,
+  backImage: agentImageUrl,
+})
+  .refine(c => c.front.trim() || c.frontImage, { path: ['front'], message: 'Add text or an image to the front' })
+  .refine(c => c.back.trim() || c.backImage || hasCloze(c.front), { path: ['back'], message: 'Add text or an image to the back, or use a cloze deletion like {{c1::answer}} on the front' })
+  .transform(c => ({
+    card: { front: { text: c.front }, back: { text: c.back }, hint: c.hint, tags: c.tags, source: c.source },
+    images: { front: c.frontImage, back: c.backImage },
+  }));
 
 /** What an assistant may set when it creates a collection. Visibility is absent on purpose — see agent/tools.js. */
 export const agentCollectionSchema = folderSchema.pick({ title: true, description: true, color: true, icon: true });

@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import * as storage from '../services/storage.js';
+import * as mediaService from '../services/mediaService.js';
 import { Card, Media, Revision, Progress } from '../models/index.js';
 import * as cards from '../services/cardService.js';
 import { accessFolder, mutateFolder } from '../services/accessService.js';
@@ -15,24 +16,22 @@ export const update = async (req, res) => res.json({ card: await cards.updateCar
 export const remove = async (req, res) => { await cards.deleteCard(req.params.id, req.user); res.json({ ok: true }); };
 export const revisions = async (req, res) => { const card = await Card.findById(req.params.id); assert(card, 404, 'Card not found.'); await accessFolder(card.folder, req.user, 'editor'); res.json({ revisions: await Revision.find({ card: card.id }).sort({ version: -1 }).limit(20).populate('editor', 'name username') }); };
 export const bookmark = async (req, res) => { const card = await Card.findById(req.params.id); assert(card, 404, 'Card not found.'); await mutateFolder(card.folder, req.user, 'viewer', async (_folder, session) => { await Progress.updateOne({ user: req.user.id, card: card.id }, { $set: { bookmarked: req.body.bookmarked } }, { upsert: true, session }); }); res.json({ ok: true }); };
+/**
+ * A person choosing a file, on the same pipeline an assistant's fetched images go through.
+ *
+ * The checking and re-encoding used to live inline here. It moved to `services/images.js` when
+ * assistants gained the ability to supply a picture, because two copies of "is this safe to
+ * store" is two places for the answer to differ — and the one that would have been weaker is the
+ * one reachable by anything on the internet that can talk a model into naming a URL.
+ */
 export const upload = async (req, res) => {
   assert(req.file, 400, 'Choose an image.');
-  // Decode and re-encode instead of trusting extensions or MIME headers; strips metadata.
-  // Decoding reports the result's real dimensions, which are recorded so no resized copy wider
-  // than the picture itself is ever offered to a browser.
-  let data, info; try { ({ data, info } = await sharp(req.file.buffer, { limitInputPixels: 25000000 }).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer({ resolveWithObject: true })); } catch { assert(false, 400, 'Upload a valid JPG, PNG, or WebP image.'); }
-  assert(data.length <= 3 * 1024 * 1024, 400, 'Image is too large after processing.');
-  const media = await mutateFolder(req.params.id, req.user, 'editor', async (folder, session) => {
-    const stored = storage.isConfigured() ? storage.newKey(folder.id) : '';
-    if (stored) await storage.put(stored, data, 'image/webp');
-    const [m] = await Media.create([{
-      folder: folder.id, uploadedBy: req.user.id, name: req.file.originalname.slice(0, 150),
-      width: info.width, height: info.height,
-      ...(stored ? { key: stored } : { data }),
-    }], { session });
-    return m;
-  });
-  res.status(201).json({ id: media.id, url: `/api/media/${media.id}` });
+  // Checked and re-encoded before the transaction, because decoding a large photograph is the
+  // slow part and holding a write lock through it would serialise every editor in the collection.
+  const image = await mediaService.ingest(req.file.buffer);
+  const { media: row } = await mutateFolder(req.params.id, req.user, 'editor', async (folder, session) =>
+    mediaService.persist(image, { folder: folder.id, user: req.user.id, name: req.file.originalname, session }));
+  res.status(201).json({ id: String(row._id), url: `/api/media/${row._id}` });
 };
 // Import runs in two steps from the UI: dryRun=1 returns a preview, then the same upload commits. Parsing never touches the database.
 export const importFile = async (req, res) => {

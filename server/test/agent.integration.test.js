@@ -5,10 +5,13 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { createApp } from '../src/app.js';
-import { allModels, User, Card, Folder, Setting, AgentToken, AgentBatch } from '../src/models/index.js';
+import sharp from 'sharp';
+import { allModels, User, Card, Folder, Media, Setting, AgentToken, AgentBatch } from '../src/models/index.js';
 import { reload } from '../src/services/settingsService.js';
+import * as mediaService from '../src/services/mediaService.js';
+import * as tools from '../src/services/agent/tools.js';
 import { BRAND } from '../../shared/brand.js';
-import { AGENT_LIMITS } from '../../shared/agent.js';
+import { AGENT_LIMITS, SCOPE_IDS } from '../../shared/agent.js';
 
 /**
  * The assistant integration, end to end: registration, approval, tokens, tool calls, and the
@@ -156,7 +159,8 @@ integration('an authorization request may only be sent where the client register
   const ok = await owner.get('/api/oauth/consent').query({ ...base, redirect_uri: REDIRECT });
   assert.equal(ok.status, 200);
   assert.equal(ok.body.client.redirectHost, 'claude.ai', 'the screen names where the result is going');
-  assert.equal(ok.body.scopes.length, 3);
+  // Asking for nothing in particular means every scope, and the screen lists all of them.
+  assert.deepEqual(ok.body.scopes.map(s => s.id), SCOPE_IDS);
 });
 
 integration('a code is bound to its verifier, to its client, and to one use', async () => {
@@ -217,12 +221,12 @@ integration('refreshing rotates both halves and retires the old refresh token', 
 
 // ── The tool surface ────────────────────────────────────────────────────────────────────────
 
-integration('the advertised tools are the four additive ones', async () => {
+integration('the advertised tools are the five additive ones', async () => {
   const { access_token } = await connect();
   const res = await mcp(access_token, 'tools/list');
   assert.equal(res.status, 200);
   const names = res.body.result.tools.map(t => t.name).sort();
-  assert.deepEqual(names, ['add_cards', 'create_collection', 'list_collections', 'search_cards']);
+  assert.deepEqual(names, ['add_cards', 'create_collection', 'list_collections', 'search_cards', 'set_collection_cover']);
   for (const tool of res.body.result.tools) {
     assert.notEqual(tool.annotations?.destructiveHint, true, `${tool.name} must not be destructive`);
     assert.ok(tool.description.length > 40, `${tool.name} needs a description the model can act on`);
@@ -285,6 +289,242 @@ integration('a batch larger than one call can finish is refused, not truncated',
   assert.equal(res.isError, true);
   assert.match(res.data, new RegExp(String(AGENT_LIMITS.cardsPerCall)));
   assert.equal(await Card.countDocuments({ folder: made.id }), 0);
+});
+
+// ── Images ──────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * These stop at the point of the outbound request, and that is the strongest statement the suite
+ * can make about it.
+ *
+ * A test that actually fetched an image would need a server the fetcher is willing to reach —
+ * public, over TLS, with a certificate that verifies. Every address a test can stand up is on
+ * loopback, which is precisely what is refused. So the assertions here are that the refusals
+ * happen, that they happen *before* anything is stored, and that a batch survives them; the
+ * address checking itself is covered exhaustively in the unit tests, against the table rather
+ * than the network.
+ */
+
+integration('fetching an image needs its own permission, separate from writing cards', async () => {
+  const { access_token } = await connect(owner, ['collections:read', 'collections:write', 'cards:write']);
+  const { data: made } = await callTool(access_token, 'create_collection', { title: 'No pictures' });
+
+  // Text-only cards are unaffected: the extra permission is checked when a URL appears, not up
+  // front, so a narrower grant keeps working for everything except the pictures.
+  const plain = await callTool(access_token, 'add_cards', {
+    collectionId: made.id, cards: [{ front: 'Q', back: 'A' }], requestId: crypto.randomUUID(),
+  });
+  assert.equal(plain.data.added, 1);
+
+  const withImage = await callTool(access_token, 'add_cards', {
+    collectionId: made.id,
+    cards: [{ front: 'Q2', back: 'A2', frontImage: 'https://example.org/diagram.png' }],
+    requestId: crypto.randomUUID(),
+  });
+  assert.equal(withImage.isError, true);
+  assert.match(withImage.data, /permission/i);
+  assert.equal(await Card.countDocuments({ folder: made.id }), 1, 'nothing written, nothing fetched');
+});
+
+integration('an address that is not on the public internet is never fetched', async () => {
+  const { access_token } = await connect();
+  const { data: made } = await callTool(access_token, 'create_collection', { title: 'SSRF' });
+
+  /**
+   * The metadata service first, because it is the one with real consequences: on this host, and
+   * on every other cloud, it hands out the instance's own credentials to any local HTTP request.
+   */
+  for (const url of [
+    'https://169.254.169.254/latest/meta-data/iam/security-credentials/',
+    'https://127.0.0.1/admin',
+    'https://10.0.0.1/internal',
+    'https://localhost/x.png',
+  ]) {
+    const res = await callTool(access_token, 'add_cards', {
+      collectionId: made.id,
+      cards: [{ front: 'Only a picture', back: 'x', frontImage: url }],
+      requestId: crypto.randomUUID(),
+    });
+    // The card had text, so it is written; the image is reported as having failed. The point is
+    // that no request left the process and nothing was stored.
+    assert.equal(res.isError, false, JSON.stringify(res.data));
+    assert.equal(res.data.imagesStored, undefined, url);
+    assert.equal(res.data.imagesFailed?.length, 1, url);
+    /**
+     * Every refusal reads the same, whichever private range it aimed at and whether or not
+     * anything is listening there. A message that distinguished "refused" from "no route" from
+     * "timed out" would turn this into a port scanner for the network we run on.
+     */
+    assert.match(res.data.imagesFailed[0].reason, /not on the public internet/, url);
+  }
+  assert.equal(await Media.countDocuments({ folder: made.id }), 0);
+});
+
+integration('one bad image does not lose the batch it came with', async () => {
+  const { access_token } = await connect();
+  const { data: made } = await callTool(access_token, 'create_collection', { title: 'Mixed' });
+  const res = await callTool(access_token, 'add_cards', {
+    collectionId: made.id,
+    cards: [
+      { front: 'Good card', back: 'Kept' },
+      { front: 'Also good', back: 'Kept', backImage: 'https://127.0.0.1/nope.png' },
+      // Nothing but a picture that cannot be had, so this one is not a card at all.
+      { front: '', back: 'x', frontImage: 'https://10.1.1.1/nope.png' },
+    ],
+    requestId: crypto.randomUUID(),
+  });
+  assert.equal(res.isError, false, JSON.stringify(res.data));
+  assert.equal(res.data.added, 2, 'the readable cards are written');
+  assert.equal(res.data.cardsSkipped?.length, 1, 'and the one left empty says so');
+  assert.ok(res.data.imagesFailed.length >= 1);
+});
+
+integration('a call cannot ask for more pictures than it can finish fetching', async () => {
+  const { access_token } = await connect();
+  const { data: made } = await callTool(access_token, 'create_collection', { title: 'Greedy' });
+  const cards = Array.from({ length: AGENT_LIMITS.imagesPerCall + 1 }, (_, i) => ({
+    front: `Q${i}`, back: `A${i}`, frontImage: `https://example.org/${i}.png`,
+  }));
+  const res = await callTool(access_token, 'add_cards', { collectionId: made.id, cards, requestId: crypto.randomUUID() });
+  assert.equal(res.isError, true);
+  assert.match(res.data, new RegExp(String(AGENT_LIMITS.imagesPerCall)));
+  assert.equal(await Card.countDocuments({ folder: made.id }), 0);
+
+  // The same URL on every card is one image, so the ceiling counts distinct addresses and this
+  // is allowed through to the fetch.
+  const repeated = Array.from({ length: AGENT_LIMITS.imagesPerCall + 1 }, (_, i) => ({
+    front: `R${i}`, back: `A${i}`, frontImage: 'https://example.org/same.png',
+  }));
+  const reused = await callTool(access_token, 'add_cards', { collectionId: made.id, cards: repeated, requestId: crypto.randomUUID() });
+  assert.doesNotMatch(String(reused.data), new RegExp(`at most ${AGENT_LIMITS.imagesPerCall} different`));
+});
+
+integration('an operator can stop assistants fetching without stopping anything else', async () => {
+  const { access_token } = await connect();
+  const { data: made } = await callTool(access_token, 'create_collection', { title: 'Switched off' });
+  await Setting.updateOne({ key: 'agent.imagesPerDay' }, { $set: { key: 'agent.imagesPerDay', value: 0 } }, { upsert: true });
+  await reload();
+  try {
+    const res = await callTool(access_token, 'add_cards', {
+      collectionId: made.id,
+      cards: [{ front: 'Q', back: 'A', frontImage: 'https://example.org/a.png' }],
+      requestId: crypto.randomUUID(),
+    });
+    assert.equal(res.isError, true);
+    assert.match(res.data, /switched off/i);
+
+    // Cards without pictures are untouched by it.
+    const text = await callTool(access_token, 'add_cards', {
+      collectionId: made.id, cards: [{ front: 'Q', back: 'A' }], requestId: crypto.randomUUID(),
+    });
+    assert.equal(text.data.added, 1);
+  } finally {
+    await Setting.deleteOne({ key: 'agent.imagesPerDay' });
+    await reload();
+  }
+});
+
+integration('a published collection keeps the cover its owner chose', async () => {
+  const { access_token } = await connect();
+  const { data: made } = await callTool(access_token, 'create_collection', { title: 'Published' });
+  await Folder.updateOne({ _id: made.id }, { $set: { visibility: 'global' } });
+
+  const res = await callTool(access_token, 'set_collection_cover', {
+    collectionId: made.id, imageUrl: 'https://example.org/cover.png', requestId: crypto.randomUUID(),
+  });
+  assert.equal(res.isError, true);
+  assert.match(res.data, /published/i);
+  // Refused before the fetch, so a published collection cannot even be used to make us request
+  // something.
+  assert.equal(await AgentBatch.countDocuments({ folder: made.id }), 0);
+});
+
+/**
+ * The parts of the image path that only exist once there is an image, exercised directly.
+ *
+ * Going through the tools would need a fetch that cannot happen in a test, so this builds the
+ * state a successful fetch would have left and checks what happens next: that a second copy of
+ * the same picture costs nothing, and that undoing takes the bucket objects with it.
+ */
+integration('the same picture stored twice in a collection is stored once', async () => {
+  const folder = await Folder.create({ title: 'Dedupe', owner: ownerId });
+  const png = await sharp({ create: { width: 12, height: 12, channels: 3, background: '#111827' } }).png().toBuffer();
+
+  const first = await mediaService.store(png, { folder: folder.id, user: ownerId, name: 'a.png' });
+  assert.equal(first.reused, false);
+  assert.match(first.media.sha256, /^[a-f\d]{64}$/);
+
+  // Same bytes, different name and a different address: the fingerprint is of what we stored, so
+  // neither of those makes it a different picture.
+  const again = await mediaService.store(png, { folder: folder.id, user: ownerId, name: 'b.png', sourceUrl: 'https://other.example/b.png' });
+  assert.equal(again.reused, true);
+  assert.equal(String(again.media._id), String(first.media._id));
+  assert.equal(await Media.countDocuments({ folder: folder.id }), 1);
+
+  // A different picture is still a different picture.
+  const other = await sharp({ create: { width: 12, height: 12, channels: 3, background: '#f59e0b' } }).png().toBuffer();
+  assert.equal((await mediaService.store(other, { folder: folder.id, user: ownerId })).reused, false);
+  assert.equal(await Media.countDocuments({ folder: folder.id }), 2);
+});
+
+integration('undoing a batch reclaims the images it stored, and only those', async () => {
+  const folder = await Folder.create({ title: 'Reclaim', owner: ownerId });
+  const make = async shade => (await mediaService.store(
+    await sharp({ create: { width: 10, height: 10, channels: 3, background: shade } }).png().toBuffer(),
+    { folder: folder.id, user: ownerId },
+  )).media;
+
+  const [batchImage, keptImage, coverImage] = [await make('#dc2626'), await make('#16a34a'), await make('#2563eb')];
+  const previousCover = await make('#7c3aed');
+  await Folder.updateOne({ _id: folder.id }, { $set: { thumbnail: coverImage._id } });
+
+  // A card the assistant wrote, and one the person wrote afterwards that happens to use an image
+  // out of the same batch. The second is the reason undo asks who is still using a picture
+  // rather than trusting the batch record.
+  const by = { createdBy: ownerId, updatedBy: ownerId };
+  const [agentCard] = await Card.create([{ folder: folder.id, front: { text: 'From the model', image: batchImage._id }, back: { text: 'x' }, ...by }]);
+  await Card.create([{ folder: folder.id, front: { text: 'Mine', image: keptImage._id }, back: { text: 'y' }, ...by }]);
+
+  const batch = await AgentBatch.create({
+    user: ownerId, folder: folder.id, folderTitle: folder.title,
+    cards: [agentCard._id], cardCount: 1,
+    media: [batchImage._id, keptImage._id, coverImage._id], imageCount: 3,
+    coverMedia: coverImage._id, previousCover: String(previousCover._id),
+    requestId: crypto.randomUUID(), result: { added: 1 },
+  });
+
+  const undone = await tools.undoBatch(await User.findById(ownerId), batch.id);
+  assert.equal(undone.removed, 1);
+
+  assert.equal(await Media.exists({ _id: batchImage._id }), null, 'nothing points at it any more');
+  assert.ok(await Media.exists({ _id: keptImage._id }), "a hand-written card's image survives");
+  assert.equal(await Media.exists({ _id: coverImage._id }), null, 'the cover this batch set goes too');
+  assert.ok(await Media.exists({ _id: previousCover._id }), 'the cover from before does not');
+
+  const after = await Folder.findById(folder.id);
+  assert.equal(String(after.thumbnail), String(previousCover._id), 'the old cover is put back, not left dangling');
+});
+
+integration('a collection you cannot write to is not a way to make us fetch things', async () => {
+  /**
+   * The order of the checks, which is easy to get wrong and invisible when it is.
+   *
+   * If the permission on the collection were checked where the writing happens, the downloads
+   * would already have run by the time the call was refused — and naming somebody else's
+   * collection would be a way to point this server at any address and have it fetch, with the
+   * refusal arriving too late to matter.
+   */
+  const mine = await Folder.create({ title: 'Not yours', owner: strangerId });
+  const { access_token } = await connect();
+  const res = await callTool(access_token, 'add_cards', {
+    collectionId: mine.id,
+    cards: [{ front: 'Q', back: 'A', frontImage: 'https://example.org/probe.png' }],
+    requestId: crypto.randomUUID(),
+  });
+  assert.equal(res.isError, true);
+  // Refused for the collection, not for the picture: the image never got as far as being tried.
+  assert.doesNotMatch(String(res.data), /image|fetch/i, JSON.stringify(res.data));
+  assert.equal(await Card.countDocuments({ folder: mine.id }), 0);
 });
 
 integration('a token is held to the scopes the person approved', async () => {

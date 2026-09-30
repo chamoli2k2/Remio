@@ -69,8 +69,25 @@ const agentBatch = new Schema({
   folderTitle: { type: String, default: '' },
   cards: [ref('Card', false)],
   cardCount: { type: Number, default: 0 },
+  /**
+   * Images this batch caused to be fetched and stored.
+   *
+   * Recorded as ids rather than bucket keys on purpose. Resized copies are made lazily, long
+   * after the batch was written, so a list of keys captured here would be missing whichever
+   * sizes were generated since — and undoing would leave them behind, paying rent forever. The
+   * rows know their own variants at the moment they are read.
+   *
+   * Only images this batch created appear here. One reused from an earlier batch is left alone,
+   * or undoing the second batch would break the first one's cards.
+   */
+  media: [ref('Media', false)],
+  imageCount: { type: Number, default: 0 },
   // Whether the collection itself came from this batch, so undoing can take it with them.
   createdFolder: { type: Boolean, default: false },
+  // The cover this batch set, and what was there before, so undoing puts it back rather than
+  // leaving a collection pointing at an image that has just been deleted.
+  coverMedia: ref('Media', false),
+  previousCover: { type: String, default: '' },
   requestId: { type: String, required: true },
   // The reply already sent for this request id, replayed verbatim on a retry.
   result: Schema.Types.Mixed,
@@ -127,7 +144,29 @@ card.index({ folder: 1, createdAt: 1 }); card.index({ folder: 1, tags: 1 });
 // `width` is the original's own width, so no resized copy wider than the picture is ever offered.
 // `variants` records which widths have been generated, which is cheaper than asking the bucket: the
 // row is already loaded to check permission, and a listing would be a second network call per image.
-const media = new Schema({ folder: ref('Folder'), uploadedBy: ref('User'), data: { type: Buffer, select: false }, key: { type: String, default: '' }, contentType: { type: String, default: 'image/webp' }, name: String, width: { type: Number, default: 0 }, height: { type: Number, default: 0 }, variants: { type: [Number], default: [] } }, options);
+const media = new Schema({ folder: ref('Folder'), uploadedBy: ref('User'), data: { type: Buffer, select: false }, key: { type: String, default: '' }, contentType: { type: String, default: 'image/webp' }, name: String, width: { type: Number, default: 0 }, height: { type: Number, default: 0 }, variants: { type: [Number], default: [] },
+  // A fingerprint of the stored bytes, so the same picture arriving twice is recognised and
+  // stored once. See `mediaService.store`.
+  sha256: { type: String, default: '' },
+  bytes: { type: Number, default: 0 },
+  // Where it came from, when it was fetched rather than uploaded. Kept so a reported image can be
+  // traced back to the address that supplied it, which an uploaded file does not need because the
+  // account that chose the file is already recorded.
+  sourceUrl: { type: String, default: '' },
+}, options);
+/**
+ * Duplicate lookup, scoped to the collection rather than the account.
+ *
+ * Tempting to dedupe across everything a user owns and wrong to: permission to see an image is
+ * derived from the collection it belongs to, so handing back a row from another collection would
+ * either fail the access check or quietly widen it. Within a collection — an assistant putting
+ * the same diagram on eight cards — is where the duplicates actually are.
+ *
+ * Not unique. Images stored before this field existed, and ones copied from a folder that had
+ * them, can share the empty default, and a constraint would refuse the second of those for no
+ * benefit — the lookup always searches for a real hash, which an empty string never matches.
+ */
+media.index({ folder: 1, sha256: 1 });
 // FSRS memory state (stability, difficulty, state) plus the legacy SM-2 fields (interval, repetitions, ease) kept for compatibility.
 const progress = new Schema({ user: ref('User'), card: ref('Card'), repetitions: { type: Number, default: 0 }, interval: { type: Number, default: 0 }, ease: { type: Number, default: 2.5 }, stability: { type: Number, default: 0 }, difficulty: { type: Number, default: 0 }, state: { type: String, enum: ['new', 'learning', 'review', 'relearning'], default: 'new' }, reps: { type: Number, default: 0 }, lapses: { type: Number, default: 0 }, elapsedDays: { type: Number, default: 0 }, scheduledDays: { type: Number, default: 0 }, dueAt: { type: Date, default: Date.now }, lastReviewedAt: Date, version: { type: Number, default: 0 }, bookmarked: { type: Boolean, default: false } }, options);
 progress.index({ user: 1, card: 1 }, { unique: true }); progress.index({ user: 1, dueAt: 1 });
