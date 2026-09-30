@@ -973,3 +973,83 @@ html[data-theme=dark] .notice-banner.is-offer .notice-tag{background:#ffffff26;c
 .privacy-choice.is-set{display:inline-flex;align-items:center;gap:5px;text-decoration:none;opacity:.75;cursor:default}
 html[data-theme=dark] .ad-slot-label{color:var(--text-4)}
 html[data-theme=dark] .ad-slot-unit{background:var(--surface-2);border-color:var(--border)}
+
+/* ── Connected AI assistants ─────────────────────────────────────────────────────────────────
+   Written entirely in the theme variables, so the dark theme needs no companion block here: the
+   handful of places that would otherwise be a hardcoded tint use --surface-2 and --soft, which
+   both themes already define. */
+.assistant-panel>h2{display:flex;align-items:center;gap:9px}
+.assistant-panel>p{font-size:13px;line-height:1.6;color:var(--muted);margin:8px 0 18px}
+.assistant-panel h3{font-size:13px;letter-spacing:-.1px;margin:24px 0 10px}
+.assistant-endpoint{margin-bottom:16px}
+/* A credential and a URL are both things people copy by eye, so they get a monospace box that can
+   wrap rather than an input that scrolls the interesting half out of view. */
+.assistant-token-row{display:flex;align-items:stretch;gap:8px}
+.assistant-token-row code{flex:1;min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.assistant-token-row .button{flex:none;padding:0 13px;min-height:auto}
+.assistant-token{border:1px solid var(--accent);border-radius:11px;padding:16px;background:var(--soft);display:flex;flex-direction:column;gap:11px}
+.assistant-token>p{font-size:12.5px;line-height:1.6;margin:0}
+.assistant-token .secondary{align-self:flex-start}
+.assistant-form{margin-top:4px}
+.assistant-scopes{border:1px solid var(--border);border-radius:11px;padding:14px;margin:0;display:flex;flex-direction:column;gap:12px}
+.assistant-scopes legend{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);padding:0 5px}
+.assistant-scopes label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.assistant-scopes input{flex:none;width:16px;height:16px;margin:2px 0 0;accent-color:var(--accent);cursor:pointer}
+.assistant-scopes strong{display:block;font-size:13px;font-weight:600}
+.assistant-scopes small{display:block;font-size:11.5px;line-height:1.55;color:var(--muted);margin-top:3px}
+.assistant-actions{display:flex;gap:9px;flex-wrap:wrap}
+/* The safety note and the approval screen's notes are the same idea in two places, so they read
+   the same: an icon, a short paragraph, and nothing that looks like a warning — because it is
+   reassurance, not a caution. */
+.assistant-note,.consent-note{display:flex;gap:10px;align-items:flex-start;padding:13px 14px;border:1px solid var(--border);border-radius:11px;background:var(--surface-2);margin-bottom:16px}
+.assistant-note svg,.consent-note svg{flex:none;margin-top:1px;color:var(--accent)}
+.assistant-note p,.consent-note p{font-size:12.5px;line-height:1.6;margin:0}
+.assistant-grants,.assistant-batches{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.assistant-grants li,.assistant-batches li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:11px}
+.assistant-grants strong,.assistant-batches strong{display:block;font-size:13.5px;font-weight:600}
+.assistant-grants small,.assistant-batches small{display:block;font-size:11.5px;line-height:1.55;color:var(--muted);margin-top:3px}
+.assistant-batches a{color:var(--accent);text-decoration:underline}
+.assistant-grants .button,.assistant-batches .button{flex:none;font-size:12.5px;padding:8px 12px;min-height:auto}
+.assistant-expired{color:#c2485f}
+.assistant-undone{flex:none;font-size:12px;color:var(--muted)}
+.assistant-usage{font-size:12.5px;margin-bottom:11px}
+.assistant-who{font-size:11.5px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.assistant-cut{margin-top:11px;font-size:12.5px;color:#c2485f}
+.assistant-locked{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:18px;border:1px dashed var(--border);border-radius:11px}
+.assistant-locked p{font-size:13px;margin:0}
+
+/* ── The approval screen ─────────────────────────────────────────────────────────────────────
+   Deliberately a page of its own rather than a modal over the app: somebody arriving from another
+   application should be in no doubt that they have landed somewhere and are being asked something,
+   and a dialog floating over a half-visible library reads as an interruption to dismiss. */
+.consent-page{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:40px 20px;background:var(--bg)}
+.consent-card{width:100%;max-width:470px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px}
+.consent-head{text-align:center;margin-bottom:22px}
+.consent-head svg{color:var(--accent)}
+.consent-head h1{font-size:25px;letter-spacing:-.8px;margin:12px 0 9px}
+.consent-head p{font-size:13.5px;line-height:1.6;color:var(--muted)}
+.consent-facts{display:flex;flex-direction:column;gap:9px;margin:0 0 22px;padding:14px;border-radius:11px;background:var(--surface-2)}
+.consent-facts>div{display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+.consent-facts dt{font-size:12px;color:var(--muted)}
+.consent-facts dd{margin:0;font-size:12.5px;font-weight:600;text-align:right;overflow-wrap:anywhere}
+.consent-facts code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.consent-card h2{font-size:13px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.consent-scopes{list-style:none;margin:0 0 20px;padding:0;display:flex;flex-direction:column;gap:13px}
+.consent-scopes li{display:flex;gap:10px;align-items:flex-start}
+.consent-scopes svg{flex:none;margin-top:2px;color:var(--accent)}
+.consent-scopes strong{display:block;font-size:13.5px;font-weight:600}
+.consent-scopes small{display:block;font-size:12px;line-height:1.55;color:var(--muted);margin-top:3px}
+.consent-actions{display:flex;gap:10px;margin-top:22px}
+.consent-actions .button{flex:1}
+.consent-blocked{display:flex;flex-direction:column;align-items:center;gap:13px;text-align:center}
+.consent-blocked p{font-size:13.5px;color:var(--muted)}
+.consent-foot{font-size:11.5px;text-align:center;margin-top:16px}
+
+@media(max-width:760px){
+  .assistant-grants li,.assistant-batches li{flex-direction:column;align-items:flex-start;gap:9px}
+  .assistant-token-row{flex-direction:column}
+  .consent-card{padding:24px}
+  .consent-head h1{font-size:22px}
+  .consent-facts>div{flex-direction:column;gap:2px}
+  .consent-facts dd{text-align:left}
+}

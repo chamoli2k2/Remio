@@ -34,6 +34,7 @@ export const SETTING_GROUPS = [
   { id: 'throttle', label: 'Rate limits', blurb: 'How often an endpoint may be called before it starts refusing. Requests per window, per IP.' },
   { id: 'teams', label: 'Teams', blurb: 'Seat bounds and invite rules.' },
   { id: 'ads', label: 'Advertising', blurb: 'Whether ads are shown, to whom, and where. Never to anyone with Premium, and never inside a study session.' },
+  { id: 'agent', label: 'AI assistants', blurb: 'Whether people may connect an assistant to their account to write cards for them, and how much it may write.' },
 ];
 
 const bool = (group, label, fallback, help) => ({ group, type: 'boolean', label, fallback, help });
@@ -135,6 +136,16 @@ export const SETTINGS = {
   'ads.afterStudy': bool('ads', 'After a study session', true,
     'On the finished screen, which is a natural pause rather than an interruption.'),
 
+  // ── AI assistants ───────────────────────────────────────────────────────────────────────────
+  'agent.enabled': bool('agent', 'Allow connected assistants', true,
+    'The master switch. Off refuses every assistant call and hides the connection settings; nothing already written is touched, and existing connections start working again the moment it goes back on.'),
+  'agent.cardsPerDay': count('agent', 'Cards an assistant may add a day', 500, 10, 20_000,
+    'Counted per account across every assistant it has connected, and separate from the rate limit below: a model in a loop can exhaust a generous per-minute allowance in an afternoon without ever tripping it.', 'cards'),
+  'agent.grantsPerUser': count('agent', 'Assistants one account may connect', 10, 1, 50,
+    'Each connected assistant, whether added by pasting a token or through the approval screen.', 'connections'),
+  'agent.tokenDays': count('agent', 'A connection expires after', 90, 1, 365,
+    'How long a connection keeps working before the person has to approve it again. Refreshing extends it; it never becomes permanent.', 'days'),
+
   // ── Pricing and plan lengths (generated) ───────────────────────────────────────────────────
   ...priceSettings(),
   ...planSettings(),
@@ -159,6 +170,8 @@ export const SETTINGS = {
   'throttle.importsPerMinute': count('throttle', 'Imports a minute', 10, 1, 200, '', 'req/min'),
   'throttle.paymentsPerMinute': count('throttle', 'Checkout attempts a minute', 8, 1, 100,
     'Low on purpose. A buyer who needs more than eight tries in a minute has a problem a ninth will not fix.', 'req/min'),
+  'throttle.agentPerMinute': count('throttle', 'Assistant calls a minute', 60, 1, 1000,
+    'Per connection rather than per IP, because several people behind one office address should not throttle each other.', 'req/min'),
 
   // ── Teams ───────────────────────────────────────────────────────────────────────────────────
   'teams.minSeats': count('teams', 'Fewest seats sellable', 5, 1, 1000, '', 'seats'),

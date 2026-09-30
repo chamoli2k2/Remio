@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import routes from './routes/index.js';
 import healthRoutes from './routes/health.js';
+import agentRoutes from './routes/agent.js';
 import { optionalAuth, sessionToken } from './middleware/auth.js';
 import { requestContext, notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { webhook as premiumWebhook } from './controllers/premiumController.js';
@@ -62,6 +63,19 @@ export function createApp() {
     strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true, preload: true },
     contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...media, ...(adNetwork.length ? ['https:'] : []), ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, jsonLdHash, ...gateway, ...googleAuth, ...adNetwork], "style-src": ["'self'", "'unsafe-inline'", ...googleAuth], "frame-src": ["'self'", ...gateway, ...googleAuth, ...adNetwork], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway, ...googleAuth, ...adNetwork] } },
   }));
+  /**
+   * The assistant endpoints, ahead of both the cross-origin policy and the JSON parser.
+   *
+   * Ahead of `cors` because they set their own, and two policies on one response produce two
+   * `Access-Control-Allow-Origin` headers, which every browser treats as no policy at all. Theirs
+   * can be open where this one cannot, because they authenticate with a bearer token rather than
+   * a cookie: there is no credential a browser would attach on its own, so there is nothing for
+   * another site to borrow.
+   *
+   * Ahead of `express.json` because the limit below is sized for a form, and a batch of cards is
+   * legitimately larger. The router parses its own body at its own limit.
+   */
+  app.use(agentRoutes);
   app.use(cors({ origin: origins, credentials: true }));
   // `limit` is a function because the value behind it changes while the process is running.
   app.use('/api', throttle({ windowMs: 60000, limit: () => setting('throttle.apiPerMinute') }));

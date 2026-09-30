@@ -13,9 +13,10 @@ import * as config from '../controllers/settingsController.js';
 import * as premium from '../controllers/premiumController.js';
 import * as notifications from '../controllers/notificationController.js';
 import * as teams from '../controllers/teamController.js';
+import * as agent from '../controllers/agentController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePremium, requireDashboard, requireSuperadmin, requireVerifiedEmail } from '../middleware/account.js';
-import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, cardSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema } from '../middleware/validate.js';
+import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, cardSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema } from '../middleware/validate.js';
 import { requireImports, requireSignupOpen } from '../middleware/config.js';
 import { throttle as rateLimit } from '../middleware/throttle.js';
 import { megabytes, setting } from '../services/settingsService.js';
@@ -148,6 +149,29 @@ r.patch('/admin/orders/:id', requireAuth, requireDashboard, validate(z.object({ 
 r.patch('/cards/:id', requireAuth, validate(cardSchema.extend({ version: z.number().int().min(0) })), a(cards.update));
 r.delete('/cards/:id', requireAuth, a(cards.remove)); r.get('/cards/:id/revisions', requireAuth, a(cards.revisions));
 r.patch('/cards/:id/bookmark', requireAuth, validate(z.object({ bookmarked: z.boolean() })), a(cards.bookmark));
+/**
+ * Managing connected assistants, from the browser.
+ *
+ * Premium-gated at the point of creation rather than on the whole group, so somebody whose
+ * subscription has lapsed can still see what they connected, see what it wrote, revoke it and
+ * undo it. Taking away the ability to clean up along with the ability to create would be a
+ * strange way to treat a lapsed customer, and the review screen is the safety net for the
+ * feature — it should never be the part that disappears.
+ */
+r.get('/agent', requireAuth, a(agent.overview));
+// No confirmed-email gate, unlike checkout. A connection grants strictly less than the session
+// creating it already has — it can add cards and nothing else — so demanding a step the browser
+// did not have to take would be friction bought with no safety, and it would not match the
+// approval screen, which cannot reasonably ask for one mid-flow.
+r.post('/agent/grants', requireAuth, requirePremium, authLimit, validate(agentGrantSchema), a(agent.createGrant));
+r.delete('/agent/grants/:id', requireAuth, a(agent.revokeGrant));
+r.delete('/agent/grants', requireAuth, a(agent.revokeAllGrants));
+r.get('/agent/batches', requireAuth, a(agent.batches));
+r.post('/agent/batches/:id/undo', requireAuth, rateLimit({ windowMs: 60000, limit: () => setting('throttle.importsPerMinute') }), a(agent.undoBatch));
+// The approval screen. Reading the request is open to any signed-in person because the page has to
+// render before it can say who is being asked; granting is not.
+r.get('/oauth/consent', requireAuth, a(agent.consentInfo));
+r.post('/oauth/consent', requireAuth, authLimit, validate(agentConsentSchema), a(agent.consent));
 r.get('/media/:id', a(cards.image));
 r.post('/reviews', requireAuth, validate(z.object({ cardId: idSchema, rating: z.enum(['again', 'hard', 'good', 'easy']), requestId: z.uuid(), version: z.number().int().min(0) })), a(study.review));
 r.get('/stats', requireAuth, a(study.stats));

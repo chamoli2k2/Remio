@@ -114,3 +114,67 @@ Each image ID must belong to the target folder. Folder identity comes from the r
 Edits and reviews can return `409` with `VERSION_CONFLICT`. Preserve the local draft and fetch the current version. Do not silently retry a stale edit as an overwrite.
 
 For retrying a review after a network error, reuse the same request ID and the same payload. A different review requires a new request ID and the latest progress version.
+
+## AI assistants (MCP)
+
+An assistant connected by the account holder speaks the Model Context Protocol over Streamable HTTP
+at `POST /mcp`. It is not part of `/api`: the MCP specification and the OAuth RFCs put these paths
+at fixed unprefixed locations, and a client that cannot find them where the spec says they live
+will not connect.
+
+Authentication is a bearer token and only a bearer token. A session cookie is refused here, which
+is what lets the endpoint answer any origin: there is no ambient credential for another site to
+borrow, so there is nothing for a cross-site rule to protect.
+
+### Discovery
+
+| Path | Purpose |
+| --- | --- |
+| `/.well-known/oauth-protected-resource` | RFC 9728. Names the resource and its authorization server. |
+| `/.well-known/oauth-authorization-server` | RFC 8414. Endpoints, scopes, and supported flows. |
+| `/oauth/register` | RFC 7591 dynamic client registration. Open, and rate limited accordingly. |
+| `/oauth/authorize` | The approval screen. Rendered by the app, not the API. |
+| `/oauth/token` | Authorization code and refresh grants. |
+| `/oauth/revoke` | RFC 7009. Always answers 200. |
+
+An unauthenticated call to `/mcp` returns `401` with a `WWW-Authenticate` header naming the
+protected-resource document. That header is the whole discovery mechanism — without it a client
+reports that the server said no and stops.
+
+PKCE with `S256` is required and `plain` is not advertised. Redirect URIs are matched by exact
+string equality against what the client registered, and only `https` or a loopback address may be
+registered at all.
+
+### Scopes
+
+| Scope | Grants |
+| --- | --- |
+| `collections:read` | List collections and search their cards. |
+| `collections:write` | Create new collections. Always private, always owned by the user. |
+| `cards:write` | Add new cards to a collection. |
+
+### Tools
+
+| Tool | Scope | Notes |
+| --- | --- | --- |
+| `list_collections` | `collections:read` | Read only. |
+| `search_cards` | `collections:read` | Read only. Used to avoid writing the same material twice. |
+| `create_collection` | `collections:write` | `visibility` is not a parameter and is forced to private. |
+| `add_cards` | `cards:write` | At most 50 per call. Requires a `requestId` for idempotency. |
+
+The surface is additive by design. There is no tool that deletes, edits an existing card, or
+publishes, because an assistant summarising a document is reading text an attacker may have
+written and no instruction to the model reliably survives an instruction hidden in the document.
+The defence is that there is nothing dangerous to instruct: the worst outcome of a successful
+prompt injection is unwanted cards in a new private collection.
+
+Every write belongs to an `AgentBatch`, listed at `GET /api/agent/batches` and reversible with
+`POST /api/agent/batches/:id/undo`. Undo is session-authenticated and has no tool, so the thing
+being undone cannot undo it — or prevent it.
+
+Retrying `add_cards` with the same `requestId` returns the original result with `replayed: true`
+rather than writing a second copy. MCP clients retry on timeout, so this is required, not optional.
+
+Beyond the ordinary rate limits there is a per-account daily card allowance (`agent.cardsPerDay`),
+counted across every connection and refunded by undoing a batch. A rate limit alone does not stop
+a model in a loop from exhausting a generous per-minute allowance over an afternoon.

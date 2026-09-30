@@ -4,6 +4,7 @@ import { PLAN_IDS } from '../../../shared/account.js';
 import { TEAM_PLAN_IDS, SEATS } from '../../../shared/teams.js';
 import { BRAND } from '../../../shared/brand.js';
 import { COUNTRY_NAMES, PHONE_PATTERN } from '../../../shared/countries.js';
+import { SCOPE_IDS } from '../../../shared/agent.js';
 export const idSchema = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid identifier');
 export const usernameSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/, 'Use 3–24 letters, numbers, or underscores');
 /**
@@ -51,6 +52,68 @@ const filled = v => v.text.trim() || v.image;
 // A cloze card ({{c1::…}} on the front) needs no back: the hidden text is the answer.
 export const cardSchema = z.object({ front: side.refine(filled, 'Add text or an image to the front'), back: side, tags: z.array(z.string().trim().toLowerCase().min(1).max(30)).max(10).default([]).transform(v => [...new Set(v)]), hint: z.string().max(1000).default(''), source: z.union([z.literal(''), z.url().refine(v => /^https?:\/\//.test(v), 'Use an http or https URL')]).default('') })
   .refine(v => filled(v.back) || hasCloze(v.front.text), { path: ['back'], message: 'Add text or an image to the back, or use a cloze deletion like {{c1::answer}} on the front' });
+/**
+ * A card as an assistant writes one.
+ *
+ * Flat strings rather than the nested `{ text, image }` the API uses, because a language model
+ * producing JSON gets a flat shape right and a nested one wrong often enough to matter, and the
+ * cost of translating is four lines here against a retry loop in every conversation.
+ *
+ * There is no `image` field at all, and that is not an oversight: an assistant cannot be given a
+ * media id it did not upload, and it has no way to upload one. Pictures are added by the person,
+ * in the app, afterwards.
+ *
+ * `source` is swept rather than rejected. Models habitually put "Chapter 4, page 112" in a field
+ * named source, and the honest options are to throw away one useful metadata string or to fail
+ * forty good cards over it. It is documented to the model as needing a URL, and quietly dropped
+ * when it is not one.
+ */
+const agentSource = z.string().trim().max(2000).default('').transform(v => (/^https?:\/\/\S+$/i.test(v) ? v : ''));
+export const agentCardSchema = z.object({
+  front: z.string().max(10000).default(''),
+  back: z.string().max(10000).default(''),
+  hint: z.string().max(1000).default(''),
+  tags: z.array(z.string().trim().toLowerCase().min(1).max(30)).max(10).default([]),
+  source: agentSource,
+}).transform(c => ({ front: { text: c.front }, back: { text: c.back }, hint: c.hint, tags: c.tags, source: c.source }))
+  // Piped into the real thing, so an assistant can never reach a shape the app itself would refuse:
+  // the cloze rule, the tag caps and the length limits are enforced once, where they already were.
+  .pipe(cardSchema);
+
+/** What an assistant may set when it creates a collection. Visibility is absent on purpose — see agent/tools.js. */
+export const agentCollectionSchema = folderSchema.pick({ title: true, description: true, color: true, icon: true });
+
+/**
+ * Minting a token by hand, for a client that cannot do the approval flow.
+ *
+ * The scope list is required rather than defaulted, because this is the one path where the person
+ * is choosing permissions on a form rather than reading them off a consent screen, and a set of
+ * permissions the server picked is not a choice.
+ */
+export const agentGrantSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  scopes: z.array(z.enum(SCOPE_IDS)).min(1, 'Choose at least one permission.'),
+});
+
+/**
+ * An authorization request as it arrives back from our own consent screen.
+ *
+ * Passthrough-free and bounded, but deliberately not the place the request is judged: every field
+ * here is checked again against the registered client in the OAuth service, because this schema
+ * only knows that the strings are strings.
+ */
+export const agentConsentSchema = z.object({
+  client_id: z.string().min(1).max(64),
+  redirect_uri: z.string().min(1).max(2000),
+  response_type: z.string().max(40),
+  code_challenge: z.string().min(43).max(128),
+  code_challenge_method: z.string().max(10),
+  scope: z.string().max(500).optional().default(''),
+  state: z.string().max(2000).optional().default(''),
+  resource: z.string().max(2000).optional().default(''),
+  approve: z.boolean(),
+});
+
 /**
  * A notice about published content. Open to signed-out visitors, because public folders are
  * readable without an account and the person who spots a problem may not have one — so the shape

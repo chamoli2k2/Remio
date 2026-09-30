@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import {
   User, Session, AuthToken, Folder, Card, Media, Progress, Review, Activity, Revision,
   CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment,
+  AgentToken, AgentBatch,
 } from '../models/index.js';
 import { assert } from '../utils/errors.js';
 import { hashToken } from '../middleware/auth.js';
@@ -271,6 +272,11 @@ async function eraseAccount(withHash) {
 
     await AuthToken.deleteMany({ user: id }, opts);
     await Session.deleteMany({ user: id }, opts);
+    // Connected assistants and the record of what they wrote. Both go entirely: a standing
+    // credential outliving the account it belonged to would be the worst kind of leftover, and
+    // the batches point at cards that no longer exist.
+    await AgentToken.deleteMany({ user: id }, opts);
+    await AgentBatch.deleteMany({ user: id }, opts);
     await User.deleteOne({ _id: id }, opts);
   });
 
