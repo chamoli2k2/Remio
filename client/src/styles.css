@@ -839,10 +839,12 @@ html[data-theme=dark] .report-reason.is-illegal,html[data-theme=dark] .report-re
 }
 
 /* Google's own button, which Google renders into the slot. Only the space around it is ours —
-   the button's colours, wording, and logo are fixed by their brand terms. */
-.google-signin{display:flex;flex-direction:column;align-items:center;gap:14px;margin-bottom:6px}
-.google-signin-slot{min-height:44px;display:flex;justify-content:center;width:100%}
-.google-signin-slot>div{margin:0 auto}
+   the button's colours, wording, and logo are fixed by their brand terms.
+   The iframe they inject is taller than the visible button, so the slot is clipped to the
+   medium height rather than letting that extra space sit on the heading and the divider. */
+.google-signin{display:flex;flex-direction:column;align-items:center;gap:14px;margin:10px 0 8px}
+.google-signin-slot{height:32px;min-height:32px;display:flex;justify-content:center;align-items:center;width:100%;overflow:hidden}
+.google-signin-slot>div,.google-signin-slot iframe{margin:0 auto;max-height:32px}
 .google-signin-error{font-size:12.5px;color:#a4343a;text-align:center;margin:0;line-height:1.55}
 .google-signin-divider{display:flex;align-items:center;gap:12px;width:100%;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
 .google-signin-divider>span{flex:1;height:1px;background:var(--border)}
@@ -860,8 +862,8 @@ html[data-theme=dark] .google-signin-error{color:#f0a9ad}
 /* Tightened rather than redesigned: the same fields, less air between them, which is what buys
    back the height the two new elements cost. */
 .auth-form .form-stack{gap:15px}
-.google-signin{gap:12px;margin-bottom:2px}
-.google-signin-slot{min-height:44px;width:100%}
+.google-signin{gap:12px;margin:8px 0 6px}
+.google-signin-slot{height:32px;min-height:32px;width:100%}
 .google-signin-divider{font-size:10.5px}
 .auth-consent{font-size:12px;gap:9px}
 /* A short window — a laptop with the browser chrome, or a phone in landscape — gets the padding
@@ -899,7 +901,7 @@ html[data-theme=dark] .google-signin-error{color:#f0a9ad}
   .auth-form .form-stack{gap:11px}
   .auth-form h2{font-size:21px}
   .auth-panel>h2+p{display:none}
-  .google-signin{gap:9px;margin-bottom:0}
+  .google-signin{gap:10px;margin:8px 0 4px}
   .auth-pair{gap:12px}
   .auth-pair .field>small{display:none}
   .auth-consent{font-size:11.5px;gap:8px}
@@ -913,7 +915,7 @@ html[data-theme=dark] .google-signin-error{color:#f0a9ad}
   .auth-form .form-stack{gap:9px}
   .auth-form h2{font-size:19px}
   .auth-form .form-stack>.button{margin-top:4px}
-  .google-signin{gap:7px}
+  .google-signin{gap:10px;margin:8px 0 4px}
   .field{gap:6px}
 }
 

@@ -31,8 +31,14 @@ function loadGoogle() {
  */
 let initialisedFor = null;
 
-/** Google sizes its button in pixels and caps it at 400, so a percentage has to be measured. */
-const BUTTON_MIN = 200, BUTTON_MAX = 400;
+/**
+ * Google sizes its button in pixels and caps it at 400.
+ *
+ * The form column is wider than that, and handing Google the full width produced a slab that
+ * sat on top of the heading and the divider. Medium height and a modest width keep it in
+ * proportion with the fields below it.
+ */
+const BUTTON_MIN = 220, BUTTON_MAX = 280;
 
 /**
  * Google's own button, rendered by Google.
@@ -90,7 +96,7 @@ export default function GoogleButton({ onCredential, text = 'signin_with' }) {
       slot.current.innerHTML = '';
       google.accounts.id.renderButton(slot.current, {
         theme: theme === 'dark' ? 'filled_black' : 'outline',
-        size: 'large', text, shape: 'pill', logo_alignment: 'center', width,
+        size: 'medium', text, shape: 'pill', logo_alignment: 'left', width,
       });
     }).catch(e => { if (!cancelled) setFailed(e.message); });
     return () => { cancelled = true; };
