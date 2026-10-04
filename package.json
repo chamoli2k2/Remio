@@ -10,7 +10,7 @@
     "dev": "vite --host 0.0.0.0 --port 4173",
     "dev:server": "node --watch server/src/index.js",
     "dev:local": "node scripts/local.js",
-    "build": "VITE_DEMO_MODE=false vite build && VITE_DEMO_MODE=false vite build --ssr",
+    "build": "NODE_ENV=production VITE_DEMO_MODE=false vite build && NODE_ENV=production VITE_DEMO_MODE=false vite build --ssr",
     "start": "node server/src/index.js",
     "test": "LOG_LEVEL=silent node --test --test-concurrency=1 server/test/*.test.js",
     "seed": "node server/src/seed.js",

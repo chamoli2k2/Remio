@@ -82,15 +82,28 @@ const pwa = () => {
       const site = `https://${BRAND.domain}`;
       // Without this the SPA fallback answers /robots.txt with index.html, and a crawler reads a
       // page of HTML as thirty malformed directives.
+      /**
+       * Named as well as covered by `*`, so the choice to admit them is explicit.
+       *
+       * One group with every agent in it rather than a group each: a crawler that finds a group
+       * naming it ignores `*` entirely, so a separate group would have to repeat every rule below
+       * and would drift the first time one was added.
+       */
+      const crawlers = ['GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-User', 'Claude-SearchBot', 'PerplexityBot', 'Perplexity-User', 'Google-Extended', 'Applebot-Extended', 'CCBot', 'Bingbot'];
       await writeFile(at('robots.txt'), [
         'User-agent: *',
+        ...crawlers.map(agent => `User-agent: ${agent}`),
         'Allow: /',
+        // Collection covers are the share image and the sitemap's image entries, and they live
+        // under /api. The longer rule wins, so this survives the Disallow below it.
+        'Allow: /api/media/',
         // Nothing here is secret — all of it needs a session — but there is no reason to spend a
         // crawler's budget on pages it will only ever be redirected away from.
         'Disallow: /api/',
         'Disallow: /dashboard',
         'Disallow: /settings',
         'Disallow: /rooms/',
+        'Disallow: /oauth/',
         '',
         `Sitemap: ${site}/sitemap.xml`,
         '',
@@ -197,8 +210,23 @@ const pwa = () => {
  */
 const ssr = process.argv.includes('--ssr');
 
+/**
+ * Fails the server build if it came out compiled for development.
+ *
+ * Production Node has `NODE_ENV=production`, where React's `jsxDEV` export is undefined, so every
+ * render throws and the server quietly falls back to the empty shell. Nothing looks broken to a
+ * person, because the browser draws the page anyway; only crawlers lose the content.
+ */
+const productionJsx = () => ({
+  name: 'production-jsx',
+  generateBundle(_options, bundle) {
+    const dev = Object.values(bundle).find(chunk => chunk.type === 'chunk' && chunk.code.includes('react/jsx-dev-runtime'));
+    if (dev) this.error(`${dev.fileName} imports react/jsx-dev-runtime; build it with NODE_ENV=production`);
+  },
+});
+
 export default defineConfig({
-  plugins: ssr ? [react()] : [react(), brandHtml(), pwa()],
+  plugins: ssr ? [react(), productionJsx()] : [react(), brandHtml(), pwa()],
   server: { host: '0.0.0.0', port: 4173, strictPort: true, allowedHosts: ['terminal.local'], proxy: { '/api': 'http://127.0.0.1:4000', '/socket.io': { target: 'http://127.0.0.1:4000', ws: true } } },
   build: ssr ? {
     ssr: true,

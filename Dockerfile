@@ -13,6 +13,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY server ./server
 COPY shared ./shared
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/dist-ssr ./dist-ssr
 EXPOSE 4000
 USER node
 CMD ["node", "server/src/index.js"]

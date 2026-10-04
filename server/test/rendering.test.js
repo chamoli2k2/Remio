@@ -4,6 +4,8 @@ import { IMAGE_WIDTHS, imageWidth, srcSet } from '../../shared/images.js';
 import * as storage from '../src/services/storage.js';
 import { applyRender, clearCache } from '../src/services/ssr.js';
 import { isRenderable } from '../src/services/ssrData.js';
+import { applyMeta, metaFor } from '../src/services/pageMeta.js';
+import { socialTags } from '../../shared/seo.js';
 import { createStore } from '../../client/src/services/store.js';
 
 /**
@@ -24,6 +26,48 @@ test('only public routes are server-rendered', () => {
   for (const path of ['/settings', '/dashboard', '/progress', '/teams/abc', '/rooms/ABCDEF', '/folders/not-an-id']) {
     assert.equal(isRenderable(path), false, `${path} should not be rendered`);
   }
+});
+
+test('every fixed page has a title and description a result page shows whole', async () => {
+  for (const path of ['/', '/pricing', '/explore', '/signup', '/terms', '/privacy', '/refunds', '/contact']) {
+    const { title, description, canonical, status } = await metaFor(path);
+    assert.ok(title.length >= 50 && title.length <= 60, `${path} title is ${title.length} characters: ${title}`);
+    assert.ok(description.length >= 140 && description.length <= 160, `${path} description is ${description.length} characters`);
+    assert.match(canonical, new RegExp(`${path === '/' ? '/' : path}$`));
+    assert.equal(status, undefined);
+  }
+});
+
+test('a page that does not exist says so, and only to a signed-out visitor', async () => {
+  // No database lookup is needed to know these are not pages, which is what lets this run here.
+  for (const path of ['/does-not-exist', '/folders/not-an-id', '/folders', '/u/has-a-dash']) {
+    const meta = await metaFor(path);
+    assert.equal(meta.status, 404, path);
+    assert.match(meta.robots, /noindex/);
+    assert.equal(meta.canonical, '');
+  }
+  // The app draws its own empty state for a signed-in visitor, so the page is real to them; it is
+  // still nothing for an index.
+  const mine = await metaFor('/does-not-exist', { signedIn: true });
+  assert.equal(mine.status, undefined);
+  assert.match(mine.robots, /noindex/);
+  // Pages behind a sign-in exist and are simply not for indexing.
+  for (const path of ['/settings', '/oauth/authorize', '/folders/6abc357a9fd588420259fe92/study']) {
+    const meta = await metaFor(path);
+    assert.equal(meta.status, undefined, path);
+    assert.match(meta.robots, /noindex/);
+  }
+});
+
+test('a missing page carries no canonical, rather than one claiming it is the home page', () => {
+  const shell = `<head><title>x</title><meta name="description" content="x">${socialTags}</head>`;
+  const gone = applyMeta(shell, { title: 'Page not found', description: 'd', canonical: '', image: 'i', robots: 'noindex, follow' });
+  assert.doesNotMatch(gone, /rel="canonical"/);
+  assert.match(gone, /<meta name="robots" content="noindex, follow">/);
+
+  const kept = applyMeta(shell, { title: 'Pricing', description: 'd', canonical: 'https://remio.in/pricing', image: 'i', robots: 'index' });
+  assert.match(kept, /<link rel="canonical" href="https:\/\/remio.in\/pricing">/);
+  assert.match(kept, /<meta property="og:url" content="https:\/\/remio.in\/pricing">/);
 });
 
 test('a script-closing sequence in card text cannot break out of the boot payload', () => {

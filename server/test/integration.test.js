@@ -610,9 +610,9 @@ integration('each page tells a crawler what it is, and a private collection tell
   const home = await head('/');
   const pricing = await head('/pricing');
   assert.notEqual(titleOf(home), titleOf(pricing), 'two pages, two titles');
-  assert.match(titleOf(pricing), /^Pricing ·/);
+  assert.match(titleOf(pricing), /Pricing – Free Plan/);
   assert.match(tag(pricing, 'og:url'), /\/pricing$/);
-  assert.match(tag(pricing, 'description'), /free tier is the whole product/i);
+  assert.match(tag(pricing, 'description'), /Premium adds projects/);
 
   // A published collection describes itself, so a shared link previews as the deck and can rank
   // for its subject rather than for the brand.
@@ -621,11 +621,17 @@ integration('each page tells a crawler what it is, and a private collection tell
   assert.match(tag(open, 'og:description'), /why your deployment is pending/);
   assert.match(tag(open, 'og:url'), new RegExp(`/folders/${shown.body.folder.id}$`));
 
-  // A private one gets the default. Its title is not a small leak: it would be published to
-  // anybody who could guess the URL.
-  const shut = await head(`/folders/${hidden.body.folder.id}`);
-  assert.equal(titleOf(shut), titleOf(home), 'no per-page title');
-  assert.ok(!shut.includes('My private revision notes'), 'and the name never appears');
+  // A private one answers exactly as a missing one does. Its title is not a small leak: it would be
+  // published to anybody who could guess the URL, and a different status would confirm the id.
+  const shut = await request(app).get(`/folders/${hidden.body.folder.id}`);
+  const missing = await request(app).get('/folders/000000000000000000000000');
+  assert.equal(shut.status, 404);
+  assert.equal(missing.status, 404);
+  assert.equal(titleOf(shut.text), titleOf(missing.text), 'no per-page title');
+  assert.ok(!shut.text.includes('My private revision notes'), 'and the name never appears');
+  assert.match(tag(shut.text, 'robots'), /noindex/);
+  // Its owner is signed in, and to them it is a real page.
+  assert.equal((await owner.get(`/folders/${hidden.body.folder.id}`)).status, 200);
 
   // Signed-in areas have nothing for a crawler and should not compete with the pages that do.
   assert.match(tag(await head('/dashboard'), 'robots'), /noindex/);
@@ -688,4 +694,39 @@ integration('a request that looks like a file gets a 404 rather than the app', a
   for (const route of ['/', '/pricing', '/u/owner', '/explore']) {
     assert.equal((await request(app).get(route)).status, 200, route);
   }
+});
+
+integration('a page that does not exist is a 404, not a copy of the home page', async () => {
+  for (const path of ['/does-not-exist', '/u/nobody_here_at_all', '/folders/000000000000000000000000']) {
+    const res = await request(app).get(path);
+    assert.equal(res.status, 404, path);
+    assert.match(res.headers['content-type'], /html/, 'still the app, so a person sees a page');
+    assert.doesNotMatch(res.text, /rel="canonical"/);
+  }
+  assert.equal((await owner.get('/does-not-exist')).status, 200, 'a signed-in visitor gets the app’s own empty state');
+});
+
+integration('every page has one address', async () => {
+  const slashed = await request(app).get('/pricing/?ref=x');
+  assert.equal(slashed.status, 301);
+  assert.equal(slashed.headers.location, '/pricing?ref=x');
+  // Removing the trailing slash from this must not produce a protocol-relative link elsewhere.
+  const sneaky = await request(app).get('//evil.example/');
+  assert.equal(sneaky.status, 301);
+  assert.equal(sneaky.headers.location, '/evil.example');
+
+  const mirror = await request(app).get('/pricing?x=1').set('Host', 'recall-ue05.onrender.com');
+  assert.equal(mirror.status, 301);
+  assert.equal(mirror.headers.location, 'https://remio.in/pricing?x=1');
+  // The API on that host is left alone: a webhook pointed at it must still arrive as a POST.
+  assert.notEqual((await request(app).get('/api/health').set('Host', 'recall-ue05.onrender.com')).status, 301);
+  assert.notEqual((await request(app).post('/pricing').set('Host', 'recall-ue05.onrender.com')).status, 301);
+});
+
+integration('hashed build output is cached for good, and the shell is not', async () => {
+  const shell = await request(app).get('/');
+  const asset = /src="(\/assets\/[^"]+\.js)"/.exec(shell.text)?.[1];
+  assert.ok(asset, 'the build is on disk');
+  assert.match((await request(app).get(asset)).headers['cache-control'], /max-age=31536000, immutable/);
+  assert.doesNotMatch(shell.headers['cache-control'] || '', /immutable/);
 });

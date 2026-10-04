@@ -25,6 +25,20 @@ const DEFAULTS = {
   robots: 'index, follow, max-image-preview:large, max-snippet:-1',
 };
 
+/** What a signed-in page says, whatever its path: nothing to index and nothing to name. */
+const PRIVATE = { ...DEFAULTS, robots: 'noindex, nofollow' };
+
+/**
+ * A page that does not exist, or that this visitor may not know exists.
+ *
+ * A 200 here is a soft 404: Google indexed every mistyped URL as a copy of the home page, with a
+ * canonical claiming that is what it was. A private collection answers exactly as a missing one
+ * does, so the status cannot be used to probe which ids are real.
+ *
+ * No canonical at all, rather than one pointing home. Nothing here is a copy of anything.
+ */
+const NOT_FOUND = { ...DEFAULTS, title: `Page not found – ${BRAND.name}`, canonical: '', robots: 'noindex, follow', status: 404 };
+
 /** Trimmed to something a search result or a preview card will actually show, not truncate. */
 const summarise = (text, limit = 155) => {
   const flat = String(text || '').replace(/\s+/g, ' ').trim();
@@ -33,36 +47,40 @@ const summarise = (text, limit = 155) => {
   return `${flat.slice(0, limit).replace(/\s+\S*$/, '')}…`;
 };
 
-const page = (path, title, description) => ({
-  title: `${title} · ${BRAND.name}`,
-  description,
-  canonical: `${site}${path}`,
-});
+const page = (path, title, description) => ({ title, description, canonical: `${site}${path}` });
 
 /**
  * The fixed pages. Each one says what it is for rather than what the product is called, because
  * a title beginning "Pricing" can rank for a pricing question, and one that is only the product's
  * name and tagline cannot.
+ *
+ * Sized to what a result page shows without truncating: 50–60 characters of title and 140–160 of
+ * description. The unit tests hold every entry to that.
  */
 const STATIC = {
-  '/': { ...DEFAULTS, canonical: `${site}/` },
-  '/pricing': page('/pricing', 'Pricing', `What ${BRAND.name} costs. The free tier is the whole product — collections, spaced repetition, publishing and progress. Premium adds projects, import and export, folder covers, live quizzes and editor invites.`),
-  '/explore': page('/explore', 'Explore public flashcard collections', `Browse flashcard collections other people have published on ${BRAND.name}. Read and study any of them without an account, or take your own copy.`),
-  '/signup': { ...page('/signup', 'Create a free account', `Create a free ${BRAND.name} account. Build flashcard collections, study with spaced repetition, and learn alongside people you trust. No card required.`) },
-  '/login': { ...page('/login', 'Sign in', `Sign in to ${BRAND.name}.`), robots: 'noindex, follow' },
-  '/terms': page('/terms', 'Terms of use', `The agreement between you and ${BRAND.name}, written to be read. Plain language and a refund policy you can rely on.`),
-  '/privacy': page('/privacy', 'Privacy policy', `What ${BRAND.name} collects, why it is held, who else sees it, and how to get it all back or have it deleted. No advertising and no trackers.`),
-  '/refunds': page('/refunds', 'Cancellation and refunds', `A full refund within ${BRAND.refundDays} days for any reason. Nothing renews automatically and no mandate is held against your card.`),
-  '/contact': page('/contact', 'Contact us', `Questions about ${BRAND.name} reach a person, not a queue. We answer within two working days.`),
+  '/': page('/', `${BRAND.name} – Free Flashcards with Spaced Repetition (FSRS)`, `Make flashcards, study them with FSRS spaced repetition, and share collections with friends or a class. Free forever, with optional one-off Premium plans.`),
+  '/pricing': page('/pricing', `${BRAND.name} Pricing – Free Plan and One-Off Premium Plans`, `${BRAND.name} is free: collections, spaced repetition, publishing and progress. Premium adds projects, import/export, covers and live quizzes. No auto-renewal.`),
+  '/explore': page('/explore', `Explore Free Public Flashcard Collections and Decks – ${BRAND.name}`, `Browse flashcard collections other people have published on ${BRAND.name}. Read and study any of them free without an account, or take your own copy to edit.`),
+  '/signup': page('/signup', `Sign Up Free – Make Flashcards and Study Smarter – ${BRAND.name}`, `Create a free ${BRAND.name} account. Build flashcard collections, study with spaced repetition, and learn alongside people you trust. No card required.`),
+  '/login': { ...page('/login', `Sign in – ${BRAND.name}`, `Sign in to ${BRAND.name}.`), robots: 'noindex, follow' },
+  '/terms': page('/terms', `Terms of Use – Plain-Language Terms for Using ${BRAND.name}`, `The agreement between you and ${BRAND.name}, written in plain language to be read: your account, your content, payments, and a refund policy you can rely on.`),
+  '/privacy': page('/privacy', `Privacy Policy – What Data We Collect and Why – ${BRAND.name}`, `What ${BRAND.name} collects, why it is held, who else sees it, and how to get it all back or have it deleted. No advertising and no trackers of any kind.`),
+  '/refunds': page('/refunds', `Cancellation and Refunds – ${BRAND.refundDays}-Day Full Refund – ${BRAND.name}`, `A full refund within ${BRAND.refundDays} days of payment for any reason. Nothing renews automatically, no mandate is held against your card, and double payments are refunded.`),
+  '/contact': page('/contact', `Contact ${BRAND.name} – Support That Reaches a Real Person`, `Questions about ${BRAND.name}, billing, refunds or classrooms reach a person, not a queue. Email us at ${BRAND.email.general} and we answer within two working days.`),
 };
 
 /** Routes behind a sign-in have nothing for a crawler and should not be competing with the rest. */
-const PRIVATE_PREFIXES = ['/settings', '/dashboard', '/premium', '/progress', '/projects', '/friends', '/teams', '/rooms', '/archive', '/shared', '/verify-email', '/forgot-password', '/reset-password'];
+const PRIVATE_PREFIXES = ['/settings', '/dashboard', '/premium', '/progress', '/projects', '/friends', '/teams', '/rooms', '/archive', '/shared', '/verify-email', '/forgot-password', '/reset-password', '/oauth'];
 
+/**
+ * Database errors are left to throw, so that `metaFor` answers with the default page and a 200.
+ * Returning null for them would turn a slow database into a 404 on every collection, which is the
+ * one thing that makes a crawler drop pages it had already indexed.
+ */
 async function folderMeta(id) {
-  // Only a published collection. Anything else gets the default, which reveals nothing about
-  // whether that id exists at all.
-  const folder = await Folder.findById(id).select('title description visibility owner thumbnail').catch(() => null);
+  // Only a published collection. Anything else answers as a missing page, which reveals nothing
+  // about whether that id exists at all.
+  const folder = await Folder.findById(id).select('title description visibility owner thumbnail');
   if (!folder || folder.visibility !== 'global') return null;
   const [owner, count] = await Promise.all([
     User.findById(folder.owner).select('username').catch(() => null),
@@ -87,7 +105,7 @@ async function folderMeta(id) {
 }
 
 async function profileMeta(username) {
-  const user = await User.findOne({ username: String(username).toLowerCase() }).select('name username bio').catch(() => null);
+  const user = await User.findOne({ username: String(username).toLowerCase() }).select('name username bio');
   if (!user) return null;
   return {
     title: `${user.name} (@${user.username}) · ${BRAND.name}`,
@@ -96,20 +114,28 @@ async function profileMeta(username) {
   };
 }
 
-/** Never throws and never blocks the page: a crawler getting the default beats nobody getting HTML. */
-export async function metaFor(path) {
+/**
+ * Never throws and never blocks the page: a crawler getting the default beats nobody getting HTML.
+ *
+ * `status` is set only on a page that does not exist for a signed-out visitor. A signed-in one is
+ * never told "not found": their own private collection is a real page to them, and the app draws
+ * its own empty state for a path it does not know.
+ */
+export async function metaFor(path, { signedIn = false } = {}) {
   try {
     const clean = path.split('?')[0].replace(/\/+$/, '') || '/';
     if (STATIC[clean]) return { ...DEFAULTS, ...STATIC[clean] };
-    if (PRIVATE_PREFIXES.some(p => clean === p || clean.startsWith(`${p}/`))) return { ...DEFAULTS, robots: 'noindex, nofollow' };
+    if (PRIVATE_PREFIXES.some(p => clean === p || clean.startsWith(`${p}/`))) return PRIVATE;
+    if (/^\/folders\/[a-f\d]{24}\/study$/i.test(clean)) return PRIVATE;
 
-    const folder = /^\/folders\/([A-Za-z0-9]+)$/.exec(clean);
-    if (folder) return { ...DEFAULTS, ...(await folderMeta(folder[1]) || {}) };
-
+    let found = null;
+    const folder = /^\/folders\/([a-f\d]{24})$/i.exec(clean);
     const profile = /^\/u\/([A-Za-z0-9_]+)$/.exec(clean);
-    if (profile) return { ...DEFAULTS, ...(await profileMeta(profile[1]) || {}) };
+    if (folder) found = await folderMeta(folder[1]);
+    else if (profile) found = await profileMeta(profile[1]);
 
-    return DEFAULTS;
+    if (found) return { ...DEFAULTS, ...found };
+    return signedIn ? PRIVATE : NOT_FOUND;
   } catch { return DEFAULTS; }
 }
 
@@ -127,13 +153,16 @@ const escapeAttr = value => String(value).replace(/&/g, '&amp;').replace(/"/g, '
 export function applyMeta(html, meta) {
   const title = escapeAttr(meta.title);
   const description = escapeAttr(meta.description);
-  return html
+  const located = meta.canonical
+    ? html
+      .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${escapeAttr(meta.canonical)}$2`)
+      .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escapeAttr(meta.canonical)}$2`)
+    : html.replace(/<link rel="canonical" href="[^"]*">\s*/, '');
+  return located
     .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
     .replace(/(<meta name="description" content=")[^"]*(")/, `$1${description}$2`)
-    .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${escapeAttr(meta.canonical)}$2`)
     .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${title}$2`)
     .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${description}$2`)
-    .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escapeAttr(meta.canonical)}$2`)
     .replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${escapeAttr(meta.image)}$2`)
     .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${title}$2`)
     .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${description}$2`)

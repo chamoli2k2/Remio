@@ -19,7 +19,7 @@ import { readOnlyGuard } from './middleware/config.js';
 import { throttle } from './middleware/throttle.js';
 import { setting } from './services/settingsService.js';
 import { themeScriptHash } from '../../shared/themeScript.js';
-import { jsonLdHash } from '../../shared/seo.js';
+import { jsonLdHash, site } from '../../shared/seo.js';
 import { isConfigured as googleConfigured } from './services/auth/googleToken.js';
 import { isConfigured as storageConfigured } from './services/storage.js';
 import { metaFor, applyMeta, sitemap } from './services/pageMeta.js';
@@ -27,6 +27,16 @@ import { renderPage, applyRender } from './services/ssr.js';
 export function createApp() {
   const app = express(); app.disable('x-powered-by'); if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
   app.use(requestContext);
+  /**
+   * The hosting provider's own hostname answers with the whole site, which is a second copy of
+   * every page for a search engine to choose between. Pages move to the real domain; the API stays
+   * where it is, because a webhook or a health check configured against this host must not be
+   * bounced, and a redirected POST arrives as a GET with no body.
+   */
+  app.use((req, res, next) => {
+    if (!req.hostname?.endsWith('.onrender.com') || !['GET', 'HEAD'].includes(req.method) || /^\/(api|socket\.io)(\/|$)/.test(req.path)) return next();
+    res.redirect(301, `${site}${req.originalUrl}`);
+  });
   const origins = trustedOrigins();
   // connect-src includes ws(s) so the same-origin Socket.IO connection is allowed by CSP in every browser.
   // The gateway's checkout runs in its own script and iframe, so it only widens the policy when configured.
@@ -103,7 +113,19 @@ export function createApp() {
    * description or canonical link, and now without being pre-rendered either. Turning it off makes
    * `/` fall through to the app handler like every other route.
    */
-  app.use(express.static(dist, { index: false }));
+  /**
+   * Hashed build output is cached for a year. Its name changes whenever its contents do, so a
+   * cached copy can never be stale, and without this every returning visit re-asked for all of it.
+   *
+   * `redirect: false` stops a directory being redirected to its trailing-slash form, which would
+   * loop against the redirect below that removes one.
+   */
+  const assets = path.join(dist, 'assets') + path.sep;
+  app.use(express.static(dist, {
+    index: false,
+    redirect: false,
+    setHeaders: (res, file) => { if (file.startsWith(assets)) res.set('Cache-Control', 'public, max-age=31536000, immutable'); },
+  }));
   /**
    * A build asset that is not there is a 404, not the app.
    *
@@ -114,6 +136,18 @@ export function createApp() {
    * type of text/html": a confusing way to say 404, and one that hides the actual cause.
    */
   app.use('/assets', (_req, res) => res.status(404).type('text/plain').send('Not found'));
+
+  /**
+   * One URL per page: `/pricing/` and `/pricing` were two, both answering 200.
+   *
+   * Leading slashes are collapsed as well, because `//example.com/` with its trailing one removed
+   * is a protocol-relative URL, and this would have become a redirect to somebody else's site.
+   */
+  app.get('/{*path}', (req, res, next) => {
+    if (req.path.length < 2 || !req.path.endsWith('/')) return next();
+    const query = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    res.redirect(301, `/${req.path.replace(/^\/+|\/+$/g, '')}${query}`);
+  });
 
   /**
    * A request that looks like a file, and is not one, is a 404.
@@ -146,7 +180,12 @@ export function createApp() {
     if (shell === null) shell = await readFile(shellPath, 'utf8').catch(() => '');
     // No build on disk is a development server, where Vite serves the app instead.
     if (!shell) return res.sendFile(shellPath);
-    const page = applyMeta(shell, await metaFor(req.path));
+    const signedIn = !!sessionToken(req);
+    const meta = await metaFor(req.path, { signedIn });
+    const page = applyMeta(shell, meta);
+    // Still the app, so a person who mistyped a link gets the page that says so. Only the status
+    // differs, and it is what tells a crawler to drop the URL instead of indexing it as the home page.
+    if (meta.status) return res.status(meta.status).type('html').send(page);
 
     /**
      * A public page is sent with its content already rendered into it; everything else is sent as
@@ -161,7 +200,7 @@ export function createApp() {
      * every signed-out visitor by construction — that is the same property the render cache relies
      * on — whereas the shell is the entry point to somebody's account.
      */
-    const rendered = await renderPage({ root, pathname: req.path, signedIn: !!sessionToken(req) });
+    const rendered = await renderPage({ root, pathname: req.path, signedIn });
     if (!rendered) return res.type('html').send(page);
     res.type('html').set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
     res.send(applyRender(page, rendered));
