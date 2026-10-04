@@ -17,7 +17,7 @@ export default function PublicShell({ children, wide }) {
   const navigate = useNavigate(); const [params] = useSearchParams(); const [query, setQuery] = useState(params.get('q') || '');
   return <div className={`public-page ${wide ? 'public-page-wide' : ''}`}>
     <NoticeBanner/>
-    <header className="public-header"><Link className="brand" to="/"><img src="/favicon.svg" alt=""/><span className="brand-word">{BRAND.name}<span className="brand-period">.</span></span></Link>
+    <header className="public-header"><Link className="brand" to="/"><img src="/favicon.svg" alt={`${BRAND.name} logo`} width="31" height="31"/><span className="brand-word">{BRAND.name}<span className="brand-period">.</span></span></Link>
       <nav className="public-nav" aria-label="Main"><NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''}>Home</NavLink><NavLink to="/explore" className={({ isActive }) => isActive ? 'active' : ''}>Explore</NavLink></nav>
       <form className="public-search folder-search" onSubmit={e => { e.preventDefault(); navigate(query.trim() ? `/?q=${encodeURIComponent(query.trim())}#library` : '/#library'); }}><Search size={16}/><input aria-label="Search public collections" placeholder="Search collections…" value={query} onChange={e => setQuery(e.target.value)}/></form>
       <div className="public-header-actions"><ThemeToggle/><Link className="button secondary public-signin" to="/login"><LogIn size={16}/> Sign in</Link><Link className="button primary" to="/signup">Get started <ArrowRight size={16}/></Link></div></header>

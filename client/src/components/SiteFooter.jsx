@@ -6,7 +6,7 @@ export default function SiteFooter() {
     {/* The inner box carries the page's own max width so the wordmark lines up with the content above it. */}
     <div className="site-footer-inner">
       <p className="site-footer-copy">
-        <img src="/favicon.svg" alt=""/>
+        <img src="/favicon.svg" alt={`${BRAND.name} logo`} width="18" height="18" loading="lazy"/>
         <strong>{BRAND.name}<span className="brand-period">.</span></strong>
         <span className="site-footer-tag">{BRAND.tagline}</span>
       </p>

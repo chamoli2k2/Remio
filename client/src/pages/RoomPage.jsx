@@ -52,7 +52,7 @@ function Question({ room, me, isHost, onAnswer, onNext }) {
   return <div className="room-question">
     <div className="room-timer"><span style={{ width: `${pct}%` }} className={remaining < 5000 ? 'is-urgent' : ''}/></div>
     <div className="room-status"><span>{room.phase === 'question' ? `${Math.ceil(remaining / 1000)}s` : 'Time’s up'}</span><span>{room.answeredCount} of {room.players.filter(p => p.connected).length} answered</span></div>
-    <div className="room-prompt">{q.image && <Img id={q.image} alt="" sizes="(max-width: 640px) 90vw, 520px" eager/>}<RichText text={q.prompt} cloze="show"/></div>
+    <div className="room-prompt">{q.image && <Img id={q.image} alt="Question image" sizes="(max-width: 640px) 90vw, 520px" eager/>}<RichText text={q.prompt} cloze="show"/></div>
     <div className="room-options">{q.options.map((opt, i) => { const state = revealed ? (i === q.correct ? 'is-correct' : mine?.choice === i ? 'is-wrong' : '') : mine?.choice === i ? 'is-picked' : ''; return <button key={i} type="button" className={`room-option ${state}`} disabled={revealed || !!mine || !me} onClick={() => onAnswer(i)}><span className="room-letter">{LETTERS[i]}</span><RichText text={opt} as="span"/>{revealed && <span className="room-count">{counts[i]}</span>}</button>; })}</div>
     {revealed ? <div className="room-reveal"><div className={`room-verdict ${mine ? (mine.correct ? 'good' : 'bad') : ''}`}>{!mine ? 'You didn’t answer in time.' : mine.correct ? <><Check size={18}/> Correct · +{mine.points} points{me?.streak > 1 && <em> · {me.streak} in a row</em>}</> : <><X size={18}/> Not this time</>}</div>
       <Leaderboard players={room.players} me={me} compact/>

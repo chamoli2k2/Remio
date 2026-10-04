@@ -71,7 +71,7 @@ export default function Layout() {
   return <div className="app-shell">
     {mobile && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobile(false)}/>}
     <aside className={`sidebar ${mobile ? 'open' : ''}`}>
-      <Link className="brand" to="/" onClick={() => setMobile(false)}><img src="/favicon.svg" alt=""/><span className="brand-word">{BRAND.name}<span className="brand-period">.</span></span></Link>
+      <Link className="brand" to="/" onClick={() => setMobile(false)}><img src="/favicon.svg" alt={`${BRAND.name} logo`} width="30" height="30"/><span className="brand-word">{BRAND.name}<span className="brand-period">.</span></span></Link>
       <Button className="primary sidebar-create" onClick={() => setCreate(true)}><span className="sidebar-create-icon"><Plus size={16}/></span> Create a folder</Button>
       <div className="sidebar-scroll">
         {groups.map(([caption, items]) => <div className="nav-group" key={caption}>
