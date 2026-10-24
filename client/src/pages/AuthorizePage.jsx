@@ -59,7 +59,7 @@ export default function AuthorizePage() {
       <h1>That request does not look right</h1>
       <ErrorState message={state.error}/>
       <p className="muted">Nothing has been connected. Go back to the application and try again — if it keeps happening, the application is sending us something we cannot verify, and you should not approve it.</p>
-      <Link className="button secondary" to="/settings">Back to settings</Link>
+      <Link className="button secondary" to="/settings?section=assistants">Back to settings</Link>
     </div></div>;
   }
 

@@ -1174,3 +1174,58 @@ html[data-theme=dark] .dash-change s{color:var(--text-4)}
   .dash-filter-search{flex:1}
   .dash-filter-search input{width:100%}
 }
+
+/* Account settings: a menu beside one section, so neither side is left empty while the other scrolls. */
+.settings-shell{display:grid;grid-template-columns:260px minmax(0,1fr);gap:24px;align-items:start;max-width:1120px}
+.settings-nav{position:sticky;top:calc(66px + 18px);display:flex;flex-direction:column;gap:12px;border:1px solid var(--border);border-radius:15px;background:#fff;padding:14px}
+.settings-nav-user{display:flex;align-items:center;gap:11px;padding:4px 4px 14px;border-bottom:1px solid var(--border)}
+.settings-nav-user .avatar{width:44px;height:44px;font-size:14px;flex:none}
+.settings-nav-user>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.settings-nav-user strong{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-nav-user span{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-nav-user .text-button{font-size:12px;color:var(--accent);margin-top:2px}
+.settings-nav nav{display:flex;flex-direction:column;gap:2px}
+.settings-nav nav button{display:flex;align-items:center;gap:11px;border:0;background:transparent;border-radius:10px;padding:10px;text-align:left;color:#6f6680}
+.settings-nav nav button>span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.settings-nav nav button b{font-size:13.5px;font-weight:600}
+.settings-nav nav button small{font-size:11.5px;color:var(--muted)}
+.settings-nav nav button svg{flex:none}
+.settings-nav nav button:hover{background:#f3f0fa}
+.settings-nav nav button.active{background:#efeaf9;color:#5b3fb8}
+.settings-nav nav button.is-danger{color:#b23b45}
+.settings-nav nav button.is-danger.active{background:#fdecef}
+.settings-content{min-width:0;max-width:780px}
+.settings-content .settings-panel{max-width:none;padding:28px 30px}
+.settings-stack{display:flex;flex-direction:column;gap:18px}
+.settings-stack>.settings-panel+.settings-panel{margin-top:0}
+.settings-section-head{padding-bottom:16px;border-bottom:1px solid var(--border)}
+.settings-section-head h2{font-size:19px}
+.settings-section-head p{font-size:13px;color:var(--muted);margin-top:5px}
+.settings-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.settings-actions{display:flex;justify-content:flex-end;padding-top:16px;border-top:1px solid var(--border)}
+
+/* Long and short sections alike leave the footer below the fold, so switching between them does
+   not make the page grow and shrink under the pointer. */
+.settings-shell,.dash-layout{min-height:calc(100vh - 210px);min-height:calc(100dvh - 210px)}
+html{scrollbar-gutter:stable}
+
+html[data-theme=dark] .settings-nav{background:var(--surface);border-color:var(--border)}
+html[data-theme=dark] .settings-nav nav button{color:var(--text-2)}
+html[data-theme=dark] .settings-nav nav button:hover{background:var(--surface-3)}
+html[data-theme=dark] .settings-nav nav button.active{background:var(--soft);color:#c4b5ff}
+html[data-theme=dark] .settings-nav nav button.is-danger{color:#ff9aa8}
+html[data-theme=dark] .settings-nav nav button.is-danger.active{background:#4a2129}
+
+@media(max-width:1050px){
+  .settings-shell{grid-template-columns:minmax(0,1fr);gap:16px}
+  .settings-nav{position:static;padding:12px}
+  .settings-nav nav{flex-direction:row;overflow-x:auto;scrollbar-width:none;gap:4px}
+  .settings-nav nav::-webkit-scrollbar{display:none}
+  .settings-nav nav button{flex:none;white-space:nowrap;padding:9px 12px}
+  .settings-nav nav button small{display:none}
+}
+@media(max-width:760px){
+  .settings-row{grid-template-columns:1fr}
+  .settings-content .settings-panel{padding:22px 18px}
+  .settings-actions .button{width:100%}
+}

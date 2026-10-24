@@ -71,9 +71,13 @@ function priceSettings() {
 /** Plan lengths, generated the same way so a new plan cannot be forgotten here. */
 function planSettings() {
   const out = {};
-  for (const plan of [...PREMIUM_PLANS, ...TEAM_PLANS]) {
-    out[`days.${plan.id}`] = count('plans', `${plan.label} runs for`, plan.days, 1, 3650,
+  for (const plan of PREMIUM_PLANS) {
+    out[`days.${plan.id}`] = count('plans', `Premium · ${plan.label} runs for`, plan.days, 1, 3650,
       'Days of access one purchase of this plan grants.', 'days');
+  }
+  for (const plan of TEAM_PLANS) {
+    out[`days.${plan.id}`] = count('plans', `Team · ${plan.label} runs for`, plan.days, 1, 3650,
+      'Days a team keeps its seats from one purchase of this plan.', 'days');
   }
   return out;
 }

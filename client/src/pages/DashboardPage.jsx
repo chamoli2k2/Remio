@@ -140,7 +140,10 @@ export default function DashboardPage() {
   const [params, setParams] = useSearchParams();
   const tab = SECTION_IDS.includes(params.get('tab')) ? params.get('tab') : 'users';
   const [settingsGroup, setSettingsGroup] = useState(params.get('group') || '');
-  const setTab = (id, extra = {}) => setParams({ tab: id, ...extra }, { replace: true });
+  const setTab = (id, extra = {}) => {
+    setParams({ tab: id, ...extra }, { replace: true });
+    if (window.scrollY > 120) window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const openSettings = group => { setSettingsGroup(group); setTab('settings', { group }); };
   const [q, setQ] = useState('');
   const { data, loading, error, refetch } = useQuery(`/admin/users${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`);

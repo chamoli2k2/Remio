@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Check, Layers, Target, BookOpen, GraduationCap, LockKeyhole, Flame, Trophy, CalendarDays, Sun, Clock, TrendingUp, Sparkles, MailCheck, MailWarning, Trash2 } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowRight, ArrowLeft, Check, Layers, Target, BookOpen, GraduationCap, LockKeyhole, Flame, Trophy, CalendarDays, Sun, Clock, TrendingUp, Sparkles, MailCheck, MailWarning, Trash2, UserRound, ShieldCheck, Bot } from 'lucide-react';
 import Heatmap from '../components/Heatmap';
 import { toast } from 'sonner';
 import { useApp, useQuery } from '../hooks/useApp';
@@ -46,11 +46,88 @@ export function AuthPage({ mode = 'login' }) {
     if (signup) body.acceptedTerms = body.acceptedTerms === 'on'; try { const d = await api(signup ? '/auth/signup' : '/auth/login', { method: 'POST', body }); setUser(d.user); } catch (e) { setError(e.message); } finally { setBusy(false); } }
   return <div className="auth-page"><div className="auth-story"><Link className="brand" to="/"><img src="/favicon.svg" alt={`${BRAND.name} logo`} width="35" height="35"/><span className="brand-word">{BRAND.name}<span className="brand-period">.</span></span></Link><div><span className="eyebrow">A SPACE FOR YOUR CURIOSITY</span><h1>Learn a little.<br/>Remember<br/>a lot.</h1><p>Collect what matters. Make it memorable.<br/>Learn better, together.</p><div className="auth-benefits"><span><Check size={17}/> Your notes, beautifully organized</span><span><Check size={17}/> Study at your own pace</span><span><Check size={17}/> Share a little knowledge</span></div></div><span>One card at a time.</span></div><div className="auth-form"><Link to="/" className="back-link auth-back"><ArrowLeft size={15}/> Back to home</Link><ThemeToggle className="auth-theme-toggle"/><div className={`auth-panel ${signup ? 'is-signup' : ''}`}><h2>{signup ? 'Make yourself at home.' : 'Welcome back.'}</h2><p>{signup ? 'Your next chapter starts with a flashcard.' : 'Your learning space is right where you left it.'}</p>{connectionError && <ErrorState message={connectionError}/>}<GoogleButton text={signup ? 'signup_with' : 'continue_with'} onCredential={google} notice={googleNotice}/><form className="form-stack" onSubmit={submit}>{signup ? <><div className="auth-pair"><Field label="Full name"><input required name="name" maxLength={60} autoComplete="name" placeholder="Your name"/></Field><Field label="Username · optional" hint="Leave blank and we will pick one. You can change it later."><input name="username" pattern="[a-zA-Z0-9_]{3,24}" autoComplete="username" placeholder="your_username"/></Field></div><div className="auth-pair"><Field label="Email"><input required type="email" name="email" autoComplete="email" placeholder="you@example.com"/></Field><Field label="Country" hint="Sets your currency if you buy Premium"><CountryPicker name="country" options={COUNTRIES} value={country} onChange={code => { setPickedCountry(true); setCountry(code); }}/></Field></div></> : <Field label="Username or email"><input required name="identifier" autoComplete="username" placeholder="Your username or email"/></Field>}<Field label="Password" hint={signup ? 'Use at least 10 characters.' : undefined}><input required type="password" name="password" minLength={signup ? 10 : 1} maxLength={128} autoComplete={signup ? 'new-password' : 'current-password'} placeholder="Enter your password"/></Field>{!signup && <Link className="text-button auth-forgot" to="/forgot-password">Forgot your password?</Link>}{signup && <label className="auth-consent"><input type="checkbox" name="acceptedTerms" required checked={consented} onChange={e => setConsented(e.target.checked)}/><span>I have read and agree to the <Link to="/terms" target="_blank">Terms of use</Link> and the <Link to="/privacy" target="_blank">Privacy policy</Link>. I am at least 13 years old.</span></label>}{error && <ErrorState message={error}/>}{error && !signup && <p className="auth-hint">Signed up with Google? Use the button above — an account created that way has no password until you set one.</p>}<Button type="submit" className="primary" loading={busy}>{signup ? 'Create your account' : 'Sign in'}<ArrowRight size={17}/></Button></form><p className="auth-switch">{signup ? 'Already have an account?' : `New to ${BRAND.name}?`} <button className="text-button" onClick={() => { setSignup(!signup); setError(''); }}>{signup ? 'Sign in' : 'Create an account'}</button></p></div></div></div>;
 }
+/**
+ * Settings, one section at a time beside a menu, rather than two columns of uneven height that
+ * left one side empty while the other scrolled on. The open section is in the address, so a link
+ * from elsewhere ("connect an assistant") lands on the right one.
+ */
+const SETTINGS_SECTIONS = [
+  { id: 'profile', label: 'Profile', Icon: UserRound, hint: 'Name, username and bio' },
+  { id: 'study', label: 'Study', Icon: Target, hint: 'Daily goal and retention' },
+  { id: 'account', label: 'Account & security', Icon: ShieldCheck, hint: 'Email and password' },
+  { id: 'assistants', label: 'AI assistants', Icon: Bot, hint: 'Claude, ChatGPT and more', live: true },
+  { id: 'danger', label: 'Delete account', Icon: Trash2, hint: 'Erase everything', live: true },
+];
+
 export function SettingsPage() {
-  const { user, setUser, refresh, isDemo } = useApp(); const [form, setForm] = useState({ name: user.name, username: user.username, bio: user.bio || '', dailyGoal: user.dailyGoal || 20, desiredRetention: user.desiredRetention || 0.9 }), [busy, setBusy] = useState(false), [error, setError] = useState('');
-  return <><div className="page-heading"><div><div className="eyebrow">MAKE YOURSELF AT HOME</div><h1>Your settings</h1><p>A learning space that feels like you.</p></div></div><div className="settings-layout"><div className="settings-column"><div className="settings-panel"><div className="profile-header"><Avatar user={user}/><div><h2>{user.name}</h2>{/* The country is shown but not editable here, because it sets the price this account pays and
-    a field that lowers your own bill is one people will find. Moving country is a mail to us. */}
-<p>@{user.username} · {user.account || 'normal'} · {countryOf(user)}</p>{(user.account || 'normal') === 'normal' && <Link className="text-button" to="/premium">Upgrade to Premium</Link>}</div></div><form className="form-stack" onSubmit={async e => { e.preventDefault(); setBusy(true); setError(''); try { const d = await api('/auth/profile', { method: 'PATCH', body: { ...form, username: form.username.trim().toLowerCase() } }); setUser(d.user); setForm(f => ({ ...f, username: d.user.username })); refresh(); toast.success('Settings saved'); } catch (e) { setError(e.message); } finally { setBusy(false); } }}><Field label="Display name"><input required maxLength={60} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}/></Field><Field label="Username" hint={`3–24 letters, numbers, or _. Your profile is at ${BRAND.domain}/u/${form.username || user.username}.`}><input required pattern="[a-zA-Z0-9_]{3,24}" maxLength={24} autoComplete="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}/></Field><Field label="About you"><textarea maxLength={300} rows={3} value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}/></Field><Field label="Daily review goal" hint="Choose a goal that fits your day. You can change it anytime."><Select label="Daily review goal" value={form.dailyGoal} onChange={v => setForm(f => ({ ...f, dailyGoal: v }))} options={optionsOf([5, 10, 20, 30, 50, 100], n => `${n} cards a day`)}/></Field><Field label="Desired retention" hint="How reliably you want to remember a card when it comes up. Higher means more frequent reviews; 90% is the FSRS default."><div className="retention-field"><input type="range" min={70} max={97} step={1} aria-label="Desired retention percent" value={Math.round(form.desiredRetention * 100)} onChange={e => setForm(f => ({ ...f, desiredRetention: Number(e.target.value) / 100 }))}/><strong>{Math.round(form.desiredRetention * 100)}%</strong></div></Field><div className="sharing-note"><LockKeyhole size={17}/> Your email and study progress are private.</div>{error && <ErrorState message={error}/>}<Button className="primary" loading={busy} type="submit">Save changes <Check size={16}/></Button></form></div></div><div className="settings-column"><EmailPanel/>{!isDemo && <><AssistantPanel/><PasswordPanel/><DangerPanel/></>}</div></div></>;
+  const { user, setUser, refresh, isDemo } = useApp();
+  const [params, setParams] = useSearchParams();
+  const [form, setForm] = useState({ name: user.name, username: user.username, bio: user.bio || '', dailyGoal: user.dailyGoal || 20, desiredRetention: user.desiredRetention || 0.9 }), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  // The same key the assistant panel reads, so this costs no extra request.
+  const { data: agent } = useQuery('/agent', null, { enabled: !isDemo });
+  const sections = SETTINGS_SECTIONS.filter(s => !(s.live && isDemo) && !(s.id === 'assistants' && agent && !agent.enabled));
+  const asked = params.get('section') || (typeof window !== 'undefined' && window.location.hash === '#assistants' ? 'assistants' : '');
+  const section = sections.find(s => s.id === asked) || sections[0];
+  const open = id => {
+    setParams(id === 'profile' ? {} : { section: id }, { replace: true });
+    if (window.scrollY > 120) window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  async function save(e) {
+    e.preventDefault(); setBusy(true); setError('');
+    try {
+      const d = await api('/auth/profile', { method: 'PATCH', body: { ...form, username: form.username.trim().toLowerCase() } });
+      setUser(d.user); setForm(f => ({ ...f, username: d.user.username })); refresh(); toast.success('Settings saved');
+    } catch (err) { setError(err.message); } finally { setBusy(false); }
+  }
+  const saveBar = <>{error && <ErrorState message={error}/>}<div className="settings-actions"><Button className="primary" loading={busy} type="submit">Save changes <Check size={16}/></Button></div></>;
+
+  return <>
+    <div className="page-heading"><div><div className="eyebrow">MAKE YOURSELF AT HOME</div><h1>Your settings</h1><p>A learning space that feels like you.</p></div></div>
+    <div className="settings-shell">
+      <aside className="settings-nav">
+        <div className="settings-nav-user">
+          <Avatar user={user}/>
+          <div>
+            <strong>{user.name}</strong>
+            {/* The country is shown but not editable here, because it sets the price this account
+                pays and a field that lowers your own bill is one people will find. */}
+            <span>@{user.username} · {user.account || 'normal'} · {countryOf(user)}</span>
+            {(user.account || 'normal') === 'normal' && <Link className="text-button" to="/premium"><Sparkles size={13}/> Upgrade to Premium</Link>}
+          </div>
+        </div>
+        <nav aria-label="Settings sections">
+          {sections.map(({ id, label, hint, Icon }) => <button key={id} type="button" className={`${section.id === id ? 'active' : ''} ${id === 'danger' ? 'is-danger' : ''}`} aria-current={section.id === id ? 'page' : undefined} onClick={() => open(id)}>
+            <Icon size={17}/><span><b>{label}</b><small>{hint}</small></span>
+          </button>)}
+        </nav>
+      </aside>
+
+      <div className="settings-content">
+        {section.id === 'profile' && <form className="settings-panel form-stack" onSubmit={save}>
+          <header className="settings-section-head"><h2>Profile</h2><p>How you appear to people you share collections with.</p></header>
+          <div className="settings-row">
+            <Field label="Display name"><input required maxLength={60} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}/></Field>
+            <Field label="Username" hint={`Your profile is at ${BRAND.domain}/u/${form.username || user.username}`}><input required pattern="[a-zA-Z0-9_]{3,24}" maxLength={24} autoComplete="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}/></Field>
+          </div>
+          <Field label="About you" hint="Up to 300 characters."><textarea maxLength={300} rows={4} value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}/></Field>
+          <div className="sharing-note"><LockKeyhole size={17}/> Your email and study progress are private.</div>
+          {saveBar}
+        </form>}
+
+        {section.id === 'study' && <form className="settings-panel form-stack" onSubmit={save}>
+          <header className="settings-section-head"><h2>Study</h2><p>How much you review each day, and how often cards come back.</p></header>
+          <Field label="Daily review goal" hint="Choose a goal that fits your day. You can change it anytime."><Select label="Daily review goal" value={form.dailyGoal} onChange={v => setForm(f => ({ ...f, dailyGoal: v }))} options={optionsOf([5, 10, 20, 30, 50, 100], n => `${n} cards a day`)}/></Field>
+          <Field label="Desired retention" hint="How reliably you want to remember a card when it comes up. Higher means more frequent reviews; 90% is the FSRS default."><div className="retention-field"><input type="range" min={70} max={97} step={1} aria-label="Desired retention percent" value={Math.round(form.desiredRetention * 100)} onChange={e => setForm(f => ({ ...f, desiredRetention: Number(e.target.value) / 100 }))}/><strong>{Math.round(form.desiredRetention * 100)}%</strong></div></Field>
+          {saveBar}
+        </form>}
+
+        {section.id === 'account' && <div className="settings-stack"><EmailPanel/>{!isDemo && <PasswordPanel/>}</div>}
+        {section.id === 'assistants' && <AssistantPanel/>}
+        {section.id === 'danger' && <DangerPanel/>}
+      </div>
+    </div>
+  </>;
 }
 /** Confirmation links land here, and they can land in a browser where nobody is signed in. */
 export function VerifyEmailPage() {
@@ -253,7 +330,7 @@ function RetentionPanel({ stats: s }) {
   const max = Math.max(1, ...s.forecast.map(d => d.due)); const total = Object.values(s.states).reduce((a, b) => a + b, 0) || 1;
   const stateMeta = [['new', 'New', 'Never studied'], ['learning', 'Learning', 'First days'], ['review', 'Review', 'Long-term memory'], ['relearning', 'Relearning', 'Recently forgotten']];
   return <section className="retention-panel"><div className="retention-grid">
-    <div className="retention-card"><span className="eyebrow">MEMORY RIGHT NOW</span><div className="retention-numbers"><div><strong>{pct(s.retention.predicted)}</strong><span>predicted recall</span></div><div><strong>{pct(s.retention.observed)}</strong><span>observed, last 30 days{s.retention.sampled ? ` (${s.retention.sampled} reviews)` : ''}</span></div><div><strong>{pct(s.retention.desired)}</strong><span>your target · <Link to="/settings">change</Link></span></div></div><p>{s.retention.predicted == null ? `Review a few cards and ${BRAND.name} will start estimating how much you currently remember.` : s.retention.observed != null && s.retention.observed < s.retention.desired - 0.05 ? 'You are forgetting more than your target. Shorter intervals will follow automatically; rating honestly keeps the model accurate.' : 'The model is on track. Average memory stability is ' + s.retention.averageStability + ' days.'}</p></div>
+    <div className="retention-card"><span className="eyebrow">MEMORY RIGHT NOW</span><div className="retention-numbers"><div><strong>{pct(s.retention.predicted)}</strong><span>predicted recall</span></div><div><strong>{pct(s.retention.observed)}</strong><span>observed, last 30 days{s.retention.sampled ? ` (${s.retention.sampled} reviews)` : ''}</span></div><div><strong>{pct(s.retention.desired)}</strong><span>your target · <Link to="/settings?section=study">change</Link></span></div></div><p>{s.retention.predicted == null ? `Review a few cards and ${BRAND.name} will start estimating how much you currently remember.` : s.retention.observed != null && s.retention.observed < s.retention.desired - 0.05 ? 'You are forgetting more than your target. Shorter intervals will follow automatically; rating honestly keeps the model accurate.' : 'The model is on track. Average memory stability is ' + s.retention.averageStability + ' days.'}</p></div>
     <div className="retention-card"><span className="eyebrow">NEXT 14 DAYS</span><div className="forecast" role="img" aria-label={`Due forecast: ${s.forecast.map(d => `${d.due} on ${d.date}`).join(', ')}`}>{s.forecast.map((d, i) => <div key={d.date} className="forecast-bar" title={`${d.due} due on ${d.date}`}><span style={{ height: `${Math.max(d.due ? 6 : 2, d.due / max * 100)}%` }}/><small>{i === 0 ? 'Today' : new Date(d.date + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'narrow', timeZone: 'UTC' })}</small></div>)}</div><p>{s.forecast[0].due} card{s.forecast[0].due === 1 ? '' : 's'} ready today, {s.forecast.slice(1, 8).reduce((a, d) => a + d.due, 0)} more over the coming week.</p></div>
     <div className="retention-card"><span className="eyebrow">WHERE YOUR CARDS ARE</span><div className="state-bar" role="img" aria-label={stateMeta.map(([k, l]) => `${l}: ${s.states[k]}`).join(', ')}>{stateMeta.map(([k]) => s.states[k] > 0 && <span key={k} className={`state-${k}`} style={{ flex: s.states[k] }}/>)}</div><ul className="state-legend">{stateMeta.map(([k, label, hint]) => <li key={k}><span className={`state-dot state-${k}`}/><strong>{s.states[k]}</strong> {label} <small>{hint} · {Math.round(s.states[k] / total * 100)}%</small></li>)}</ul></div>
     <div className="retention-card"><span className="eyebrow">HARDEST CARDS</span>{!s.hardest.length ? <p>Once you have reviewed a few cards, the ones your memory struggles with will show up here.</p> : <ul className="hardest-list">{s.hardest.map(c => <li key={c.cardId}><Link to={`/folders/${c.folderId}`}>{c.text}</Link><span title="FSRS difficulty, 1 (easy) to 10 (hard)">D {c.difficulty}</span><span title="Times forgotten">{c.lapses} lapse{c.lapses === 1 ? '' : 's'}</span></li>)}</ul>}</div>

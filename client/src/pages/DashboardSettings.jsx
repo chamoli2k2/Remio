@@ -129,7 +129,7 @@ export default function DashboardSettings({ group: initialGroup = '', onShowHist
         const unsaved = keys.filter(k => dirty.includes(k)).length;
         const edited = keys.filter(k => overridden.includes(k)).length;
         return <button key={g.id} type="button" className={!term && current?.id === g.id ? 'active' : ''} aria-current={!term && current?.id === g.id ? 'true' : undefined}
-          onClick={() => { setActive(g.id); setSearch(''); }}>
+          onClick={() => { setActive(g.id); setSearch(''); if (window.scrollY > 120) window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
           <span>{g.label}</span>
           {unsaved ? <b title="Unsaved changes">{unsaved}</b> : edited ? <em title="Changed from the shipped default">{edited}</em> : null}
         </button>;
