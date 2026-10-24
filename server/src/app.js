@@ -32,9 +32,13 @@ export function createApp() {
    * every page for a search engine to choose between. Pages move to the real domain; the API stays
    * where it is, because a webhook or a health check configured against this host must not be
    * bounced, and a redirected POST arrives as a GET with no body.
+   *
+   * The assistant endpoints stay too. An assistant connected before the connector URL moved keeps
+   * using this host, and OAuth discovery checks that the metadata names the host it was fetched
+   * from — following a redirect to another domain is exactly what it is designed to refuse.
    */
   app.use((req, res, next) => {
-    if (!req.hostname?.endsWith('.onrender.com') || !['GET', 'HEAD'].includes(req.method) || /^\/(api|socket\.io)(\/|$)/.test(req.path)) return next();
+    if (!req.hostname?.endsWith('.onrender.com') || !['GET', 'HEAD'].includes(req.method) || /^\/(api|socket\.io|mcp|\.well-known)(\/|$)/.test(req.path)) return next();
     res.redirect(301, `${site}${req.originalUrl}`);
   });
   const origins = trustedOrigins();

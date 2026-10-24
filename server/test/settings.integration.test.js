@@ -148,6 +148,27 @@ integration('every change is recorded with who made it and what it was before', 
   assert.equal(entry.note, 'people kept hitting it');
 });
 
+integration('the history comes in pages, newest first, and can be narrowed by kind and search', async () => {
+  for (const mb of [6, 7, 8, 9, 10, 11]) await boss.patch('/api/admin/settings').send({ values: { 'limits.imageMb': mb }, note: `step ${mb}` });
+  await boss.patch('/api/admin/settings').send({ values: { 'agent.enabled': false }, note: 'quiet weekend' });
+
+  const first = (await admin.get('/api/admin/audit?page=1&pageSize=5')).body;
+  assert.equal(first.total, 7);
+  assert.equal(first.pages, 2);
+  assert.equal(first.entries.length, 5);
+  assert.equal(first.entries[0].note, 'quiet weekend', 'newest first');
+  const second = (await admin.get('/api/admin/audit?page=2&pageSize=5')).body;
+  assert.equal(second.entries.length, 2);
+  assert.equal(second.entries.at(-1).note, 'step 6');
+
+  const found = (await admin.get('/api/admin/audit?q=weekend')).body;
+  assert.equal(found.total, 1);
+  // Typed into a search box, so it must be taken literally rather than as a pattern.
+  assert.equal((await admin.get(`/api/admin/audit?q=${encodeURIComponent('.*')}`)).body.total, 0);
+  assert.equal((await admin.get('/api/admin/audit?kind=account')).body.total, 0);
+  assert.equal((await admin.get('/api/admin/audit?page=99')).status, 200, 'a page past the end is not an error');
+});
+
 integration('saving a form nobody touched records nothing', async () => {
   // Otherwise the trail fills with entries that changed nothing and stops being usable for finding
   // the one that did.

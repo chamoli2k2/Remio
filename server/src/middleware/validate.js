@@ -16,11 +16,14 @@ const RESERVED = new Set(['admin', 'administrator', 'superadmin', 'sysadmin', 'r
 export const reservedUsername = name => RESERVED.has(String(name).trim().toLowerCase());
 // The country is asked for here because it decides what this account is charged, and asking at
 // checkout instead would put the answer in the hands of whoever wants the cheaper price.
-export const signupSchema = z.object({ username: usernameSchema.refine(v => !RESERVED.has(v), 'That username is reserved. Please pick another.'), name: z.string().trim().min(1).max(60), email: z.email().toLowerCase(), country: z.enum(COUNTRY_NAMES, 'Choose your country from the list.'), password: z.string().min(10).max(128),
+// A blank username is a request to have one picked, which is what a Google signup gets anyway.
+export const signupSchema = z.object({ username: z.preprocess(v => (v === '' || v === null ? undefined : v), usernameSchema.refine(v => !RESERVED.has(v), 'That username is reserved. Please pick another.').optional()), name: z.string().trim().min(1).max(60), email: z.email().toLowerCase(), country: z.enum(COUNTRY_NAMES, 'Choose your country from the list.'), password: z.string().min(10).max(128),
   // Refused rather than defaulted. Consent that the server supplies on the user's behalf is not
   // consent, and the timestamp it produces would be evidence of nothing.
   acceptedTerms: z.literal(true, 'Please accept the terms and the privacy policy to continue.') });
-export const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: z.string().min(10).max(128) });
+// The current password is optional only so an account that has never had one can set its first;
+// the service refuses to skip it for anyone who does have one.
+export const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128).optional(), newPassword: z.string().min(10).max(128) });
 export const deleteAccountSchema = z.object({ password: z.string().min(1).max(128), confirm: z.literal('delete my account') });
 export const verifyEmailSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, 'That confirmation link is not valid.') });
 export const forgotPasswordSchema = z.object({ email: z.email().toLowerCase() });

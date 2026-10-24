@@ -723,3 +723,38 @@ integration('the secret is shown once and is never readable afterwards', async (
   const rows = await AgentToken.find({ user: ownerId }).lean();
   assert.ok(!JSON.stringify(rows).includes(made.body.token));
 });
+
+integration('staff can see every connection and cut one off, and the cut is recorded', async () => {
+  const staff = request.agent(app);
+  const signup = await staff.post('/api/auth/signup').send({ username: 'agentstaff', name: 'Staff', email: 'agentstaff@example.test', password, country: 'India', acceptedTerms: true });
+  assert.equal(signup.status, 201, JSON.stringify(signup.body));
+  await User.updateOne({ username: 'agentstaff' }, { $set: { account: 'admin', emailVerifiedAt: new Date() } });
+
+  await owner.delete('/api/agent/grants');
+  const made = await owner.post('/api/agent/grants').send({ name: 'Watched', scopes: ['collections:read'] });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  assert.equal((await mcp(made.body.token, 'tools/list')).status, 200);
+
+  assert.equal((await stranger.get('/api/admin/assistants')).status, 403, 'not for customers');
+
+  const list = await staff.get('/api/admin/assistants?q=deckowner');
+  assert.equal(list.status, 200, JSON.stringify(list.body));
+  const row = list.body.connections.find(c => c.id === made.body.grant.id);
+  assert.ok(row, 'found by the owner’s username');
+  assert.equal(row.user.username, 'deckowner');
+  assert.ok(list.body.totals.active >= 1);
+  assert.ok(!JSON.stringify(list.body).includes(made.body.token), 'and no secret is shown to staff');
+  assert.equal((await staff.get('/api/admin/assistants?q=nobody-by-this-name')).body.total, 0);
+
+  const cut = await staff.delete(`/api/admin/assistants/${row.id}`).send({ note: 'looked odd' });
+  assert.equal(cut.status, 200, JSON.stringify(cut.body));
+  assert.equal((await mcp(made.body.token, 'tools/list')).status, 401, 'the token stops working at once');
+  assert.equal((await staff.delete(`/api/admin/assistants/${row.id}`).send({})).status, 404, 'and a second cut is not a success');
+
+  const audit = await staff.get('/api/admin/audit?kind=assistant');
+  const entry = audit.body.entries.find(e => e.action === 'agent.revoked');
+  assert.ok(entry, 'the history has it');
+  assert.equal(entry.actor, 'agentstaff');
+  assert.match(entry.target, /@deckowner · Watched/);
+  assert.equal(entry.note, 'looked odd');
+});

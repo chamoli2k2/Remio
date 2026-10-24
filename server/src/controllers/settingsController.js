@@ -52,4 +52,6 @@ export const readSettings = async (_req, res) => res.json({
 
 export const writeSettings = async (req, res) => res.json(await settings.updateSettings(req.user, req.body.values, { note: req.body.note }));
 export const resetSettings = async (req, res) => res.json(await settings.resetSettings(req.user, req.body.keys));
-export const audit = async (req, res) => res.json({ entries: await settings.listAudit({ limit: req.query.limit, action: req.query.action }) });
+export const audit = async (req, res) => res.json(await settings.listAudit({
+  page: req.query.page, pageSize: req.query.pageSize, kind: req.query.kind, q: req.query.q, action: req.query.action,
+}));

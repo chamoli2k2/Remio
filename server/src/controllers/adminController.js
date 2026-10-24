@@ -1,5 +1,8 @@
 import * as admin from '../services/adminService.js';
 import * as account from '../services/accountService.js';
+import * as agents from '../services/agent/admin.js';
+export const assistants = async (req, res) => res.json(await agents.overview({ page: req.query.page, q: req.query.q }));
+export const revokeAssistant = async (req, res) => res.json({ grant: await agents.revoke(req.user, req.params.id, req.body?.note) });
 export const users = async (req, res) => res.json({ users: await admin.listUsers(req.query.q) });
 export const setAccount = async (req, res) => res.json({ user: await admin.setAccount(req.user, req.params.id, req.body.account) });
 // Capped so a hand-typed window cannot ask for an aggregation over all of history.

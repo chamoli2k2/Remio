@@ -118,11 +118,18 @@ export async function resetPassword({ token, newPassword }) {
 /**
  * Changing a password proves the current one first, then drops every other session. An attacker who
  * already has a stolen cookie loses it the moment the real owner changes their password.
+ *
+ * An account made with Google has no password to prove, so its first one is set on the strength of
+ * the session alone. The same email goes out as for a change, so if that was not them they hear
+ * about it at an address Google has confirmed is theirs.
  */
 export async function changePassword(user, { currentPassword, newPassword }, keepSessionToken) {
   const withHash = await User.findById(user.id).select('+passwordHash +email');
-  assert(withHash && await bcrypt.compare(currentPassword, withHash.passwordHash), 400, 'That is not your current password.');
-  assert(!await bcrypt.compare(newPassword, withHash.passwordHash), 400, 'Choose a password you are not already using.');
+  assert(withHash, 404, 'That account no longer exists.');
+  if (withHash.passwordHash) {
+    assert(currentPassword && await bcrypt.compare(currentPassword, withHash.passwordHash), 400, 'That is not your current password.');
+    assert(!await bcrypt.compare(newPassword, withHash.passwordHash), 400, 'Choose a password you are not already using.');
+  }
 
   withHash.passwordHash = await bcrypt.hash(newPassword, 12);
   await withHash.save();

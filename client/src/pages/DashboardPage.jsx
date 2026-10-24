@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Trash2, Users, CreditCard, Flag, BarChart3, Globe2, Bot, Settings2, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 import { messageFor, reportError } from '../services/errors';
@@ -12,6 +12,8 @@ import { ACCOUNTS, isSuperadmin, planById } from '../../../shared/account.js';
 // that opens first. An admin who only ever approves payments never downloads either.
 const DashboardAnalytics = lazy(() => import('./DashboardAnalytics'));
 const DashboardSettings = lazy(() => import('./DashboardSettings'));
+const DashboardAssistants = lazy(() => import('./DashboardAssistants'));
+const DashboardHistory = lazy(() => import('./DashboardHistory'));
 import { minorUnitsIn } from '../../../shared/pricing.js';
 const when = iso => iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Never';
 /**
@@ -72,6 +74,28 @@ function Reports({ rows, onDone }) {
   </li>)}</ul>;
 }
 
+/**
+ * The sections, grouped by the question an admin arrives with: somebody needs something, how are
+ * we doing, or how is the product configured.
+ */
+const SECTIONS = [
+  { label: 'People', items: [
+    { id: 'users', label: 'Users', Icon: Users },
+    { id: 'orders', label: 'Premium requests', Icon: CreditCard },
+    { id: 'reports', label: 'Reports', Icon: Flag },
+  ] },
+  { label: 'Insights', items: [
+    { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
+    { id: 'countries', label: 'Where it is used', Icon: Globe2 },
+  ] },
+  { label: 'Product', items: [
+    { id: 'assistants', label: 'AI assistants', Icon: Bot },
+    { id: 'settings', label: 'Settings', Icon: Settings2 },
+    { id: 'history', label: 'Change history', Icon: History },
+  ] },
+];
+const SECTION_IDS = SECTIONS.flatMap(s => s.items.map(i => i.id));
+
 function DeleteUserModal({ person, onClose, onDone }) {
   const [confirm, setConfirm] = useState(''), [note, setNote] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -111,7 +135,13 @@ export default function DashboardPage() {
   const { user, refresh } = useApp();
   const [open, setOpen] = useState(null);
   const [deleting, setDeleting] = useState(null);
-  const [tab, setTab] = useState('users');
+  // In the address rather than in state, so a reload, the back button, or a link sent to another
+  // admin lands on the same section instead of always on Users.
+  const [params, setParams] = useSearchParams();
+  const tab = SECTION_IDS.includes(params.get('tab')) ? params.get('tab') : 'users';
+  const [settingsGroup, setSettingsGroup] = useState(params.get('group') || '');
+  const setTab = (id, extra = {}) => setParams({ tab: id, ...extra }, { replace: true });
+  const openSettings = group => { setSettingsGroup(group); setTab('settings', { group }); };
   const [q, setQ] = useState('');
   const { data, loading, error, refetch } = useQuery(`/admin/users${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`);
   const { data: orders, loading: lo, error: eo } = useQuery('/admin/orders');
@@ -133,16 +163,21 @@ export default function DashboardPage() {
   }
   const people = data?.users || [];
   const pending = (orders?.orders || []).filter(o => o.status === 'pending');
+  const badges = { users: people.length, orders: pending.length, reports: reports?.open, countries: usage?.totals.countries };
+  const section = SECTIONS.flatMap(s => s.items).find(i => i.id === tab);
   return <>
-    <div className="page-heading"><div><span className="eyebrow">STAFF</span><h1>Dashboard</h1><p>Manage accounts and confirm Premium payments. {isSuperadmin(user) ? 'Superadmin can assign any role.' : 'Admins can set Normal or Premium.'}</p></div></div>
-    <div className="tabs" role="tablist">
-      <button role="tab" aria-selected={tab === 'users'} className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Users {people.length ? <span>{people.length}</span> : null}</button>
-      <button role="tab" aria-selected={tab === 'orders'} className={tab === 'orders' ? 'active' : ''} onClick={() => setTab('orders')}>Premium requests {pending.length ? <span>{pending.length}</span> : null}</button>
-      <button role="tab" aria-selected={tab === 'countries'} className={tab === 'countries' ? 'active' : ''} onClick={() => setTab('countries')}>Where it is used {usage?.totals.countries ? <span>{usage.totals.countries}</span> : null}</button>
-      <button role="tab" aria-selected={tab === 'analytics'} className={tab === 'analytics' ? 'active' : ''} onClick={() => setTab('analytics')}>Analytics</button>
-      <button role="tab" aria-selected={tab === 'reports'} className={tab === 'reports' ? 'active' : ''} onClick={() => setTab('reports')}>Reports {reports?.open ? <span>{reports.open}</span> : null}</button>
-      <button role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>Settings</button>
-    </div>
+    <div className="page-heading"><div><span className="eyebrow">STAFF</span><h1>Dashboard</h1><p>Manage accounts, payments, assistants and settings. {isSuperadmin(user) ? 'Superadmin can assign any role.' : 'Admins can set Normal or Premium.'}</p></div></div>
+    <div className="dash-layout">
+    <nav className="dash-nav" aria-label="Dashboard sections">
+      {SECTIONS.map(s => <div key={s.label} className="dash-nav-group">
+        <span className="dash-nav-label">{s.label}</span>
+        {s.items.map(({ id, label, Icon }) => <button key={id} type="button" className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>
+          <Icon size={16}/><span>{label}</span>{badges[id] ? <b className={id === 'orders' || id === 'reports' ? 'is-alert' : ''}>{badges[id]}</b> : null}
+        </button>)}
+      </div>)}
+    </nav>
+    <div className="dash-main">
+    <h2 className="dash-main-title">{section?.label}</h2>
     {deleting && <DeleteUserModal person={deleting} onClose={() => setDeleting(null)} onDone={() => { setDeleting(null); refetch(); }}/>}
     {tab === 'reports' && (lr ? <Loading/> : er ? <ErrorState message={er}/> : !(reports?.reports || []).length
       ? <Empty title="Nothing reported" text="Notices about published collections arrive here. Nothing is waiting."/>
@@ -192,7 +227,11 @@ export default function DashboardPage() {
     </>}
     {/* Both are split bundles, so the fallback covers the fetch of the code as well as the data. */}
     {tab === 'analytics' && <Suspense fallback={<Loading/>}><DashboardAnalytics/></Suspense>}
-    {tab === 'settings' && <Suspense fallback={<Loading/>}><DashboardSettings/></Suspense>}
+    {tab === 'settings' && <Suspense fallback={<Loading/>}><DashboardSettings key={settingsGroup} group={settingsGroup} onShowHistory={() => setTab('history')}/></Suspense>}
+    {tab === 'assistants' && <Suspense fallback={<Loading/>}><DashboardAssistants onOpenSettings={openSettings}/></Suspense>}
+    {tab === 'history' && <Suspense fallback={<Loading/>}><DashboardHistory/></Suspense>}
+    </div>
+    </div>
     <Modal wide open={!!open} onClose={() => setOpen(null)} title={open ? `Premium request from ${open.name}` : ''} description="The billing details on this order, as the buyer gave them.">
       {open && <div className="order-detail">
         <dl className="order-detail-list">

@@ -79,7 +79,7 @@ r.patch('/projects/:id', requireAuth, requirePremium, validate(projectSchema.ext
 r.patch('/projects/:id/archive', requireAuth, requirePremium, validate(z.object({ archived: z.boolean() })), a(projects.archive));
 r.post('/projects/:id/folders', requireAuth, requirePremium, validate(z.object({ folderId: idSchema })), a(projects.addFolder));
 r.delete('/projects/:id/folders/:folderId', requireAuth, requirePremium, a(projects.removeFolder));
-r.patch('/auth/profile', requireAuth, validate(z.object({ name: z.string().trim().min(1).max(60), bio: z.string().max(300), dailyGoal: z.number().int().min(1).max(200), desiredRetention: z.number().min(0.7).max(0.97).optional() })), a(auth.profile));
+r.patch('/auth/profile', requireAuth, authLimit, validate(z.object({ name: z.string().trim().min(1).max(60), bio: z.string().max(300), dailyGoal: z.number().int().min(1).max(200), desiredRetention: z.number().min(0.7).max(0.97).optional(), username: usernameSchema.optional() })), a(auth.profile));
 r.get('/folders', (req, res, next) => req.query.scope === 'explore' ? next() : requireAuth(req, res, next), a(folders.list));
 r.get('/folders/archived', requireAuth, a(folders.archived));
 r.post('/folders', requireAuth, validate(folderSchema), a(folders.create));
@@ -143,6 +143,8 @@ r.get('/admin/settings', requireAuth, requireDashboard, a(config.readSettings));
 r.patch('/admin/settings', requireAuth, requireSuperadmin, validate(z.object({ values: z.record(z.string(), z.any()), note: z.string().max(200).optional() })), a(config.writeSettings));
 r.post('/admin/settings/reset', requireAuth, requireSuperadmin, validate(z.object({ keys: z.array(z.string().max(64)).min(1).max(200) })), a(config.resetSettings));
 r.get('/admin/audit', requireAuth, requireDashboard, a(config.audit));
+r.get('/admin/assistants', requireAuth, requireDashboard, a(admin.assistants));
+r.delete('/admin/assistants/:id', requireAuth, requireDashboard, authLimit, validate(z.object({ note: z.string().trim().max(200).optional().default('') }).default({ note: '' })), a(admin.revokeAssistant));
 r.get('/admin/countries', requireAuth, requireDashboard, a(admin.countries));
 r.get('/admin/analytics', requireAuth, requireDashboard, a(admin.analytics));
 r.get('/admin/orders', requireAuth, requireDashboard, a(admin.orders));

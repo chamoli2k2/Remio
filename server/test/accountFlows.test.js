@@ -504,3 +504,76 @@ acct('an account that has only ever used Google is refused at the password form,
     assert.equal(tried.body.error, unknown.body.error, 'and it is indistinguishable from an address that does not exist');
   });
 });
+
+acct('one click with Google makes the account: username picked, country detected, signed straight in', async () => {
+  await withGoogle(async () => {
+    const agent = request.agent(app);
+    const credential = googleToken({ sub: 'g-oneclick-1', email: 'grace.hopper@gmail.com', name: 'Grace Hopper' });
+    // What the button sends now from either page: consent, and nothing else to fill in.
+    const made = await agent.post('/api/auth/google').set('CF-IPCountry', 'AU').send({ credential, acceptedTerms: true });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    assert.equal(made.body.created, true);
+    assert.equal(made.body.user.username, 'gracehopper');
+    assert.equal(made.body.user.country, 'Australia', 'the country comes from where they signed up');
+    assert.equal(made.body.user.hasPassword, false, 'so Settings knows to offer setting one');
+    assert.equal((await agent.get('/api/auth/me')).body.user.id, made.body.user.id, 'and the session is live');
+
+    // No location to go on falls back to the home market rather than refusing.
+    const nowhere = await request(app).post('/api/auth/google')
+      .send({ credential: googleToken({ sub: 'g-oneclick-2', email: 'nowhere@gmail.com', name: 'No Where' }), acceptedTerms: true });
+    assert.equal(nowhere.status, 201, JSON.stringify(nowhere.body));
+    assert.equal(nowhere.body.user.country, 'India');
+
+    // A second account whose address would make the same username gets a different one.
+    const twin = await request(app).post('/api/auth/google')
+      .send({ credential: googleToken({ sub: 'g-oneclick-3', email: 'grace.hopper@outlook.example', name: 'Grace Two' }), acceptedTerms: true });
+    assert.equal(twin.status, 201, JSON.stringify(twin.body));
+    assert.notEqual(twin.body.user.username, 'gracehopper');
+  });
+});
+
+acct('a Google-only account can set its first password without a current one, and then sign in with it', async () => {
+  await withGoogle(async () => {
+    const agent = request.agent(app);
+    const made = await agent.post('/api/auth/google')
+      .send({ credential: googleToken({ sub: 'g-setpw-1', email: 'setpw@gmail.com', name: 'Set Password' }), acceptedTerms: true });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+
+    const set = await agent.post('/api/auth/password').send({ newPassword: password });
+    assert.equal(set.status, 200, JSON.stringify(set.body));
+    assert.equal((await agent.get('/api/auth/me')).body.user.hasPassword, true);
+
+    const login = await request(app).post('/api/auth/login').send({ identifier: 'setpw@gmail.com', password });
+    assert.equal(login.status, 200, JSON.stringify(login.body));
+
+    // Once there is a password, changing it needs the old one again, as for anybody else.
+    const without = await agent.post('/api/auth/password').send({ newPassword: 'Another-password-2026' });
+    assert.equal(without.status, 400, JSON.stringify(without.body));
+  });
+});
+
+acct('a username can be changed in Settings, but not to a taken or reserved one', async () => {
+  const { agent } = await signUp('renamer');
+  const other = await signUp('occupied');
+  const profile = { name: 'Renamer', bio: '', dailyGoal: 20 };
+
+  const taken = await agent.patch('/api/auth/profile').send({ ...profile, username: other.username });
+  assert.equal(taken.status, 409, JSON.stringify(taken.body));
+  assert.equal(taken.body.code, 'USERNAME_TAKEN');
+
+  const reserved = await agent.patch('/api/auth/profile').send({ ...profile, username: 'support' });
+  assert.equal(reserved.status, 400, JSON.stringify(reserved.body));
+
+  const fresh = `renamed${crypto.randomBytes(3).toString('hex')}`;
+  const ok = await agent.patch('/api/auth/profile').send({ ...profile, username: fresh.toUpperCase() });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal(ok.body.user.username, fresh, 'stored lower case');
+  assert.equal((await request(app).get(`/api/users/${fresh}`)).status, 200, 'and the public profile moves with it');
+});
+
+acct('signing up by email with no username picks one from the address', async () => {
+  const email = `blankname${crypto.randomBytes(3).toString('hex')}@example.test`;
+  const r = await request(app).post('/api/auth/signup').send({ username: '', name: 'Blank', email, password, country: 'India', acceptedTerms: true });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.match(r.body.user.username, /^blankname/);
+});

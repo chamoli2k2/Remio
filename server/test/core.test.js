@@ -20,6 +20,11 @@ test('a trailing slash on the configured origin never reaches an allow-list or a
     assert.deepEqual(trustedOrigins(), ['https://a.example.com', 'https://b.example.com'], 'spaces and empty entries are dropped');
     assert.equal(publicOrigin(), 'https://a.example.com', 'the first one is the canonical one');
   });
+  // The brand domain wins wherever it is listed. Otherwise listing the Render host first made the
+  // assistant address, the OAuth metadata and every emailed link point at a host that redirects.
+  withOrigin(`https://recall-ue05.onrender.com, https://${BRAND.domain}`, () => {
+    assert.equal(publicOrigin(), `https://${BRAND.domain}`);
+  });
   // An absolute URL outlives the request that made it, so pointing it at a developer's laptop is
   // worse than pointing it at a host that is merely not deployed yet.
   withOrigin(undefined, () => {

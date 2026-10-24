@@ -19,5 +19,11 @@ export const trustedOrigins = () =>
  * that made them. A confirmation link pointing at a developer's laptop is worse than one pointing
  * at a host that is merely not deployed yet.
  */
-export const publicOrigin = () =>
-  (process.env.CLIENT_ORIGIN || '').split(',')[0].trim().replace(/\/+$/, '') || `https://${BRAND.domain}`;
+export const publicOrigin = () => {
+  const canonical = `https://${BRAND.domain}`;
+  const listed = (process.env.CLIENT_ORIGIN || '').split(',').map(v => v.trim().replace(/\/+$/, '')).filter(Boolean);
+  // The brand domain wins wherever it appears in the list. The list is an allow-list, so its order
+  // means nothing, and the hosting provider's own hostname listed first was being handed to
+  // assistants as the connector URL and written into every email.
+  return listed.find(o => o === canonical) || listed[0] || canonical;
+};

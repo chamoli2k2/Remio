@@ -50,7 +50,7 @@ const BUTTON_MIN = 220, BUTTON_MAX = 280;
  * `onCredential` receives that token and nothing else. Everything about who this is gets decided
  * on the server, because a token is the only part of this the browser cannot forge.
  */
-export default function GoogleButton({ onCredential, text = 'signin_with' }) {
+export default function GoogleButton({ onCredential, text = 'signin_with', notice = null }) {
   const { config } = useApp();
   const { theme } = useTheme();
   const slot = useRef(null);
@@ -107,6 +107,7 @@ export default function GoogleButton({ onCredential, text = 'signin_with' }) {
   return <div className="google-signin">
     <div ref={slot} className="google-signin-slot"/>
     {failed && <p className="google-signin-error">{failed}</p>}
+    {notice}
     <span className="google-signin-divider"><span/>or with your email<span/></span>
   </div>;
 }

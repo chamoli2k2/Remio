@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, Copy, Check, Plug, Undo2, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { Bot, Copy, Check, Plug, Undo2, ShieldCheck, TriangleAlert, ChevronDown, CircleCheck, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp, useQuery, useStore } from '../hooks/useApp';
 import { api } from '../services/api';
@@ -15,6 +15,10 @@ import { BRAND } from '../../../shared/brand.js';
  * bolted on afterwards; it is the thing that makes handing a model write access to your library a
  * reasonable decision, and putting it anywhere else would let somebody connect an assistant
  * without ever noticing they can undo it.
+ *
+ * The connecting half is written for someone who has never heard of MCP. They pick the app they
+ * use and follow its own menu names, with the address to paste sitting inside the step that needs
+ * it; the panel then watches for the connection arriving, so "did it work?" answers itself.
  */
 
 const ago = value => {
@@ -28,44 +32,165 @@ const ago = value => {
   return days < 30 ? `${days} d ago` : new Date(value).toLocaleDateString();
 };
 
-/** Shown once, and said so plainly, because the next screen genuinely cannot show it again. */
-function NewToken({ token, onDone }) {
+async function copyText(text, done) {
+  try { await navigator.clipboard.writeText(text); done?.(); toast.success('Copied'); }
+  catch { toast.error('Could not copy — select the text and copy it by hand.'); }
+}
+
+/** A value with its own copy button, used for the address, config snippets and prompts alike. */
+function CopyRow({ value, label, block = false, onCopy }) {
   const [copied, setCopied] = useState(false);
-  async function copy() {
-    try { await navigator.clipboard.writeText(token); setCopied(true); toast.success('Copied'); }
-    catch { toast.error('Could not copy — select the text and copy it by hand.'); }
-  }
+  useEffect(() => { if (!copied) return undefined; const t = setTimeout(() => setCopied(false), 2000); return () => clearTimeout(t); }, [copied]);
+  return <div className={`assistant-token-row ${block ? 'is-block' : ''}`}>
+    {block ? <pre>{value}</pre> : <code>{value}</code>}
+    <Button type="button" aria-label={label} onClick={() => copyText(value, () => { setCopied(true); onCopy?.(); })}>
+      {copied ? <Check size={15}/> : <Copy size={15}/>}<span>{copied ? 'Copied' : 'Copy'}</span>
+    </Button>
+  </div>;
+}
+
+/**
+ * Where each app keeps its connector settings, in that app's own words.
+ *
+ * Kept to the menu names a person will actually see, because "add the MCP server URL" means
+ * nothing to most people and "Settings → Connectors → Add custom connector" is a thing they can
+ * follow with the window open. Apps rename these menus now and then, which is why every guide
+ * ends with what to look for rather than only where.
+ */
+const APPS = [
+  {
+    id: 'claude', label: 'Claude', where: 'claude.ai, the desktop app, or the phone app',
+    steps: (url, onCopy) => [
+      <>Open Claude and go to <b>Settings</b> → <b>Connectors</b>.</>,
+      <>Click <b>Add custom connector</b>.</>,
+      <>Type <b>{BRAND.name}</b> as the name, and paste this address:<CopyRow value={url} label="Copy connector address" onCopy={onCopy}/></>,
+      <>Click <b>Add</b>, then <b>Connect</b>. A {BRAND.name} page opens — click <b>Approve</b>.</>,
+      <>Start a new chat. In the tools menu under the message box, make sure <b>{BRAND.name}</b> is switched on.</>,
+    ],
+    tip: 'No “Connectors” in your settings? Custom connectors depend on your Claude plan, and the menu may be called “Integrations” on older versions.',
+  },
+  {
+    id: 'chatgpt', label: 'ChatGPT', where: 'chatgpt.com on a computer',
+    steps: (url, onCopy) => [
+      <>Open ChatGPT on the web and go to <b>Settings</b> → <b>Apps &amp; Connectors</b>.</>,
+      <>Open <b>Advanced settings</b> and switch on <b>Developer mode</b>.</>,
+      <>Back in Apps &amp; Connectors, click <b>Create</b>. Name it <b>{BRAND.name}</b> and paste this address:<CopyRow value={url} label="Copy connector address" onCopy={onCopy}/></>,
+      <>Choose <b>OAuth</b> for authentication, tick that you trust the app, and click <b>Create</b>. A {BRAND.name} page opens — click <b>Approve</b>.</>,
+      <>In a chat, click <b>+</b> → <b>More</b> and pick <b>{BRAND.name}</b>.</>,
+    ],
+    tip: 'Developer mode is needed for ChatGPT to add cards for you, and it is only offered on some ChatGPT plans.',
+  },
+  {
+    id: 'other', label: 'Cursor & others', where: 'Cursor, VS Code, Windsurf, or any app that supports MCP',
+    steps: (url, onCopy) => [
+      <>Open your app’s <b>MCP</b> or <b>Tools</b> settings and choose to add a new server. In Cursor that is <b>Settings</b> → <b>MCP</b> → <b>Add new MCP server</b>.</>,
+      <>If it asks for a URL, paste this:<CopyRow value={url} label="Copy connector address" onCopy={onCopy}/></>,
+      <>If it asks for a JSON file instead, paste this:<CopyRow block value={JSON.stringify({ mcpServers: { [BRAND.slug]: { url } } }, null, 2)} label="Copy configuration" onCopy={onCopy}/></>,
+      <>Save. Your app opens a {BRAND.name} page — click <b>Approve</b>.</>,
+    ],
+    tip: 'If your app cannot open a sign-in page, use a token instead — it is under “Advanced” at the bottom of this panel.',
+  },
+];
+
+const PROMPTS = [
+  `Make 15 flashcards from this PDF and save them to a new ${BRAND.name} collection called “Biology”.`,
+  `Turn my notes below into ${BRAND.name} flashcards, with a question on the front and a short answer on the back.`,
+  `Add 10 flashcards about the French Revolution to my History collection in ${BRAND.name}.`,
+  `Show me my ${BRAND.name} collections.`,
+];
+
+/**
+ * Watches for a new connection after the address is copied, so success is something the person
+ * sees here rather than something they have to go and check.
+ *
+ * Polls rather than listening, because the connection is made by another app talking to the
+ * server and there is no event on this page to hear. Every five seconds for five minutes, then
+ * it gives up quietly — the list below still updates whenever the panel is next opened.
+ */
+function useConnectionWatch(grants, refetch) {
+  const [since, setSince] = useState(null);
+  const known = useRef(new Set());
+  const [arrived, setArrived] = useState(null);
+
+  const start = () => {
+    known.current = new Set(grants.map(g => g.id));
+    setArrived(null);
+    setSince(Date.now());
+  };
+  useEffect(() => {
+    if (!since) return undefined;
+    const timer = setInterval(() => {
+      if (Date.now() - since > 5 * 60_000) { setSince(null); return; }
+      refetch();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [since, refetch]);
+  useEffect(() => {
+    if (!since) return;
+    const fresh = grants.find(g => !known.current.has(g.id));
+    if (fresh) { setArrived(fresh); setSince(null); }
+  }, [grants, since]);
+  return { watching: !!since, arrived, start, dismiss: () => setArrived(null) };
+}
+
+function Guide({ endpoint, grants, refetch }) {
+  const [app, setApp] = useState(grants.length ? '' : 'claude');
+  const watch = useConnectionWatch(grants, refetch);
+  const chosen = APPS.find(a => a.id === app);
+
+  return <div className="assistant-guide">
+    {watch.arrived && <div className="assistant-success" role="status">
+      <CircleCheck size={20}/>
+      <div><strong>{watch.arrived.name || 'Your assistant'} is connected.</strong><p>Go back to it and try one of the requests below.</p></div>
+      <Button className="ghost small" onClick={watch.dismiss}>OK</Button>
+    </div>}
+
+    <p className="assistant-step-title"><span>1</span> Which assistant do you use?</p>
+    <div className="assistant-apps" role="tablist" aria-label="Choose your assistant">
+      {APPS.map(a => <button key={a.id} type="button" role="tab" aria-selected={app === a.id} className={app === a.id ? 'active' : ''} onClick={() => setApp(app === a.id ? '' : a.id)}>
+        <strong>{a.label}</strong><small>{a.where}</small>
+      </button>)}
+    </div>
+
+    {chosen && <>
+      <p className="assistant-step-title"><span>2</span> Connect it — about a minute</p>
+      <ol className="assistant-steps">{chosen.steps(endpoint, watch.start).map((step, i) => <li key={i}>{step}</li>)}</ol>
+      <p className="muted assistant-tip">{chosen.tip}</p>
+      {watch.watching && <div className="assistant-waiting" role="status"><span className="assistant-pulse" aria-hidden="true"/> Waiting for {chosen.label} to connect… finish the steps above and this will update by itself.</div>}
+
+      <p className="assistant-step-title"><span>3</span> Ask it for cards</p>
+      <ul className="assistant-prompts">{PROMPTS.map(p => <li key={p}><CopyRow value={p} label="Copy this request"/></li>)}</ul>
+    </>}
+  </div>;
+}
+
+/** Shown once, and said so plainly, because the next screen genuinely cannot show it again. */
+function NewToken({ token, endpoint, onDone }) {
+  const config = JSON.stringify({ mcpServers: { [BRAND.slug]: { url: endpoint, headers: { Authorization: `Bearer ${token}` } } } }, null, 2);
   return <div className="assistant-token">
     <p><strong>Copy this now.</strong> It is the only time it can be shown. If you lose it, disconnect this one and make another.</p>
-    <div className="assistant-token-row">
-      <code>{token}</code>
-      <Button onClick={copy} aria-label="Copy token">{copied ? <Check size={15}/> : <Copy size={15}/>}</Button>
-    </div>
+    <CopyRow value={token} label="Copy token"/>
+    <p className="muted">Or paste this whole block into an app that takes a JSON configuration:</p>
+    <CopyRow block value={config} label="Copy configuration with token"/>
     <Button className="secondary" onClick={onDone}>Done</Button>
   </div>;
 }
 
 function ConnectForm({ onCreated, max, count }) {
-  const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [name, setName] = useState('');
   const [scopes, setScopes] = useState(SCOPE_IDS);
   const toggle = id => setScopes(s => (s.includes(id) ? s.filter(x => x !== id) : SCOPE_IDS.filter(x => s.includes(x) || x === id)));
-  const full = count >= max;
-
-  if (!open) {
-    return <Button className="secondary" disabled={full} onClick={() => setOpen(true)}>
-      <Plug size={16}/> {full ? `Limit of ${max} reached` : 'Create a connection token'}
-    </Button>;
-  }
+  if (count >= max) return <p className="muted">You have connected {max} assistants, which is the limit. Disconnect one you no longer use to make another.</p>;
   return <form className="form-stack assistant-form" onSubmit={async e => {
     e.preventDefault(); setBusy(true); setError('');
     try {
       const d = await api('/agent/grants', { method: 'POST', body: { name: name.trim(), scopes } });
-      onCreated(d.token); setOpen(false); setName('');
+      onCreated(d.token); setName('');
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }}>
     <Field label="What are you connecting?" hint="Just a label, so you can tell them apart later.">
-      <input required maxLength={60} value={name} onChange={e => setName(e.target.value)} placeholder="Claude Desktop"/>
+      <input required maxLength={60} value={name} onChange={e => setName(e.target.value)} placeholder="My notes app"/>
     </Field>
     <fieldset className="assistant-scopes">
       <legend>What it may do</legend>
@@ -75,10 +200,7 @@ function ConnectForm({ onCreated, max, count }) {
       </label>)}
     </fieldset>
     {error && <ErrorState message={error}/>}
-    <div className="assistant-actions">
-      <Button className="primary" type="submit" loading={busy} disabled={!scopes.length}>Create token</Button>
-      <Button className="secondary" type="button" onClick={() => { setOpen(false); setError(''); }}>Cancel</Button>
-    </div>
+    <Button className="primary" type="submit" loading={busy} disabled={!scopes.length}><Plug size={16}/> Create token</Button>
   </form>;
 }
 
@@ -132,10 +254,10 @@ function Batches() {
 
 export default function AssistantPanel() {
   const { user } = useApp();
-  const { data, loading, error } = useQuery('/agent');
+  const { data, loading, error, refetch } = useQuery('/agent');
   const store = useStore();
   const [fresh, setFresh] = useState('');
-  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
 
   if (loading && !data) return <section className="settings-panel"><Loading/></section>;
   if (error) return <section className="settings-panel"><ErrorState message={error}/></section>;
@@ -144,27 +266,17 @@ export default function AssistantPanel() {
   const { grants = [], usage, endpoint, entitled, maxGrants } = data;
   const reload = () => store.invalidate('/agent');
 
-  return <section className="settings-panel assistant-panel">
+  return <section className="settings-panel assistant-panel" id="assistants">
     <h2><Bot size={18}/> AI assistants</h2>
-    <p>Connect Claude or ChatGPT and ask it to turn a PDF, an article or your notes into cards. It writes them straight into your library.</p>
+    <p>Connect Claude or ChatGPT, then just ask it to <em>“make flashcards from this PDF”</em>. The cards go straight into your library.</p>
 
     {!entitled
       ? <div className="assistant-locked">
-        <p>Connecting an assistant is part of Premium.</p>
+        <p><Sparkles size={16}/> Connecting an assistant is part of Premium.</p>
         <Link className="button primary" to="/premium">See Premium</Link>
       </div>
       : <>
-        <div className="assistant-endpoint">
-          <Field label={`${BRAND.name} connector URL`} hint="Paste this into your assistant's connector settings. It will ask you to approve the connection here.">
-            <div className="assistant-token-row">
-              <code>{endpoint}</code>
-              <Button aria-label="Copy connector URL" onClick={async () => {
-                try { await navigator.clipboard.writeText(endpoint); setCopiedUrl(true); toast.success('Copied'); }
-                catch { toast.error('Could not copy — select the text and copy it by hand.'); }
-              }}>{copiedUrl ? <Check size={15}/> : <Copy size={15}/>}</Button>
-            </div>
-          </Field>
-        </div>
+        <Guide endpoint={endpoint} grants={grants} refetch={refetch}/>
 
         {/*
           * Said before anything is connected rather than buried in a help page, because it is the
@@ -174,23 +286,19 @@ export default function AssistantPanel() {
           */}
         <div className="assistant-note">
           <ShieldCheck size={17}/>
-          <p>An assistant can only <strong>add</strong>. It cannot delete a card, change one you already have, or publish anything — so if a document you feed it tries to tell it to, there is nothing there to do. Pictures are downloaded from ordinary web addresses, re-encoded into our own file before they are kept, and only ever added to a private collection. Everything it writes is listed below and can be undone.</p>
+          <p>An assistant can only <strong>add</strong>. It cannot delete a card, change one you already have, or publish anything. Pictures it adds are re-made into our own file first, and only go into private collections. Everything it writes is listed below and can be undone.</p>
         </div>
 
-        {fresh
-          ? <NewToken token={fresh} onDone={() => { setFresh(''); reload(); }}/>
-          : <ConnectForm max={maxGrants} count={grants.length} onCreated={t => { setFresh(t); reload(); }}/>}
-
-        <h3>Connected</h3>
+        <h3>Connected{grants.length ? ` · ${grants.length}` : ''}</h3>
         {!grants.length
-          ? <p className="muted">Nothing connected yet.</p>
+          ? <p className="muted">Nothing connected yet. Follow the steps above and your assistant will appear here.</p>
           : <ul className="assistant-grants">{grants.map(g => <li key={g.id}>
             <div>
               <strong>{g.name}</strong>
               <small>
                 {g.scopes.map(s => SCOPES[s]?.label).filter(Boolean).join(' · ')}
                 {' — last used '}{ago(g.lastUsedAt)}
-                {g.expired && <span className="assistant-expired"> · expired</span>}
+                {g.expired && <span className="assistant-expired"> · expired, connect it again</span>}
               </small>
             </div>
             <Button className="secondary" onClick={async () => {
@@ -213,6 +321,18 @@ export default function AssistantPanel() {
           {' '}The allowance resets at midnight UTC, and undoing gives it back.
         </p>
         <Batches/>
+
+        <div className="assistant-advanced">
+          <button type="button" className="text-button" aria-expanded={advanced} onClick={() => setAdvanced(v => !v)}>
+            <ChevronDown size={15} className={advanced ? 'is-open' : ''}/> Advanced: connect with a token instead
+          </button>
+          {advanced && <>
+            <p className="muted">For apps that cannot open a {BRAND.name} sign-in page. You paste a secret token into the app instead — treat it like a password.</p>
+            {fresh
+              ? <NewToken token={fresh} endpoint={endpoint} onDone={() => { setFresh(''); reload(); }}/>
+              : <ConnectForm max={maxGrants} count={grants.length} onCreated={t => { setFresh(t); reload(); }}/>}
+          </>}
+        </div>
       </>}
     <p className="muted assistant-who">Connections belong to @{user.username} and act only on collections you own or can edit.</p>
   </section>;

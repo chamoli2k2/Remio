@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { RotateCcw, Save, ShieldAlert } from 'lucide-react';
+import { History, RotateCcw, Save, Search, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 import { reportError } from '../services/errors';
@@ -7,7 +7,6 @@ import { useApp, useQuery } from '../hooks/useApp';
 import { Button, Loading, ErrorState, Empty } from '../components/ui';
 import { isSuperadmin } from '../../../shared/account.js';
 
-const when = iso => iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 /**
@@ -52,32 +51,22 @@ function SettingRow({ id, spec, value, dirty, overridden, disabled, onChange }) 
   </div>;
 }
 
-/** Who changed what, kept because editable settings without a record of the edit is a liability. */
-function AuditTrail() {
-  const { data, loading, error } = useQuery('/admin/audit');
-  if (loading) return <Loading/>;
-  if (error) return <ErrorState message={error}/>;
-  const entries = data?.entries || [];
-  if (!entries.length) return <Empty title="Nothing changed yet" text="Every configuration change is recorded here, with who made it and what it was before."/>;
-  return <div className="dash-table-wrap">
-    <table className="dash-table">
-      <thead><tr><th>When</th><th>Who</th><th>What</th><th>Change</th><th>Note</th></tr></thead>
-      <tbody>{entries.map(e => <tr key={e.id}>
-        <td>{when(e.at)}</td>
-        <td>{e.actor}</td>
-        <td><strong>{e.action}</strong>{e.target && <span>{e.target}</span>}</td>
-        <td className="dash-audit-change">{e.before === null && e.after === null
-          ? <span className="dash-muted">—</span>
-          : <><code>{JSON.stringify(e.before)}</code> → <code>{JSON.stringify(e.after)}</code></>}</td>
-        <td>{e.note || <span className="dash-muted">—</span>}</td>
-      </tr>)}</tbody>
-    </table>
-  </div>;
-}
+/** Matches a setting by what it is called and what its help says, which is how people remember one. */
+const matches = (key, spec, term) => [key, spec.label, spec.help].some(v => String(v || '').toLowerCase().includes(term));
 
-export default function DashboardSettings() {
+/**
+ * One group at a time, chosen from a list beside it, rather than every group stacked into a single
+ * page that had to be scrolled to find anything. A search box reaches across all of them, because
+ * "where is the image limit" is a question about a setting, not about which group it lives in.
+ *
+ * Unsaved edits survive switching groups. They are held per key, not per group, so the save bar
+ * keeps counting them wherever the page is showing.
+ */
+export default function DashboardSettings({ group: initialGroup = '', onShowHistory }) {
   const { user, refresh } = useApp();
   const { data, loading, error, refetch } = useQuery('/admin/settings');
+  const [active, setActive] = useState(initialGroup);
+  const [search, setSearch] = useState('');
   // Only the keys actually touched are held here, so the form shows saved values for everything
   // else even if somebody else changes one while this page is open.
   const [edits, setEdits] = useState({});
@@ -123,14 +112,40 @@ export default function DashboardSettings() {
     } catch (e) { reportError(e); }
   }
 
-  return <>
+  const keysOf = id => Object.keys(specs).filter(k => specs[k].group === id);
+  const term = search.trim().toLowerCase();
+  const shownGroups = groups.filter(g => keysOf(g.id).length);
+  const current = shownGroups.find(g => g.id === active) || shownGroups[0];
+  // Searching shows every group with a match; otherwise only the chosen one.
+  const visible = term
+    ? shownGroups.map(g => ({ ...g, keys: keysOf(g.id).filter(k => matches(k, specs[k], term)) })).filter(g => g.keys.length)
+    : current ? [{ ...current, keys: keysOf(current.id) }] : [];
+
+  return <div className="dash-settings">
+    <nav className="dash-set-nav" aria-label="Setting groups">
+      <label className="folder-search dash-set-search"><Search size={15}/><input aria-label="Search settings" placeholder="Find a setting" value={search} onChange={e => setSearch(e.target.value)}/></label>
+      {shownGroups.map(g => {
+        const keys = keysOf(g.id);
+        const unsaved = keys.filter(k => dirty.includes(k)).length;
+        const edited = keys.filter(k => overridden.includes(k)).length;
+        return <button key={g.id} type="button" className={!term && current?.id === g.id ? 'active' : ''} aria-current={!term && current?.id === g.id ? 'true' : undefined}
+          onClick={() => { setActive(g.id); setSearch(''); }}>
+          <span>{g.label}</span>
+          {unsaved ? <b title="Unsaved changes">{unsaved}</b> : edited ? <em title="Changed from the shipped default">{edited}</em> : null}
+        </button>;
+      })}
+      {onShowHistory && <button type="button" className="dash-set-nav-history" onClick={onShowHistory}><History size={14}/> Change history</button>}
+    </nav>
+
+    <div className="dash-set-main">
     {!mayEdit && <div className="dash-set-readonly"><ShieldAlert size={18}/>
       <span>You can read every setting here, but only a superadmin can change one. Prices and switches
         are the kind of thing worth two people agreeing on.</span></div>}
 
-    {groups.map(group => {
-      const keys = Object.keys(specs).filter(k => specs[k].group === group.id);
-      if (!keys.length) return null;
+    {term && !visible.length && <Empty title="No setting matches" text="Try a different word, such as “price”, “limit” or “assistant”."/>}
+
+    {visible.map(group => {
+      const keys = group.keys;
       const edited = keys.filter(k => overridden.includes(k));
       return <section key={group.id} className="dash-set-group">
         <header>
@@ -160,10 +175,6 @@ export default function DashboardSettings() {
       <Button className="ghost" onClick={() => { setEdits({}); setProblems({}); }} disabled={saving}>Discard</Button>
       <Button loading={saving} onClick={save}><Save size={16}/> Save</Button>
     </div>}
-
-    <section className="dash-set-group">
-      <header><div><h2>Change history</h2><p>Every configuration change, newest first.</p></div></header>
-      <AuditTrail/>
-    </section>
-  </>;
+    </div>
+  </div>;
 }

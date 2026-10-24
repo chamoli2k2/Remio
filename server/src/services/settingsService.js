@@ -187,11 +187,37 @@ export async function record(actor, action, { target = '', before = null, after 
   }
 }
 
-export async function listAudit({ limit = 80, action = '' } = {}) {
-  const filter = action ? { action } : {};
-  const rows = await AuditEntry.find(filter).sort({ createdAt: -1 }).limit(Math.min(Math.max(Number(limit) || 80, 1), 500)).lean();
-  return rows.map(r => ({
-    id: String(r._id), action: r.action, target: r.target, note: r.note,
-    actor: r.actorName || 'system', before: r.before, after: r.after, at: r.createdAt,
-  }));
+/** The kinds the history can be narrowed to, by the prefix every action of that kind shares. */
+export const AUDIT_KINDS = { settings: 'settings.', account: 'account.', assistant: 'agent.' };
+
+const escapeRegex = value => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * One page of the history, newest first.
+ *
+ * Paged rather than capped: the log only grows, and a list that silently stops at the 80th entry
+ * makes the oldest changes look as if they never happened. The search is a case-insensitive
+ * substring over who, what and why, escaped so a typed bracket is a bracket and not a pattern.
+ */
+export async function listAudit({ page = 1, pageSize = 20, kind = '', q = '', action = '' } = {}) {
+  const size = Math.min(Math.max(Number(pageSize) || 20, 5), 100);
+  const filter = {};
+  if (action) filter.action = String(action);
+  else if (AUDIT_KINDS[kind]) filter.action = { $regex: `^${escapeRegex(AUDIT_KINDS[kind])}` };
+  const term = String(q || '').trim().slice(0, 80);
+  if (term) {
+    const pattern = { $regex: escapeRegex(term), $options: 'i' };
+    filter.$or = [{ target: pattern }, { actorName: pattern }, { note: pattern }, { action: pattern }];
+  }
+  const total = await AuditEntry.countDocuments(filter);
+  const pages = Math.max(1, Math.ceil(total / size));
+  const current = Math.min(Math.max(Math.floor(Number(page)) || 1, 1), pages);
+  const rows = await AuditEntry.find(filter).sort({ createdAt: -1, _id: -1 }).skip((current - 1) * size).limit(size).lean();
+  return {
+    entries: rows.map(r => ({
+      id: String(r._id), action: r.action, target: r.target, note: r.note,
+      actor: r.actorName || 'system', before: r.before, after: r.after, at: r.createdAt,
+    })),
+    page: current, pageSize: size, total, pages,
+  };
 }
