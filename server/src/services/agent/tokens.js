@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { AgentToken, AgentBatch, User } from '../../models/index.js';
-import { hashToken } from '../../middleware/auth.js';
+import { hashToken } from '../../utils/hash.js';
 import { setting } from '../settingsService.js';
 import { assert } from '../../utils/errors.js';
 import { hasPremium } from '../../../../shared/account.js';

@@ -12,7 +12,7 @@ test('GET /api/health is public, returns 200 without a database, and does not le
   assert.notEqual(mongoose.connection.readyState, 1, 'this test expects no database connection');
   process.env.MONGODB_URI ||= 'mongodb://secret-user:secret-pass@db.internal/app';
   const started = Date.now();
-  const res = await request(createApp()).get('/api/health').set('Cookie', `${BRAND.sessionCookie}=stale-token`);
+  const res = await request(createApp()).get('/api/health').set('Cookie', `${BRAND.cookies.access}=stale-token`);
   assert.equal(res.status, 200); assert.deepEqual(res.body, { ok: true, app: BRAND.slug, storage: 'mongodb' });
   assert.ok(Date.now() - started < 2000, 'liveness must not wait on Mongoose buffering');
   assert.equal(res.headers['cache-control'], 'no-store');
@@ -20,7 +20,7 @@ test('GET /api/health is public, returns 200 without a database, and does not le
 });
 test('GET /api/ready returns 503 with a safe body when the database is unavailable', async () => {
   assert.notEqual(mongoose.connection.readyState, 1);
-  const res = await request(createApp()).get('/api/ready').set('Cookie', `${BRAND.sessionCookie}=stale-token`);
+  const res = await request(createApp()).get('/api/ready').set('Cookie', `${BRAND.cookies.access}=stale-token`);
   assert.equal(res.status, 503);
   assert.deepEqual(res.body, { ok: false, status: 'unavailable', checks: { database: 'down' } });
 });

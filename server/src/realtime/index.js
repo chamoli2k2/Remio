@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
-import { Session, User, Card, CardDoc } from '../models/index.js';
-import { hashToken } from '../middleware/auth.js';
+import { Card, CardDoc } from '../models/index.js';
+import { resolveAccess } from '../services/auth/jwt.js';
 import { accessFolder } from '../services/accessService.js';
 import { requireFolderPremium } from '../services/teamAccess.js';
 import { onEvent } from './bus.js';
@@ -10,7 +10,7 @@ import { RoomStore } from './rooms.js';
 import { notifications, presentNotification } from '../services/notificationService.js';
 import { toAppError, GENERIC } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
-import { sessionCookieNames } from '../../../shared/brand.js';
+import { BRAND } from '../../../shared/brand.js';
 /**
  * Sockets answer with `{ ok, error }` instead of HTTP statuses, so failures run through the same
  * classifier and only exposed messages are sent back. `translate` lets a handler keep the wording
@@ -36,9 +36,20 @@ export function attachRealtime(httpServer, origins) {
     allowRequest: (req, cb) => { const o = req.headers.origin; cb(null, !o || origins.includes(o) || same(o, req.headers.host)); },
     maxHttpBufferSize: 256 * 1024, pingInterval: 20000, pingTimeout: 25000
   });
-  // Authenticate from the same HttpOnly session cookie the API uses. Anonymous sockets may watch public folders.
+  // The same access token the API takes: `auth.token` from a native app, else the HttpOnly cookie.
+  // An expired one refuses the connection so the client renews it and reconnects, rather than
+  // joining as a stranger. Stale claims do not matter here: every socket action checks access
+  // against the database, not the token. Anonymous sockets may watch public folders.
   io.use(async (socket, next) => {
-    try { const cookies = parseCookies(socket.handshake.headers.cookie); const token = sessionCookieNames.map(n => cookies[n]).find(Boolean); if (token) { const s = await Session.findOne({ tokenHash: hashToken(token), expiresAt: { $gt: new Date() } }); if (s) socket.data.user = await User.findById(s.user); } next(); } catch (e) { next(e); }
+    try {
+      const token = (typeof socket.handshake.auth?.token === 'string' && socket.handshake.auth.token) || parseCookies(socket.handshake.headers.cookie)[BRAND.cookies.access];
+      if (token) {
+        const found = await resolveAccess(token);
+        if (found.expired) return next(Object.assign(new Error('TOKEN_EXPIRED'), { data: { code: 'TOKEN_EXPIRED' } }));
+        if (found.user) socket.data.user = found.user;
+      }
+      next();
+    } catch (e) { next(e); }
   });
   const room = id => `folder:${id}`, docRoom = id => `doc:${id}`, quizRoom = code => `quiz:${code}`;
   const broadcastPresence = folderId => io.to(room(folderId)).emit('presence', folderId, presence.list(folderId));

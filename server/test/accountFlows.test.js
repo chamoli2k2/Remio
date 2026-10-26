@@ -7,7 +7,7 @@ import request from 'supertest';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { createApp } from '../src/app.js';
 import {
-  allModels, User, Session, AuthToken, Folder, Card, Progress, Review, Project,
+  allModels, User, RefreshToken, AuthToken, Folder, Card, Progress, Review, Project,
   Notification, Relationship, PremiumOrder, Team, TeamMember,
 } from '../src/models/index.js';
 import { _setTransport } from '../src/services/mailService.js';
@@ -279,7 +279,7 @@ acct('deleting an account erases the content it owned and signs the session out'
   assert.equal(await Progress.countDocuments({ user: id }), 0);
   assert.equal(await Review.countDocuments({ user: id }), 0);
   assert.equal(await Project.countDocuments({ owner: id }), 0);
-  assert.equal(await Session.countDocuments({ user: id }), 0);
+  assert.equal(await RefreshToken.countDocuments({ user: id }), 0);
   assert.equal(await AuthToken.countDocuments({ user: id }), 0);
   assert.equal(await Notification.countDocuments({ user: id }), 0);
   assert.equal(await Relationship.countDocuments({ $or: [{ from: id }, { to: id }] }), 0);

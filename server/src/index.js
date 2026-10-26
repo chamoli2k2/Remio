@@ -10,6 +10,8 @@ import { configWarnings } from './services/payments/index.js';
 import { configWarnings as storageWarnings } from './services/storage.js';
 import { reload } from './services/settingsService.js';
 import { BRAND } from '../../shared/brand.js';
+import { assertJwtConfigured } from './services/auth/jwt.js';
+assertJwtConfigured();
 await connectDatabase(); await Promise.all(allModels.map(m => m.init()));
 await reload();
 for (const warning of [...configWarnings(), ...storageWarnings()]) logger.warn(warning);

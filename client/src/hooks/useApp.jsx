@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback, useSyncExternalStore } from 'react';
-import { api, isDemo } from '../services/api';
+import { api, isDemo, stopRenewal } from '../services/api';
 import { messageFor } from '../services/errors';
 import { reauthRealtime } from '../services/realtime';
 import { browserStore } from '../services/store';
@@ -56,8 +56,9 @@ export function AppProvider({ children, store = browserStore, initialUser, initi
       api('/config').then(setConfig).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [provided]);
-  // The socket authenticates from the session cookie, so it must reconnect when the signed-in user changes.
-  const userId = user?.id ?? null; useEffect(() => { if (!loading) reauthRealtime(); }, [userId, loading]);
+  // The socket authenticates from the access-token cookie, so it must reconnect when the signed-in user
+  // changes. Nobody signed in means there is no token left to keep renewing.
+  const userId = user?.id ?? null; useEffect(() => { if (loading) return; if (!userId) stopRenewal(); reauthRealtime(); }, [userId, loading]);
   // Signing in or out makes every cached answer belong to the wrong person. The ref skips the first
   // run, which is just the session arriving, not a change of account.
   const lastUser = useRef();

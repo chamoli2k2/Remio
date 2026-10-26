@@ -3,12 +3,13 @@ import * as drawings from './drawingService.js';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import {
-  User, Session, AuthToken, Folder, Card, Media, Progress, Review, Activity, Revision,
+  User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, Activity, Revision,
   CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment,
   AgentToken, AgentBatch,
 } from '../models/index.js';
 import { assert } from '../utils/errors.js';
-import { hashToken } from '../middleware/auth.js';
+import { hashToken } from '../utils/hash.js';
+import { revokeAllTokens } from './auth/jwt.js';
 import { send, verificationEmail, passwordResetEmail, passwordChangedEmail, accountDeletedEmail } from './mailService.js';
 import { publicOrigin } from '../utils/origin.js';
 import { record } from './settingsService.js';
@@ -109,7 +110,7 @@ export async function resetPassword({ token, newPassword }) {
   if (!user.emailVerifiedAt) user.emailVerifiedAt = new Date();
   await user.save();
 
-  await Session.deleteMany({ user: user.id });
+  await revokeAllTokens(user.id);
   await AuthToken.deleteMany({ user: user.id });
 
   await send({ to: user.email, ...passwordChangedEmail({ name: user.name }) });
@@ -124,7 +125,7 @@ export async function resetPassword({ token, newPassword }) {
  * the session alone. The same email goes out as for a change, so if that was not them they hear
  * about it at an address Google has confirmed is theirs.
  */
-export async function changePassword(user, { currentPassword, newPassword }, keepSessionToken) {
+export async function changePassword(user, { currentPassword, newPassword }, keepRefreshToken) {
   const withHash = await User.findById(user.id).select('+passwordHash +email');
   assert(withHash, 404, 'That account no longer exists.');
   if (withHash.passwordHash) {
@@ -135,12 +136,11 @@ export async function changePassword(user, { currentPassword, newPassword }, kee
   withHash.passwordHash = await bcrypt.hash(newPassword, 12);
   await withHash.save();
 
-  const keep = keepSessionToken ? hashToken(keepSessionToken) : null;
-  const { deletedCount } = await Session.deleteMany({ user: user.id, ...(keep ? { tokenHash: { $ne: keep } } : {}) });
+  const signedOutElsewhere = await revokeAllTokens(user.id, { keep: keepRefreshToken });
   await AuthToken.deleteMany({ user: user.id });
 
   await send({ to: withHash.email, ...passwordChangedEmail({ name: user.name }) });
-  return { signedOutElsewhere: deletedCount };
+  return { signedOutElsewhere };
 }
 
 /**
@@ -280,7 +280,7 @@ async function eraseAccount(withHash) {
     }, opts);
 
     await AuthToken.deleteMany({ user: id }, opts);
-    await Session.deleteMany({ user: id }, opts);
+    await RefreshToken.deleteMany({ user: id }, opts);
     // Connected assistants and the record of what they wrote. Both go entirely: a standing
     // credential outliving the account it belonged to would be the worst kind of leftover, and
     // the batches point at cards that no longer exist.

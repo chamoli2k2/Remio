@@ -1,23 +1,61 @@
-import crypto from 'node:crypto';
-import { Session, User } from '../models/index.js';
-import { assert, asyncHandler } from '../utils/errors.js';
-import { BRAND, sessionCookieNames } from '../../../shared/brand.js';
+import { AppError, assert, asyncHandler } from '../utils/errors.js';
+import { BRAND } from '../../../shared/brand.js';
+import { REFRESH_TTL_MS, resolveAccess, signAccess } from '../services/auth/jwt.js';
 
-/** The token on a request, under whichever name it was issued. */
-export const sessionToken = req => { for (const n of sessionCookieNames) if (req.cookies?.[n]) return req.cookies[n]; return null; };
-export const hashToken = token => crypto.createHash('sha256').update(token).digest('hex');
-export const cookieOptions = () => ({ httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 1000 * 60 * 60 * 24 * 7 });
-export const optionalAuth = asyncHandler(async (req, _res, next) => {
-  const token = sessionToken(req);
-  if (token) {
-    const session = await Session.findOne({ tokenHash: hashToken(token), expiresAt: { $gt: new Date() } });
-    if (session) req.user = await User.findById(session.user);
-  }
-  next();
-});
-export const requireAuth = (req, _res, next) => { try { assert(req.user, 401, 'Sign in to continue.'); next(); } catch (e) { next(e); } };
-export async function createSession(res, user) {
-  const token = crypto.randomBytes(32).toString('hex');
-  await Session.create({ tokenHash: hashToken(token), user: user.id, expiresAt: new Date(Date.now() + cookieOptions().maxAge) });
-  res.cookie(BRAND.sessionCookie, token, cookieOptions());
+export { hashToken } from '../utils/hash.js';
+
+/**
+ * Two ways to carry the same tokens.
+ *
+ * A browser gets them as HttpOnly cookies, so a script injected into the page can never read them,
+ * and the Origin check in app.js covers the ambient authority that cookies bring. A native app sends
+ * `X-Auth-Mode: token`, receives the tokens in the response body, and presents the access token as
+ * `Authorization: Bearer`. Nothing is sent automatically there, so there is nothing to forge.
+ */
+export const wantsTokens = req => req.get('x-auth-mode') === 'token';
+const bearerOf = req => { const h = req.headers.authorization || ''; return h.startsWith('Bearer ') ? h.slice(7).trim() : ''; };
+export const accessTokenOf = req => bearerOf(req) || req.cookies?.[BRAND.cookies.access] || '';
+export const refreshTokenOf = req => (typeof req.body?.refreshToken === 'string' && req.body.refreshToken) || req.cookies?.[BRAND.cookies.refresh] || '';
+
+// The access cookie outlives the token inside it, so an expired one still reaches the server and
+// is answered with TOKEN_EXPIRED instead of looking like nobody was ever signed in.
+const base = () => ({ httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: REFRESH_TTL_MS });
+const accessCookie = () => ({ ...base(), path: '/' });
+const refreshCookie = () => ({ ...base(), path: '/api/auth' });
+export function clearAuthCookies(res) {
+  const { maxAge: _a, ...access } = accessCookie(); const { maxAge: _r, ...refresh } = refreshCookie();
+  res.clearCookie(BRAND.cookies.access, access);
+  res.clearCookie(BRAND.cookies.refresh, refresh);
 }
+
+/** Hands freshly issued tokens to the client in whichever form it asked for, and returns the body part. */
+export function deliverTokens(req, res, { access, refreshToken }) {
+  const auth = { accessExpiresAt: access.expiresAt.toISOString() };
+  if (wantsTokens(req)) return { auth, tokens: { accessToken: access.token, ...(refreshToken ? { refreshToken } : {}), tokenType: 'Bearer' } };
+  res.cookie(BRAND.cookies.access, access.token, accessCookie());
+  if (refreshToken) res.cookie(BRAND.cookies.refresh, refreshToken, refreshCookie());
+  return { auth };
+}
+
+// Requests that must work with a dead access token: renewing it, replacing it, and images, which an
+// <img> tag cannot retry and which fall back to whatever an anonymous visitor may see.
+const TOLERANT = /^\/(?:media\/|auth\/(?:refresh|logout|login|signup|google)$)/;
+const expired = () => new AppError(401, 'Your sign-in needs renewing. Please try again.', 'TOKEN_EXPIRED');
+
+export const authenticate = asyncHandler(async (req, res, next) => {
+  const token = accessTokenOf(req);
+  if (!token) return next();
+  const found = await resolveAccess(token);
+  if (found.revoked) { if (!bearerOf(req)) clearAuthCookies(res); return next(); }
+  if (found.stale && !bearerOf(req)) {
+    // A role or Premium change happened since this cookie was signed. Replace it now, so the gates
+    // below read the current claims and the browser carries them from here on.
+    const access = await signAccess(found.user);
+    res.cookie(BRAND.cookies.access, access.token, accessCookie());
+    req.user = found.user; req.auth = access.claims; return next();
+  }
+  if (found.user && !found.stale) { req.user = found.user; req.auth = found.claims; return next(); }
+  if (TOLERANT.test(req.path)) return next();
+  next(expired());
+});
+export const requireAuth = (req, _res, next) => { try { assert(req.auth, 401, 'Sign in to continue.'); next(); } catch (e) { next(e); } };

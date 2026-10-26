@@ -27,6 +27,8 @@ export const signupSchema = z.object({ username: z.preprocess(v => (v === '' || 
 export const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128).optional(), newPassword: z.string().min(10).max(128) });
 export const deleteAccountSchema = z.object({ password: z.string().min(1).max(128), confirm: z.literal('delete my account') });
 export const verifyEmailSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, 'That confirmation link is not valid.') });
+// A browser sends nothing and relies on the cookie; a native app sends the token it was given.
+export const refreshSchema = z.object({ refreshToken: z.string().regex(/^[a-f\d]{64}$/i).optional() }).default({});
 export const forgotPasswordSchema = z.object({ email: z.email().toLowerCase() });
 export const resetPasswordSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, 'That reset link is not valid.'), newPassword: z.string().min(10).max(128) });
 export const folderSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), color: z.enum(['violet', 'blue', 'orange', 'green', 'pink', 'slate']).default('violet'), icon: z.enum(['layers', 'code', 'globe', 'brain', 'book', 'flask', 'terminal', 'palette']).default('layers'), visibility: z.enum(['private', 'global']).default('private'), thumbnail: idSchema.nullable().optional() });

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { AgentToken, OAuthClient, OAuthGrant } from '../../models/index.js';
-import { hashToken } from '../../middleware/auth.js';
+import { hashToken } from '../../utils/hash.js';
 import { publicOrigin } from '../../utils/origin.js';
 import { SCOPE_IDS, SCOPES, parseScopes, scopeString, MCP_PATH } from '../../../../shared/agent.js';
 import { issueForClient, refreshForClient, requireAgentsEnabled, requireAgentEntitlement } from './tokens.js';

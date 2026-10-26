@@ -65,7 +65,8 @@ export const BRAND = {
    */
   mailFrom: `${name} <${inbox}>`,
 
-  sessionCookie: `${slug}_session`,
+  /** The signed access token, and the refresh token that renews it. Both HttpOnly. */
+  cookies: { access: `${slug}_access`, refresh: `${slug}_refresh` },
   /** Keys this app owns in localStorage. */
   storage: {
     theme: `${slug}-theme`,
@@ -74,17 +75,13 @@ export const BRAND = {
   },
 
   /**
-   * Slugs the product used to go by. A rename would otherwise invalidate every session cookie and
-   * every saved preference, so both are still read under these names and rewritten under the current
-   * one. Safe to empty once the old sessions have expired.
+   * Slugs the product used to go by. A rename would otherwise reset every saved preference, so they
+   * are still read under these names and rewritten under the current one.
    */
   legacySlugs: ['recall'],
 };
 
 export const brandName = BRAND.name;
-
-/** Cookie names to accept on an incoming request, current first. */
-export const sessionCookieNames = [BRAND.sessionCookie, ...BRAND.legacySlugs.map(s => `${s}_session`)];
 
 /** Storage keys to read for `which`, current first, so a rename keeps the saved value. */
 export const storageKeys = which =>

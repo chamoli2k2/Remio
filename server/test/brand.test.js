@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { BRAND, brandName, sessionCookieNames, storageKeys } from '../../shared/brand.js';
+import { BRAND, brandName, storageKeys } from '../../shared/brand.js';
 
 test('the display values all derive from the name', () => {
   assert.equal(brandName, BRAND.name);
@@ -15,14 +15,11 @@ test('the display values all derive from the name', () => {
 
 test('the identifiers all derive from the slug', () => {
   assert.equal(BRAND.slug, BRAND.name.toLowerCase());
-  assert.equal(BRAND.sessionCookie, `${BRAND.slug}_session`);
+  for (const name of Object.values(BRAND.cookies)) assert.ok(name.startsWith(`${BRAND.slug}_`), name);
   for (const key of Object.values(BRAND.storage)) assert.ok(key.startsWith(BRAND.slug), key);
 });
 
-test('a rename still accepts sessions and preferences issued under the old name', () => {
-  assert.equal(sessionCookieNames[0], BRAND.sessionCookie, 'the current name is preferred');
-  for (const old of BRAND.legacySlugs) assert.ok(sessionCookieNames.includes(`${old}_session`), old);
-
+test('a rename still reads preferences saved under the old name', () => {
   assert.equal(storageKeys('theme')[0], BRAND.storage.theme);
   for (const old of BRAND.legacySlugs) assert.ok(storageKeys('theme').includes(`${old}-theme`), old);
 });

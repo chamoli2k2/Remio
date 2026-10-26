@@ -16,7 +16,7 @@ import * as teams from '../controllers/teamController.js';
 import * as agent from '../controllers/agentController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePremium, requireDashboard, requireSuperadmin, requireVerifiedEmail } from '../middleware/account.js';
-import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, folderDeleteSchema, cardSchema, drawingSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema } from '../middleware/validate.js';
+import { validate, refreshSchema, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, folderDeleteSchema, cardSchema, drawingSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema } from '../middleware/validate.js';
 import { requireImports, requireSignupOpen } from '../middleware/config.js';
 import { throttle as rateLimit } from '../middleware/throttle.js';
 import { megabytes, setting } from '../services/settingsService.js';
@@ -50,7 +50,8 @@ r.post('/auth/login', authLimit, validate(z.object({ identifier: z.string().min(
 // Not behind requireSignupOpen: the same endpoint signs existing people in, and closing signups
 // must not lock them out. The service checks the setting only on the path that creates an account.
 r.post('/auth/google', authLimit, validate(googleSignInSchema), a(auth.google));
-r.post('/auth/logout', a(auth.logout)); r.get('/auth/me', a(auth.me));
+r.post('/auth/refresh', validate(refreshSchema), a(auth.refresh));
+r.post('/auth/logout', validate(refreshSchema), a(auth.logout)); r.get('/auth/me', a(auth.me));
 // Confirming a link is unauthenticated because the click can land in any browser. The token is the
 // credential, so the limiter is what stops it being guessed at.
 r.post('/auth/verify-email', authLimit, validate(verifyEmailSchema), a(auth.verifyEmail));
