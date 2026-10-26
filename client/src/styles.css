@@ -335,7 +335,23 @@ html[data-theme=dark] .room-invite,html[data-theme=dark] .room-players,html[data
 /* These track .main-content's padding at each breakpoint so the wordmark keeps sitting under the page title. */
 @media(max-width:1250px){.site-footer-inner{padding:18px 28px}}
 @media(max-width:760px){.site-footer-inner{padding:16px 20px}}.public-page .site-footer-inner{max-width:none;padding:19px 0}
-@media(max-width:600px){.site-footer-inner{padding:14px 17px;gap:8px 14px}.site-footer-tag{display:none}.site-footer-links,.site-footer-links nav{gap:14px}.site-footer-year{padding-left:14px}}
+@media(max-width:600px){.site-footer-inner{padding:14px 17px;gap:8px 14px}.site-footer-tag{display:none}.site-footer-links,.site-footer-links nav{gap:4px 14px;flex-wrap:wrap;min-width:0}.site-footer-year{padding-left:14px}}
+/* Nothing may make the page wider than the screen: on iOS a few stray pixels are enough to let the
+   whole layout be pinched out. `clip` rather than `hidden`, so no scroll container is created and
+   sticky headers keep working. */
+html,body{overflow-x:clip}
+/* Launched from the home screen: no page zoom, no rubber-band bounce. StandaloneGestures adds the
+   class and supplies swipe-back and pull-to-refresh in their place. */
+html.is-standalone{touch-action:pan-x pan-y;overscroll-behavior:none}
+html.is-standalone body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+.edge-back,.pull-refresh{position:fixed;z-index:60;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#fff;color:var(--accent);box-shadow:0 6px 20px #2a1a4026;pointer-events:none;will-change:transform,opacity}
+.edge-back{left:0;top:50%;width:40px;height:40px;transition:background .15s,color .15s}
+.edge-back.is-ready{background:var(--accent);color:#fff}
+.pull-refresh{left:50%;top:calc(env(safe-area-inset-top) + 8px);width:36px;height:36px}
+.pull-refresh.is-busy svg{animation:pull-spin .7s linear infinite}
+@keyframes pull-spin{to{transform:rotate(360deg)}}
+html[data-theme=dark] .edge-back,html[data-theme=dark] .pull-refresh{background:var(--surface-2);box-shadow:0 6px 20px #0008}
+html[data-theme=dark] .edge-back.is-ready{background:var(--accent);color:#fff}
 /* Legal and contact pages. These use the theme variables throughout so dark mode needs no overrides. */
 .legal-head{max-width:720px;margin-bottom:40px}
 .legal-head h1{font-size:44px;line-height:1.1;letter-spacing:-1.6px;color:var(--ink);margin:10px 0 0}

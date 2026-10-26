@@ -8,6 +8,7 @@ import { browserStore } from './services/store';
 import { useTheme } from './hooks/useTheme';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import StandaloneGestures from './components/StandaloneGestures';
 import '@fontsource-variable/dm-sans';
 import '@fontsource-variable/manrope';
 import './styles.css';
@@ -36,7 +37,7 @@ if (boot?.data) browserStore.hydrate(boot.data);
 const root = document.getElementById('root');
 const tree = <React.StrictMode><ErrorBoundary><BrowserRouter>
   <AppProvider {...(boot ? { initialUser: boot.user ?? null, initialConfig: boot.config } : {})}>
-    <App/><ThemedToaster/>
+    <App/><ThemedToaster/><StandaloneGestures/>
   </AppProvider>
 </BrowserRouter></ErrorBoundary></React.StrictMode>;
 
