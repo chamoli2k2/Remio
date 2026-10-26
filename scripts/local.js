@@ -2,7 +2,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 fs.mkdirSync('.local-data/mongo', { recursive: true });
-const mongo = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' }, instanceOpts: [{ dbPath: new URL('../.local-data/mongo', import.meta.url).pathname }] });
+const mongo = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' }, instanceOpts: [{ port: Number(process.env.LOCAL_MONGO_PORT || 62565), dbPath: new URL('../.local-data/mongo', import.meta.url).pathname }] });
 const env = { ...process.env, MONGODB_URI: mongo.getUri('recall'), CLIENT_ORIGIN: 'http://localhost:4173,http://terminal.local:4173,http://localhost:4000' };
 if (process.argv.includes('--seed')) await new Promise((resolve, reject) => { const p = spawn(process.execPath, ['server/src/seed.js'], { env, stdio: 'inherit' }); p.on('exit', code => code ? reject(new Error('Seed failed')) : resolve()); });
 const api = spawn(process.execPath, ['server/src/index.js'], { env, stdio: 'inherit' });

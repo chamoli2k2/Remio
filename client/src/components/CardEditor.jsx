@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ImagePlus, X, Save, RotateCcw, History, Radio, WifiOff, Bold, Italic, Code, Sigma, Brackets, Eye, EyeOff } from 'lucide-react';
+import { ImagePlus, PenLine, Pencil, X, Save, RotateCcw, History, Radio, WifiOff, Bold, Italic, Code, Sigma, Brackets, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { Modal, Field, Button, ErrorState, Avatar } from './ui';
 import { useApp } from '../hooks/useApp';
@@ -9,6 +9,8 @@ import Img from './Img';
 import { colorFor } from '../services/colors';
 import CollabText, { PlainText } from './CollabText';
 import RichText from './RichText';
+import DrawingView from './DrawingView';
+import DrawingEditor from './DrawingEditor';
 import { CLOZE_RE, hasCloze } from '../../../shared/cloze.js';
 import { BRAND } from '../../../shared/brand.js';
 const nextCloze = text => Math.max(0, ...[...String(text).matchAll(CLOZE_RE)].map(m => Number(m[1]))) + 1;
@@ -39,10 +41,10 @@ function SideEditor({ side, index, collaborative, live, form, updateSide, pasteI
   </div>;
 }
 export default function CardEditor({ folder, card, onClose, onEditing, liveVersion }) {
-  const { refresh, user } = useApp(); const blank = { front: { text: '', image: null }, back: { text: '', image: null }, tags: [], hint: '', source: '' };
+  const { refresh, user } = useApp(); const blank = { front: { text: '', image: null, drawing: null }, back: { text: '', image: null, drawing: null }, tags: [], hint: '', source: '' };
   const key = `${BRAND.storage.draft}:${user.id}:${folder.id}:${card?.id || 'new'}`;
   const [form, setForm] = useState(() => { try { const draft = JSON.parse(sessionStorage.getItem(key)); if (draft) return draft; } catch {} return card ? { front: card.front, back: card.back, tags: card.tags, hint: card.hint, source: card.source } : blank; });
-  const [tag, setTag] = useState(''), [busy, setBusy] = useState(false), [uploading, setUploading] = useState(''), [error, setError] = useState(''), [history, setHistory] = useState(null), [preview, setPreview] = useState(false);
+  const [tag, setTag] = useState(''), [busy, setBusy] = useState(false), [uploading, setUploading] = useState(''), [error, setError] = useState(''), [history, setHistory] = useState(null), [preview, setPreview] = useState(false), [drawing, setDrawing] = useState(null);
   // Existing cards are co-edited through a shared CRDT document; new cards are drafted locally until created.
   const live = useCardDoc(card?.id, { name: user.name, color: colorFor(user.id) }, !!card);
   const collaborative = !!card && live.ready;
@@ -62,8 +64,8 @@ export default function CardEditor({ folder, card, onClose, onEditing, liveVersi
   }
   async function save(another = false) {
     const body = { ...form, front: { ...form.front, text: textOf('front') }, back: { ...form.back, text: textOf('back') } };
-    if (!body.front.text.trim() && !body.front.image) { setError('Add text or an image to the front.'); return; }
-    if (!body.back.text.trim() && !body.back.image && !hasCloze(body.front.text)) { setError('Add text or an image to the back, or turn the front into a cloze card with {{c1::answer}}.'); return; }
+    if (!body.front.text.trim() && !body.front.image && !body.front.drawing) { setError('Add text, an image or a drawing to the front.'); return; }
+    if (!body.back.text.trim() && !body.back.image && !body.back.drawing && !hasCloze(body.front.text)) { setError('Add text, an image or a drawing to the back, or turn the front into a cloze card with {{c1::answer}}.'); return; }
     setBusy(true); setError('');
     try { const finalTags = tag.trim() ? [...new Set([...form.tags, tag.trim().toLowerCase().replace(/^#/, '')])].slice(0, 10) : form.tags; const r = await api(card ? `/cards/${card.id}` : `/folders/${folder.id}/cards`, { method: card ? 'PATCH' : 'POST', body: { ...body, tags: finalTags, ...(card ? { version: versionRef.current } : {}) } }); if (r.card) versionRef.current = r.card.version; sessionStorage.removeItem(key); refresh(); toast.success(card ? 'Card updated' : 'Flashcard created'); if (another) { setForm(blank); setTag(''); } else onClose(); }
     catch (e) { setError(e.message); } finally { setBusy(false); }
@@ -72,7 +74,16 @@ export default function CardEditor({ folder, card, onClose, onEditing, liveVersi
   return <Modal open onClose={onClose} wide title={card ? 'Make it memorable' : 'One new thing to remember'} description={collaborative ? `${folder.title} · Everyone with editor access sees your typing as it happens.` : `${folder.title} · Drafts are kept in this browser tab until saved.`}><form className="form-stack" onSubmit={e => { e.preventDefault(); save(); }}>
     {card && <div className="editor-live-row">{status}<div className="peer-list">{live.peers.map(p => <span className="peer" key={p.id} style={{ '--peer': p.color }} title={p.name}><Avatar user={{ name: p.name }} small/></span>)}</div></div>}
     <div className="card-editor-sides">{['front', 'back'].map((side, i) => <SideEditor key={side} side={side} index={i} collaborative={collaborative} live={live} form={form} updateSide={updateSide} pasteImage={pasteImage} preview={preview} setPreview={setPreview}>
-      {form[side].image && <div className="editor-image"><Img id={form[side].image} alt={`${side} attachment`} sizes="(max-width: 640px) 90vw, 420px"/><button type="button" className="icon-button" aria-label={`Remove ${side} image`} onClick={() => updateSide(side, { image: null })}><X size={17}/></button></div>}<div className="editor-footer"><label className="upload-button"><ImagePlus size={17}/>{uploading === side ? 'Uploading…' : 'Add image'}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={!!uploading} onChange={e => upload(side, e.target.files[0])}/></label><small>or paste a screenshot</small></div></SideEditor>)}</div>
+      {form[side].image && <div className="editor-image"><Img id={form[side].image} alt={`${side} attachment`} sizes="(max-width: 640px) 90vw, 420px"/><button type="button" className="icon-button" aria-label={`Remove ${side} image`} onClick={() => updateSide(side, { image: null })}><X size={17}/></button></div>}{form[side].drawing && <div className="editor-drawing">
+        <DrawingView folderId={folder.id} id={form[side].drawing} label={`${side} drawing`}/>
+        <div className="editor-drawing-actions">
+          <button type="button" className="button secondary small" onClick={() => setDrawing({ side, id: form[side].drawing })}><Pencil size={14}/> Edit drawing</button>
+          <button type="button" className="icon-button" aria-label={`Remove ${side} drawing`} title="Remove drawing" onClick={() => updateSide(side, { drawing: null })}><X size={17}/></button>
+        </div>
+      </div>}<div className="editor-footer"><div className="editor-footer-actions"><label className="upload-button"><ImagePlus size={17}/>{uploading === side ? 'Uploading…' : 'Add image'}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={!!uploading} onChange={e => upload(side, e.target.files[0])}/></label>{!form[side].drawing && <button type="button" className="upload-button" onClick={() => setDrawing({ side, id: null })}><PenLine size={17}/> Draw</button>}</div><small>or paste a screenshot</small></div></SideEditor>)}</div>
+    {drawing && <DrawingEditor folderId={folder.id} drawingId={drawing.id} title={`${drawing.side === 'front' ? 'Front' : 'Back'} drawing`}
+      onClose={() => setDrawing(null)}
+      onSave={id => { updateSide(drawing.side, { drawing: id }); setDrawing(null); toast.success('Drawing added to the card. Save the card to keep it.'); }}/>}
     <p className="editor-syntax-hint">Markdown works everywhere: <code>**bold**</code>, <code>`code`</code>, lists. Math with <code>{'$e^{i\\pi}$'}</code>. Hide part of the front with <code>{'{{c1::answer}}'}</code> to make a cloze card.</p>
     <Field label="Tags · optional"><div className="tag-input">{form.tags.map(t => <span className="tag" key={t}>{t}<button type="button" aria-label={`Remove ${t} tag`} onClick={() => update('tags', form.tags.filter(v => v !== t))}><X size={12}/></button></span>)}<input aria-label="New tag" placeholder="Type a tag, press Enter" value={tag} maxLength={30} onChange={e => setTag(e.target.value)} onBlur={addTag} onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}/></div></Field>
     <div className="two-columns"><Field label="Hint · optional"><input placeholder="A little nudge in the right direction" value={form.hint} maxLength={1000} onChange={e => update('hint', e.target.value)}/></Field><Field label="Source link · optional"><input type="url" placeholder="https://…" value={form.source} onChange={e => update('source', e.target.value)}/></Field></div>

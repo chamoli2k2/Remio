@@ -138,7 +138,9 @@ const oauthGrant = new Schema({
 
 const folder = new Schema({ title: { type: String, required: true }, description: { type: String, default: '' }, color: { type: String, default: 'violet' }, icon: { type: String, default: 'layers' }, visibility: { type: String, enum: ['private', 'global'], default: 'private' }, owner: ref('User'), members: [{ user: ref('User'), role: { type: String, enum: ['viewer', 'editor'], required: true }, _id: false }], version: { type: Number, default: 0 }, writeEpoch: { type: Number, default: 0 }, archived: { type: Boolean, default: false }, copiedFrom: ref('Folder', false), originalCreator: { type: String, default: '' }, thumbnail: ref('Media', false), likeCount: { type: Number, default: 0 }, copyCount: { type: Number, default: 0 }, team: ref('Team', false) }, options);
 folder.index({ owner: 1, updatedAt: -1 }); folder.index({ 'members.user': 1 }); folder.index({ visibility: 1, archived: 1 }); folder.index({ team: 1, updatedAt: -1 });
-const side = { text: { type: String, default: '' }, image: ref('Media', false) };
+// `drawing` is a plain string id, not a reference: the drawing lives in object storage, keyed by
+// folder and this id, so nothing about it depends on this database (see shared/drawing.js).
+const side = { text: { type: String, default: '' }, image: ref('Media', false), drawing: { type: String, default: null } };
 const card = new Schema({ folder: ref('Folder'), front: side, back: side, tags: [String], hint: { type: String, default: '' }, source: { type: String, default: '' }, version: { type: Number, default: 0 }, createdBy: ref('User'), updatedBy: ref('User') }, options);
 card.index({ folder: 1, createdAt: 1 }); card.index({ folder: 1, tags: 1 });
 // `width` is the original's own width, so no resized copy wider than the picture is ever offered.
@@ -247,6 +249,13 @@ const contentReport = new Schema({
 contentReport.index({ status: 1, createdAt: -1 });
 contentReport.index({ folder: 1, createdAt: -1 });
 
+/**
+ * Whole documents by string key, used only when object storage is not configured. The same shape
+ * as a bucket object or a key–value table row, so it has no relationship to anything else here.
+ */
+const blob = new Schema({ _id: { type: String }, body: { type: Buffer, required: true }, contentType: { type: String, default: 'application/json' }, bytes: { type: Number, default: 0 } }, { timestamps: true });
+export const Blob = model('Blob', blob);
+
 export const AgentToken = model('AgentToken', agentToken), AgentBatch = model('AgentBatch', agentBatch), OAuthClient = model('OAuthClient', oauthClient), OAuthGrant = model('OAuthGrant', oauthGrant);
 export const User = model('User', user), Session = model('Session', session), AuthToken = model('AuthToken', authToken), Folder = model('Folder', folder), Card = model('Card', card), Media = model('Media', media), Progress = model('Progress', progress), Review = model('Review', review), Activity = model('Activity', activity), Revision = model('Revision', revision), DomainEvent = model('DomainEvent', event), CardDoc = model('CardDoc', cardDoc), Relationship = model('Relationship', relationship), Project = model('Project', project), PremiumOrder = model('PremiumOrder', premiumOrder), Notification = model('Notification', notification), Team = model('Team', team), TeamMember = model('TeamMember', teamMember), TeamInvite = model('TeamInvite', teamInvite), Assignment = model('Assignment', assignment), Setting = model('Setting', setting), AuditEntry = model('AuditEntry', auditEntry), ContentReport = model('ContentReport', contentReport);
-export const allModels = [User, Session, AuthToken, Folder, Card, Media, Progress, Review, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant];
+export const allModels = [User, Session, AuthToken, Folder, Card, Media, Progress, Review, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];

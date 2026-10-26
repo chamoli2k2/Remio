@@ -2,6 +2,7 @@ import { Card, Folder, Media, Progress, Revision, Review, CardDoc } from '../mod
 import { accessFolder, mutateFolder, recordEvent } from './accessService.js';
 import * as media from './mediaService.js';
 import * as storage from './storage.js';
+import * as drawings from './drawingService.js';
 import { assert } from '../utils/errors.js';
 import { previewSchedule } from './studyService.js';
 import { currentRetrievability, DEFAULT_RETENTION } from './fsrs.js';
@@ -23,7 +24,7 @@ async function verifyImages(body, folder, session) {
 }
 export async function createCard(folderId, user, body) {
   return mutateFolder(folderId, user, 'editor', async (folder, session) => {
-    assert(!folder.archived, 409, 'Restore this folder before adding cards.'); await verifyImages(body, folder, session);
+    assert(!folder.archived, 409, 'Restore this folder before adding cards.'); await verifyImages(body, folder, session); await drawings.verify(body, folder.id);
     const [card] = await Card.create([{ ...body, folder: folder.id, createdBy: user.id, updatedBy: user.id }], { session });
     await recordEvent(folder, user, 'card.created', stripCloze(body.front.text).slice(0, 100) || 'Image card', session, card.id); return card;
   });
@@ -33,7 +34,7 @@ export async function importCards(folderId, user, cards, { extraTags = [] } = {}
   assert(cards.length, 400, 'No cards were found in that file.'); assert(cards.length <= MAX_CARDS, 400, `Import at most ${MAX_CARDS} cards at a time.`);
   return mutateFolder(folderId, user, 'editor', async (folder, session) => {
     assert(!folder.archived, 409, 'Restore this folder before adding cards.');
-    const docs = cards.map(c => ({ ...c, tags: [...new Set([...c.tags, ...extraTags])].slice(0, 10), folder: folder.id, createdBy: user.id, updatedBy: user.id }));
+    const docs = cards.map(c => ({ ...c, front: { ...c.front, drawing: null }, back: { ...c.back, drawing: null }, tags: [...new Set([...c.tags, ...extraTags])].slice(0, 10), folder: folder.id, createdBy: user.id, updatedBy: user.id }));
     const created = await Card.insertMany(docs, { session });
     await recordEvent(folder, user, 'cards.imported', `${created.length} cards imported`, session, folder.id, { count: created.length }); return created;
   });
@@ -47,7 +48,7 @@ export async function updateCard(id, user, body) {
   return mutateFolder(current.folder, user, 'editor', async (folder, session) => {
     const card = await Card.findById(id).session(session); assert(card, 404, 'Card not found.');
     assert(card.version === body.version, 409, 'Someone edited this card. Your draft is kept; close and reopen the card to review their changes.', 'VERSION_CONFLICT');
-    await verifyImages(body, folder, session);
+    await verifyImages(body, folder, session); await drawings.verify(body, folder.id);
     await Revision.create([{ card: card.id, folder: folder.id, editor: user.id, version: card.version, snapshot: { front: card.front, back: card.back, tags: card.tags, hint: card.hint, source: card.source } }], { session });
     const { version, ...data } = body; Object.assign(card, data); card.version++; card.updatedBy = user.id; await card.save({ session });
     await recordEvent(folder, user, 'card.updated', stripCloze(card.front.text).slice(0, 100) || 'Image card', session, card.id, { version: card.version }); return card;
@@ -56,7 +57,11 @@ export async function updateCard(id, user, body) {
 export async function deleteCard(id, user) {
   const current = await Card.findById(id); assert(current, 404, 'Card not found.');
   const imageIds = [current.front?.image, current.back?.image].filter(Boolean);
-  const { orphaned } = await mutateFolder(current.folder, user, 'editor', async (folder, session) => {
+  const { orphaned, sketches } = await mutateFolder(current.folder, user, 'editor', async (folder, session) => {
+    // Drawings are never shared between cards — each save is a new id — so this card's, and the
+    // ones its history points at, can all go with it.
+    const history = await Revision.find({ card: id }).select('snapshot').session(session).lean();
+    const sketches = drawings.idsIn([current, ...history.map(r => r.snapshot)]);
     await Card.deleteOne({ _id: id }, { session });
     await Revision.deleteMany({ card: id }, { session });
     await Progress.deleteMany({ card: id }, { session });
@@ -75,7 +80,8 @@ export async function deleteCard(id, user) {
     }
     const purged = await media.purge(unused, { session });
     await recordEvent(folder, user, 'card.deleted', stripCloze(current.front.text).slice(0, 100), session, id);
-    return { orphaned: purged.keys };
+    return { orphaned: purged.keys, sketches };
   });
   if (orphaned.length) await storage.remove(orphaned);
+  if (sketches.length) await drawings.remove(String(current.folder), sketches);
 }

@@ -1,4 +1,5 @@
 import { Folder, Card, User, Media, Revision, CardDoc, Progress, Review, Activity, Assignment, AgentBatch, Project } from '../models/index.js';
+import * as drawings from './drawingService.js';
 import * as storage from './storage.js';
 import { accessFolder, mutateFolder, recordEvent, roleOf } from './accessService.js';
 import { queueEvent } from '../realtime/bus.js';
@@ -118,6 +119,8 @@ export async function copyFolder(id, user) {
       await storage.copy(original.key, to);
       return Media.create([{ folder: copy.id, uploadedBy: user.id, key: to, ...shape }], { session });
     };
+    // Drawings keep their ids under the copy's own prefix, so the copied cards need no rewriting.
+    await drawings.copyFolder(source.id, copy.id);
     const cards = await Card.find({ folder: source.id }).session(session);
     const imageMap = new Map();
     for (const card of cards) {
@@ -191,6 +194,7 @@ export async function deleteFolder(id, user, confirm) {
   });
 
   if (keys.length) await storage.remove(keys);
+  await drawings.removeFolder(String(id));
   return { deleted: true, title, cards };
 }
 

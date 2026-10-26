@@ -306,33 +306,70 @@ function DangerPanel() {
   </div>;
 }
 
+/**
+ * One grid of compact cards. Each card says what it spans at each width in styles.css
+ * (`.pg-*`), so on a phone they simply stack, and a card with no data yet is left out rather
+ * than leaving a hole.
+ */
 export function ProgressPage() {
   const { data, loading, error } = useQuery('/stats');
   if (loading) return <Loading/>; if (error) return <ErrorState message={error}/>; const s = data.stats;
-  return <><div className="page-heading"><div><div className="eyebrow">EVERY REVIEW COUNTS</div><h1>Look how far you’re going.</h1><p>Build your knowledge, one small session at a time.</p></div></div><div className="stats-grid">{[[Layers, 'Cards in your library', s.totalCards], [BookOpen, 'Reviews completed', s.reviewed], [Target, 'Ready to review', s.due], [GraduationCap, 'Long-term cards', s.mastered]].map(([Icon, label, value]) => <div className="stat-card" key={label}><span><Icon size={22}/></span><strong>{value}</strong><p>{label}</p></div>)}</div><div className="progress-panel"><div><span className="eyebrow">TODAY’S MOMENTUM</span><h2>{s.reviewsToday >= s.goal ? 'Daily goal, done.' : 'A little time for a lasting habit.'}</h2><p>{s.reviewsToday} of {s.goal} cards reviewed today. Daily totals reset at midnight UTC.</p><div className="goal-progress"><span style={{ width: `${Math.min(100, s.reviewsToday / s.goal * 100)}%` }}/></div><Link to="/" className="button primary">Back to your library <ArrowRight size={17}/></Link></div><div className="progress-insight"><h3>Give your memory some space.</h3><p>{BRAND.name} schedules with FSRS, the algorithm behind modern Anki. Each card has a <em>stability</em> (how long a memory lasts) and a <em>difficulty</em>; the next review lands just before your recall probability would fall under your desired retention.</p></div></div>
-    {s.heatmap && <HabitsPanel stats={s}/>}
-    {s.retention && <RetentionPanel stats={s}/>}</>;
+  return <div className="progress-page">
+    <div className="page-heading progress-heading"><div><div className="eyebrow">EVERY REVIEW COUNTS</div><h1>Look how far you’re going.</h1><p>Build your knowledge, one small session at a time.</p></div></div>
+    <div className="progress-grid">
+      <TodayCard stats={s}/>
+      <div className="pg-kpis">{[[Layers, 'Cards in your library', s.totalCards], [BookOpen, 'Reviews completed', s.reviewed], [Target, 'Ready to review', s.due], [GraduationCap, 'Long-term cards', s.mastered]].map(([Icon, label, value]) =>
+        <div className="pg-kpi" key={label}><span className="pg-kpi-icon"><Icon size={18}/></span><div><strong>{Number(value || 0).toLocaleString()}</strong><p>{label}</p></div></div>)}</div>
+      {s.heatmap && <HabitCards stats={s}/>}
+      {s.retention && <MemoryCards stats={s}/>}
+    </div>
+  </div>;
 }
-const INSIGHT_ICONS = { sun: Sun, clock: Clock, calendar: CalendarDays, trend: TrendingUp, flame: Flame };
-function HabitsPanel({ stats: s }) {
-  const mix = s.ratingMix || {}; const mixTotal = Object.values(mix).reduce((a, b) => a + b, 0);
-  return <section className="habits-panel">
-    <div className="habits-head"><div><span className="eyebrow">YOUR STUDY HABIT</span><h2>{s.streak.current ? `${s.streak.current}-day streak.` : s.streak.activeDays ? 'Pick the streak back up.' : 'Every habit starts with a first day.'}</h2></div><div className="streak-badges"><span className={`streak-badge ${s.streak.current ? 'active' : ''}`}><Flame size={16}/><strong>{s.streak.current}</strong> current</span><span className="streak-badge"><Trophy size={16}/><strong>{s.streak.longest}</strong> longest</span><span className="streak-badge"><CalendarDays size={16}/><strong>{s.streak.activeDays}</strong> study days</span></div></div>
-    <Heatmap data={s.heatmap}/>
-    <div className="habits-grid">
-      <div className="retention-card"><span className="eyebrow">INSIGHTS</span>{!s.insights.length ? <p>Study for a few days and {BRAND.name} will notice when you learn best and how consistently you show up.</p> : <ul className="insight-list">{s.insights.map((i, n) => { const Icon = INSIGHT_ICONS[i.icon] || Sparkles; return <li key={n}><span className="insight-icon"><Icon size={15}/></span>{i.text}</li>; })}</ul>}</div>
-      <div className="retention-card"><span className="eyebrow">LAST 30 DAYS · HOW IT FELT</span>{!mixTotal ? <p>No reviews in the last 30 days yet.</p> : <><div className="state-bar" role="img" aria-label={Object.entries(mix).map(([k, v]) => `${k}: ${v}`).join(', ')}>{['again', 'hard', 'good', 'easy'].map(k => mix[k] > 0 && <span key={k} className={`mix-${k}`} style={{ flex: mix[k] }}/>)}</div><ul className="state-legend">{[['again', 'Again'], ['hard', 'Hard'], ['good', 'Good'], ['easy', 'Easy']].map(([k, label]) => <li key={k}><span className={`state-dot mix-${k}`}/><strong>{mix[k]}</strong> {label} <small>{Math.round(mix[k] / mixTotal * 100)}%</small></li>)}</ul><p>{mix.again / mixTotal > 0.2 ? 'More than a fifth of reviews were forgotten. That is normal for new material; the scheduler is already shortening those intervals.' : 'A healthy mix. Most of what you review, you remember.'}</p></>}</div>
+
+/** Today's reviews against the daily goal, as a ring. */
+function TodayCard({ stats: s }) {
+  const goal = Math.max(1, s.goal || 1), done = s.reviewsToday || 0, share = Math.min(1, done / goal);
+  const R = 34, C = 2 * Math.PI * R;
+  return <section className="pg-card pg-today">
+    <div className={`pg-ring ${share >= 1 ? 'is-done' : ''}`} role="img" aria-label={`${done} of ${goal} cards reviewed today`}>
+      <svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r={R} className="pg-ring-track"/><circle cx="40" cy="40" r={R} className="pg-ring-fill" strokeDasharray={C} strokeDashoffset={C * (1 - share)}/></svg>
+      <span><strong>{done}</strong>/{goal}</span>
+    </div>
+    <div className="pg-today-text">
+      <span className="eyebrow">TODAY’S MOMENTUM</span>
+      <h2>{done >= goal ? 'Daily goal, done.' : 'A little time for a lasting habit.'}</h2>
+      <p>{done} of {goal} cards reviewed today. Daily totals reset at midnight UTC.</p>
+      <Link to="/" className="button primary small">Back to your library <ArrowRight size={15}/></Link>
     </div>
   </section>;
 }
+
+const INSIGHT_ICONS = { sun: Sun, clock: Clock, calendar: CalendarDays, trend: TrendingUp, flame: Flame };
+function HabitCards({ stats: s }) {
+  const mix = s.ratingMix || {}; const mixTotal = Object.values(mix).reduce((a, b) => a + b, 0);
+  return <>
+    <section className="pg-card pg-habit">
+      <div className="pg-card-head"><div><span className="eyebrow">YOUR STUDY HABIT</span><h2>{s.streak.current ? `${s.streak.current}-day streak.` : s.streak.activeDays ? 'Pick the streak back up.' : 'Every habit starts with a first day.'}</h2></div>
+        <div className="streak-badges"><span className={`streak-badge ${s.streak.current ? 'active' : ''}`}><Flame size={14}/><strong>{s.streak.current}</strong> current</span><span className="streak-badge"><Trophy size={14}/><strong>{s.streak.longest}</strong> longest</span><span className="streak-badge"><CalendarDays size={14}/><strong>{s.streak.activeDays}</strong> study days</span></div></div>
+      <Heatmap data={s.heatmap}/>
+    </section>
+    <section className="pg-card pg-insights"><span className="eyebrow">INSIGHTS</span>{!s.insights.length ? <p>Study for a few days and {BRAND.name} will notice when you learn best and how consistently you show up.</p> : <ul className="insight-list">{s.insights.map((i, n) => { const Icon = INSIGHT_ICONS[i.icon] || Sparkles; return <li key={n}><span className="insight-icon"><Icon size={14}/></span>{i.text}</li>; })}</ul>}</section>
+    <section className="pg-card pg-mix"><span className="eyebrow">LAST 30 DAYS · HOW IT FELT</span>{!mixTotal ? <p>No reviews in the last 30 days yet.</p> : <><div className="state-bar" role="img" aria-label={Object.entries(mix).map(([k, v]) => `${k}: ${v}`).join(', ')}>{['again', 'hard', 'good', 'easy'].map(k => mix[k] > 0 && <span key={k} className={`mix-${k}`} style={{ flex: mix[k] }}/>)}</div><ul className="state-legend">{[['again', 'Again'], ['hard', 'Hard'], ['good', 'Good'], ['easy', 'Easy']].map(([k, label]) => <li key={k}><span className={`state-dot mix-${k}`}/><strong>{mix[k]}</strong> {label} <small>{Math.round(mix[k] / mixTotal * 100)}%</small></li>)}</ul><p>{mix.again / mixTotal > 0.2 ? 'More than a fifth of reviews were forgotten. That is normal for new material; the scheduler is already shortening those intervals.' : 'A healthy mix. Most of what you review, you remember.'}</p></>}</section>
+  </>;
+}
+
 const pct = v => v == null ? 'Not yet' : `${Math.round(v * 100)}%`;
-function RetentionPanel({ stats: s }) {
+function MemoryCards({ stats: s }) {
   const max = Math.max(1, ...s.forecast.map(d => d.due)); const total = Object.values(s.states).reduce((a, b) => a + b, 0) || 1;
   const stateMeta = [['new', 'New', 'Never studied'], ['learning', 'Learning', 'First days'], ['review', 'Review', 'Long-term memory'], ['relearning', 'Relearning', 'Recently forgotten']];
-  return <section className="retention-panel"><div className="retention-grid">
-    <div className="retention-card"><span className="eyebrow">MEMORY RIGHT NOW</span><div className="retention-numbers"><div><strong>{pct(s.retention.predicted)}</strong><span>predicted recall</span></div><div><strong>{pct(s.retention.observed)}</strong><span>observed, last 30 days{s.retention.sampled ? ` (${s.retention.sampled} reviews)` : ''}</span></div><div><strong>{pct(s.retention.desired)}</strong><span>your target · <Link to="/settings?section=study">change</Link></span></div></div><p>{s.retention.predicted == null ? `Review a few cards and ${BRAND.name} will start estimating how much you currently remember.` : s.retention.observed != null && s.retention.observed < s.retention.desired - 0.05 ? 'You are forgetting more than your target. Shorter intervals will follow automatically; rating honestly keeps the model accurate.' : 'The model is on track. Average memory stability is ' + s.retention.averageStability + ' days.'}</p></div>
-    <div className="retention-card"><span className="eyebrow">NEXT 14 DAYS</span><div className="forecast" role="img" aria-label={`Due forecast: ${s.forecast.map(d => `${d.due} on ${d.date}`).join(', ')}`}>{s.forecast.map((d, i) => <div key={d.date} className="forecast-bar" title={`${d.due} due on ${d.date}`}><span style={{ height: `${Math.max(d.due ? 6 : 2, d.due / max * 100)}%` }}/><small>{i === 0 ? 'Today' : new Date(d.date + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'narrow', timeZone: 'UTC' })}</small></div>)}</div><p>{s.forecast[0].due} card{s.forecast[0].due === 1 ? '' : 's'} ready today, {s.forecast.slice(1, 8).reduce((a, d) => a + d.due, 0)} more over the coming week.</p></div>
-    <div className="retention-card"><span className="eyebrow">WHERE YOUR CARDS ARE</span><div className="state-bar" role="img" aria-label={stateMeta.map(([k, l]) => `${l}: ${s.states[k]}`).join(', ')}>{stateMeta.map(([k]) => s.states[k] > 0 && <span key={k} className={`state-${k}`} style={{ flex: s.states[k] }}/>)}</div><ul className="state-legend">{stateMeta.map(([k, label, hint]) => <li key={k}><span className={`state-dot state-${k}`}/><strong>{s.states[k]}</strong> {label} <small>{hint} · {Math.round(s.states[k] / total * 100)}%</small></li>)}</ul></div>
-    <div className="retention-card"><span className="eyebrow">HARDEST CARDS</span>{!s.hardest.length ? <p>Once you have reviewed a few cards, the ones your memory struggles with will show up here.</p> : <ul className="hardest-list">{s.hardest.map(c => <li key={c.cardId}><Link to={`/folders/${c.folderId}`}>{c.text}</Link><span title="FSRS difficulty, 1 (easy) to 10 (hard)">D {c.difficulty}</span><span title="Times forgotten">{c.lapses} lapse{c.lapses === 1 ? '' : 's'}</span></li>)}</ul>}</div>
-  </div></section>;
+  return <>
+    <section className="pg-card pg-memory"><span className="eyebrow">MEMORY RIGHT NOW</span>
+      <div className="retention-numbers"><div><strong>{pct(s.retention.predicted)}</strong><span>predicted recall</span></div><div><strong>{pct(s.retention.observed)}</strong><span>observed, last 30 days{s.retention.sampled ? ` (${s.retention.sampled} reviews)` : ''}</span></div><div><strong>{pct(s.retention.desired)}</strong><span>your target · <Link to="/settings?section=study">change</Link></span></div></div>
+      <p>{s.retention.predicted == null ? `Review a few cards and ${BRAND.name} will start estimating how much you currently remember.` : s.retention.observed != null && s.retention.observed < s.retention.desired - 0.05 ? 'You are forgetting more than your target. Shorter intervals will follow automatically; rating honestly keeps the model accurate.' : 'The model is on track. Average memory stability is ' + s.retention.averageStability + ' days.'}</p>
+      <details className="pg-explain"><summary>Give your memory some space.</summary><p>{BRAND.name} schedules with FSRS, the algorithm behind modern Anki. Each card has a <em>stability</em> (how long a memory lasts) and a <em>difficulty</em>; the next review lands just before your recall probability would fall under your desired retention.</p></details>
+    </section>
+    <section className="pg-card pg-forecast"><span className="eyebrow">NEXT 14 DAYS</span><div className="forecast" role="img" aria-label={`Due forecast: ${s.forecast.map(d => `${d.due} on ${d.date}`).join(', ')}`}>{s.forecast.map((d, i) => <div key={d.date} className="forecast-bar" title={`${d.due} due on ${d.date}`}><span style={{ height: `${Math.max(d.due ? 6 : 2, d.due / max * 100)}%` }}/><small>{i === 0 ? 'Today' : new Date(d.date + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'narrow', timeZone: 'UTC' })}</small></div>)}</div><p>{s.forecast[0].due} card{s.forecast[0].due === 1 ? '' : 's'} ready today, {s.forecast.slice(1, 8).reduce((a, d) => a + d.due, 0)} more over the coming week.</p></section>
+    <section className="pg-card pg-states"><span className="eyebrow">WHERE YOUR CARDS ARE</span><div className="state-bar" role="img" aria-label={stateMeta.map(([k, l]) => `${l}: ${s.states[k]}`).join(', ')}>{stateMeta.map(([k]) => s.states[k] > 0 && <span key={k} className={`state-${k}`} style={{ flex: s.states[k] }}/>)}</div><ul className="state-legend">{stateMeta.map(([k, label, hint]) => <li key={k}><span className={`state-dot state-${k}`}/><strong>{s.states[k]}</strong> {label} <small>{hint} · {Math.round(s.states[k] / total * 100)}%</small></li>)}</ul></section>
+    <section className="pg-card pg-hardest"><span className="eyebrow">HARDEST CARDS</span>{!s.hardest.length ? <p>Once you have reviewed a few cards, the ones your memory struggles with will show up here.</p> : <ul className="hardest-list">{s.hardest.map(c => <li key={c.cardId}><Link to={`/folders/${c.folderId}`}>{c.text}</Link><span title="FSRS difficulty, 1 (easy) to 10 (hard)">D {c.difficulty}</span><span title="Times forgotten">{c.lapses} lapse{c.lapses === 1 ? '' : 's'}</span></li>)}</ul>}</section>
+  </>;
 }

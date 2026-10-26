@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import * as drawings from './drawingService.js';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import {
@@ -223,12 +224,13 @@ async function eraseAccount(withHash) {
 
   const { email, name } = withHash;
   const id = withHash.id;
-  let storedKeys = [];
+  let storedKeys = [], ownedFolders = [];
 
   await mongoose.connection.transaction(async session => {
     const opts = { session };
     const folders = await Folder.find({ owner: id }).select('_id').session(session).lean();
     const folderIds = folders.map(f => f._id);
+    ownedFolders = folderIds.map(String);
     const cards = await Card.find({ folder: { $in: folderIds } }).select('_id').session(session).lean();
     const cardIds = cards.map(c => c._id);
 
@@ -290,6 +292,7 @@ async function eraseAccount(withHash) {
   // After the commit, and deliberately not awaited into the result: the account is gone either
   // way, and a slow bucket should not hold up the response to somebody who just deleted it.
   await storage.remove(storedKeys);
+  for (const folderId of ownedFolders) await drawings.removeFolder(folderId);
 
   await send({ to: email, ...accountDeletedEmail({ name }) });
   return { deleted: true };

@@ -101,6 +101,9 @@ export function createApp() {
   app.use('/api', healthRoutes);
   // The gateway signs the exact bytes it sent, so this one route has to see them before any parser does.
   app.post('/api/premium/webhook/razorpay', express.raw({ type: '*/*', limit: '64kb' }), asyncHandler(premiumWebhook));
+  // A page of handwriting is legitimately bigger than a form. Parsed here at its own ceiling, and the
+  // general parser below then leaves the already-parsed body alone.
+  app.post('/api/folders/:id/drawings', express.json({ limit: '1mb' }));
   app.use(express.json({ limit: '256kb' })); app.use(cookieParser()); app.use('/api', optionalAuth, readOnlyGuard, routes);
   app.use('/api', notFoundHandler);
   const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..', 'dist');

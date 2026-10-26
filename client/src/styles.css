@@ -202,13 +202,106 @@ html[data-theme=dark] .retention-card{background:var(--surface);border-color:var
 /* Study habits: heatmap, streaks, insights */
 .habits-panel{margin-top:26px;background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px 24px;display:flex;flex-direction:column;gap:18px}.habits-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}.habits-head h2{font-size:24px;letter-spacing:-.6px;color:#342a40;margin-top:4px}
 .streak-badges{display:flex;gap:8px;flex-wrap:wrap}.streak-badge{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;background:#f5f2fb;font-size:12px;color:#7d6c8c}.streak-badge strong{color:#342a40;font-size:14px}.streak-badge.active{background:#fff1e6;color:#b95c12}.streak-badge.active strong{color:#b95c12}.streak-badge.active svg{color:#ee7f2b}
-.heatmap{display:flex;flex-direction:column;gap:6px;overflow-x:auto}.heatmap-months{display:grid;gap:3px;padding-left:34px;font-size:10px;color:#9789a3;min-width:560px}.heatmap-months span{white-space:nowrap}.heatmap-body{display:flex;gap:6px;min-width:560px}.heatmap-days{display:grid;grid-template-rows:repeat(7,1fr);width:28px;font-size:10px;color:#9789a3}.heatmap-days span:nth-child(1){grid-row:2}.heatmap-days span:nth-child(2){grid-row:4}.heatmap-days span:nth-child(3){grid-row:6}
-.heatmap-grid{display:grid;gap:3px;flex:1}.heatmap-week{display:grid;grid-template-rows:repeat(7,1fr);gap:3px}.heatmap-cell{display:block;aspect-ratio:1;border-radius:3px;background:#efecf5;min-width:9px}.heatmap-cell.level-future{background:transparent}.heatmap-cell.level-1{background:#cfc3f5}.heatmap-cell.level-2{background:#a48df0}.heatmap-cell.level-3{background:#7c5fe6}.heatmap-cell.level-4{background:#5538c9}
+/* Fixed-size cells; Heatmap.jsx fits as many weeks as the width allows. Keep CELL, GAP and LABELS there in step. */
+.heatmap{display:flex;flex-direction:column;gap:5px;overflow:hidden;min-width:0}.heatmap-months{display:grid;gap:3px;padding-left:30px;font-size:10px;color:#9789a3;height:13px}.heatmap-months span{white-space:nowrap}.heatmap-body{display:flex;gap:6px}.heatmap-days{display:grid;grid-template-rows:repeat(7,12px);gap:3px;width:24px;flex:none;font-size:9.5px;line-height:12px;color:#9789a3}.heatmap-days span:nth-child(1){grid-row:2}.heatmap-days span:nth-child(2){grid-row:4}.heatmap-days span:nth-child(3){grid-row:6}
+.heatmap-grid{display:grid;gap:3px}.heatmap-week{display:grid;grid-template-rows:repeat(7,12px);gap:3px}.heatmap-cell{display:block;width:12px;height:12px;border-radius:3px;background:#efecf5}.heatmap-cell.level-future{background:transparent}.heatmap-cell.level-1{background:#cfc3f5}.heatmap-cell.level-2{background:#a48df0}.heatmap-cell.level-3{background:#7c5fe6}.heatmap-cell.level-4{background:#5538c9}
 .heatmap-legend{display:flex;align-items:center;gap:4px;justify-content:flex-end;font-size:10px;color:#9789a3}.heatmap-legend .heatmap-cell{width:11px;height:11px}
 .habits-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.habits-grid .retention-card{background:#faf9fc}.insight-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}.insight-list li{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.55;color:#594665}.insight-icon{flex:none;width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:#ede8fb;color:var(--accent)}
 .mix-again{background:#ec6d8a}.mix-hard{background:#f5a962}.mix-good{background:#5cc48f}.mix-easy{background:#7c5fe6}
 html[data-theme=dark] .habits-panel{background:var(--surface);border-color:var(--border)}html[data-theme=dark] .habits-head h2,html[data-theme=dark] .streak-badge strong{color:var(--ink)}html[data-theme=dark] .streak-badge{background:var(--surface-2);color:var(--text-3)}html[data-theme=dark] .streak-badge.active{background:#3a2a1c;color:#f5a962}html[data-theme=dark] .streak-badge.active strong{color:#f5a962}html[data-theme=dark] .heatmap-cell{background:var(--surface-3)}html[data-theme=dark] .heatmap-cell.level-future{background:transparent}html[data-theme=dark] .heatmap-cell.level-1{background:#3f3670}html[data-theme=dark] .heatmap-cell.level-2{background:#5a49a8}html[data-theme=dark] .heatmap-cell.level-3{background:#7c62e0}html[data-theme=dark] .heatmap-cell.level-4{background:#a48df0}html[data-theme=dark] .habits-grid .retention-card{background:var(--surface-2)}html[data-theme=dark] .insight-list li{color:var(--text-2)}html[data-theme=dark] .insight-icon{background:var(--soft);color:#b3a2f7}
 @media(max-width:760px){.habits-grid{grid-template-columns:1fr}}
+
+/* ── Progress page ────────────────────────────────────────────────────────────────────────────
+   Laid out against the width of the page itself rather than the screen, so an iPad in landscape
+   with the sidebar open gets the tablet arrangement instead of a squeezed desktop one.
+   Wide: 12 columns. Medium: 6. Narrow: one. */
+.progress-page{container-type:inline-size}
+.progress-heading{margin-bottom:16px}
+.progress-grid{display:grid;grid-template-columns:1fr;gap:14px}
+.pg-card{min-width:0;background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.pg-card .eyebrow{margin:0}
+.pg-card h2{font-size:19px;letter-spacing:-.4px;line-height:1.25;color:#342a40;margin:2px 0 0}
+.pg-card>p,.pg-card p{font-size:13px;line-height:1.55;color:#796a85;margin:0}
+.pg-card-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px 16px;flex-wrap:wrap}
+
+.pg-today{flex-direction:row;align-items:center;gap:18px}
+.pg-today-text{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0}
+.pg-today-text .button{margin-top:6px}
+.pg-ring{position:relative;width:92px;height:92px;flex:none}
+.pg-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.pg-ring circle{fill:none;stroke-width:8}
+.pg-ring-track{stroke:#efecf6}
+.pg-ring-fill{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .5s}
+.pg-ring.is-done .pg-ring-fill{stroke:#2ea86b}
+.pg-ring>span{position:absolute;inset:0;display:flex;align-items:baseline;justify-content:center;padding-top:31px;font-size:13px;color:#8b779c;font-variant-numeric:tabular-nums}
+.pg-ring>span strong{font-size:24px;letter-spacing:-.6px;color:#342a40}
+
+.pg-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-width:0}
+.pg-kpi{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px 14px;min-width:0}
+.pg-kpi-icon{width:38px;height:38px;flex:none;border-radius:11px;display:inline-grid;place-items:center;background:#f1ecfd;color:var(--accent)}
+.pg-kpi>div{min-width:0}
+.pg-kpi strong{display:block;font-size:22px;letter-spacing:-.6px;line-height:1.15;color:#342a40;font-variant-numeric:tabular-nums}
+.pg-kpi p{margin:1px 0 0;font-size:12px;color:#8b779c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.progress-page .streak-badges{gap:6px}
+.progress-page .streak-badge{padding:5px 10px;font-size:11.5px}
+.progress-page .streak-badge strong{font-size:13px}
+.progress-page .insight-list{gap:8px}
+.progress-page .insight-list li{font-size:12.5px;line-height:1.5;gap:9px}
+.progress-page .insight-icon{width:24px;height:24px;border-radius:7px}
+.progress-page .retention-numbers{gap:10px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.progress-page .retention-numbers strong{font-size:24px}
+.progress-page .retention-numbers span{display:block;font-size:11.5px;line-height:1.4;margin-top:2px}
+.progress-page .forecast{height:92px;gap:5px}
+.progress-page .state-legend{gap:6px 14px}
+.progress-page .state-legend li{font-size:12.5px;gap:7px;min-width:0;flex-wrap:wrap}
+.progress-page .hardest-list{gap:6px}
+.progress-page .hardest-list li{padding:7px 10px;font-size:12.5px;gap:10px}
+.pg-explain{border-top:1px solid var(--border);padding-top:10px;margin-top:auto}
+.pg-explain summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--accent);list-style:none;display:flex;align-items:center;gap:6px}
+.pg-explain summary::-webkit-details-marker{display:none}
+.pg-explain summary::before{content:'';width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.pg-explain[open] summary::before{transform:rotate(45deg)}
+.pg-explain p{margin-top:8px!important}
+
+@container (min-width:640px){
+  .progress-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .pg-today,.pg-kpis,.pg-habit{grid-column:span 6}
+  .pg-insights,.pg-mix,.pg-memory,.pg-forecast,.pg-states,.pg-hardest{grid-column:span 3}
+}
+@container (min-width:840px){ .pg-kpis{grid-template-columns:repeat(4,minmax(0,1fr))} }
+@container (min-width:1000px){
+  .progress-grid{grid-template-columns:repeat(12,minmax(0,1fr))}
+  .pg-today{grid-column:span 5}
+  .pg-kpis{grid-column:span 7;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pg-habit{grid-column:span 8}
+  .pg-insights,.pg-mix,.pg-memory,.pg-forecast{grid-column:span 4}
+  .pg-states{grid-column:span 5}
+  .pg-hardest{grid-column:span 7}
+}
+@container (max-width:639px){
+  .pg-card{padding:14px 15px}
+  .pg-today{gap:14px}
+  .pg-ring{width:76px;height:76px}
+  .pg-ring>span{padding-top:25px;font-size:12px}
+  .pg-ring>span strong{font-size:20px}
+  .pg-card h2{font-size:17px}
+  .pg-kpi{padding:10px 11px;gap:10px}
+  .pg-kpi-icon{width:32px;height:32px;border-radius:9px}
+  .pg-kpi strong{font-size:19px}
+  .pg-kpi p{font-size:11.5px;white-space:normal;line-height:1.3}
+  .progress-page .retention-numbers{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .progress-page .retention-numbers strong{font-size:21px}
+  .progress-page .state-legend{grid-template-columns:1fr 1fr}
+  .progress-page .state-legend small{display:none}
+}
+
+html[data-theme=dark] .pg-card,html[data-theme=dark] .pg-kpi{background:var(--surface);border-color:var(--border)}
+html[data-theme=dark] .pg-card h2,html[data-theme=dark] .pg-kpi strong,html[data-theme=dark] .pg-ring>span strong{color:var(--ink)}
+html[data-theme=dark] .pg-card p,html[data-theme=dark] .pg-kpi p,html[data-theme=dark] .pg-ring>span{color:var(--text-3)}
+html[data-theme=dark] .pg-kpi-icon{background:var(--soft);color:#b3a2f7}
+html[data-theme=dark] .pg-ring-track{stroke:var(--surface-3)}
+html[data-theme=dark] .pg-explain summary{color:#b3a2f7}
 /* Import / export */
 .dropzone{display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px 20px;border:2px dashed #d9d2ea;border-radius:14px;background:#faf9fc;cursor:pointer;text-align:center;transition:border-color .15s,background .15s}.dropzone:hover,.dropzone:focus-within{border-color:var(--accent);background:#f4f0fd}.dropzone.has-file{border-style:solid;border-color:#c5b8f2}.dropzone input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}.dropzone-icon{width:44px;height:44px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:#ede8fb;color:var(--accent);margin-bottom:4px}.dropzone strong{font-size:15px;color:#342a40;word-break:break-all}.dropzone small{font-size:12px;color:#8b779c}
 .import-help{font-size:13px;color:#796a85}.import-help summary{cursor:pointer;font-weight:600;color:#594665}.import-help ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;line-height:1.55}.import-help code{font-size:12px;background:#f1eef6;padding:1px 5px;border-radius:4px}.import-help a{color:var(--accent);font-weight:600}
@@ -1228,4 +1321,189 @@ html[data-theme=dark] .settings-nav nav button.is-danger.active{background:#4a21
   .settings-row{grid-template-columns:1fr}
   .settings-content .settings-panel{padding:22px 18px}
   .settings-actions .button{width:100%}
+}
+
+/* Drawings: the viewer on cards, and the whiteboard editor. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.drawing-view{position:relative;width:100%;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:#fff}
+.drawing-view canvas{display:block;width:100%;height:auto}
+.drawing-view.is-tall{max-height:min(62vh,560px);overflow-y:auto;overscroll-behavior:contain}
+.drawing-view.is-missing{display:flex;align-items:center;justify-content:center;gap:7px;aspect-ratio:16/10;font-size:12px;color:var(--muted)}
+.drawing-loading{position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(130,110,200,.08),transparent);background-size:200% 100%;animation:drawShimmer 1.2s infinite}
+@keyframes drawShimmer{from{background-position:100% 0}to{background-position:-100% 0}}
+.card-face .drawing-view,.card-content .drawing-view{margin-bottom:12px}
+.study-card-body .drawing-view{max-width:640px}
+.editor-drawing{margin:0 15px 15px;display:flex;flex-direction:column;gap:8px}
+.editor-drawing-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.editor-footer-actions{display:flex;align-items:center;gap:16px}
+button.upload-button{border:0;background:none;padding:0}
+
+.draw-overlay{z-index:110}
+.drawing-editor{position:fixed;z-index:111;top:50%;left:50%;transform:translate(-50%,-50%);width:min(1180px,calc(100vw - 24px));height:min(880px,calc(100dvh - 24px));display:flex;flex-direction:column;background:#fff;border-radius:18px;box-shadow:0 25px 100px #17102040;overflow:hidden;outline:0;animation:fadeIn .15s}
+.drawing-editor.is-full{inset:0;transform:none;width:100%;height:100%;border-radius:0;animation:none}
+.drawing-editor:fullscreen{width:100%;height:100%;border-radius:0}
+.draw-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border)}
+.draw-head h2{font-size:16px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draw-head-actions{display:flex;align-items:center;gap:8px;flex:none}
+/* Every group keeps its width whatever is selected, so nothing in the bar moves as you pick a tool,
+   a colour or a size. */
+.draw-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:8px 18px;border-bottom:1px solid var(--border);background:#faf9fd}
+.draw-group{display:flex;align-items:center;gap:4px;flex:none}
+.draw-sep{width:1px;height:24px;background:var(--border);flex:none}
+.draw-icon{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid transparent;border-radius:9px;background:transparent;color:#5f566f;flex:none;transition:background .12s,color .12s}
+.draw-icon:hover:not(:disabled){background:#efeaf9;color:var(--accent)}
+.draw-icon:disabled{opacity:.4}
+.draw-icon.active,.draw-icon.active:hover:not(:disabled){background:var(--accent);color:#fff}
+.draw-pill{background:#efecf6;border-radius:11px;padding:3px;gap:2px}
+.draw-pill .draw-icon{width:34px;height:32px;border-radius:8px}
+.draw-slot{display:flex;align-items:center;min-width:206px;height:38px}
+.draw-seg{background:#efecf6;border-radius:10px;padding:3px;gap:2px}
+.draw-seg button{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;border-radius:7px;padding:6px 10px;font-size:12.5px;font-weight:500;color:#6a6178;white-space:nowrap}
+.draw-seg button.active{background:#fff;color:var(--accent);box-shadow:0 1px 3px rgba(40,20,80,.12)}
+.draw-colors{gap:6px}
+.draw-swatch{position:relative;width:24px;height:24px;border-radius:50%;border:2px solid #fff;background:var(--swatch);box-shadow:0 0 0 1px rgba(0,0,0,.15);padding:0;flex:none;transition:transform .12s}
+.draw-swatch:hover{transform:scale(1.1)}
+.draw-swatch.active{box-shadow:0 0 0 2px var(--accent)}
+.draw-custom{background:conic-gradient(#ff5a5a,#ffd84d,#5fd99a,#5aa7ff,#b36bff,#ff5a5a);cursor:pointer;overflow:hidden}
+.draw-custom::after{content:'';position:absolute;inset:5px;border-radius:50%;background:var(--swatch)}
+.draw-custom input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;padding:0;border:0}
+.draw-size{gap:10px}
+.draw-size-preview{display:grid;place-items:center;width:26px;height:26px;flex:none}
+.draw-size-preview span{width:22px;height:22px;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.18);transform-origin:center;transition:transform .08s}
+.draw-size-preview span.is-eraser{background:#fff;box-shadow:0 0 0 1.5px #7b7290}
+.draw-size input{width:110px;accent-color:var(--accent);margin:0}
+.draw-size output{width:2.2em;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted)}
+.draw-history{margin-left:auto}
+
+/* The stage scrolls; the page inside it is as tall as its pages and, zoomed in, wider than the
+   stage. The inner box grows with the page rather than centring it past the left edge, where
+   scrolling cannot reach. The browser's own pinch-zoom is off here: two fingers zoom the page. */
+.drawing-editor{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.drawing-editor button,.drawing-editor input{touch-action:manipulation}
+.draw-stage{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;touch-action:pan-x pan-y;scrollbar-gutter:stable;padding:22px 24px;background-color:#ebe8f2;background-image:radial-gradient(rgba(90,70,160,.13) 1px,transparent 1px);background-size:18px 18px}
+.draw-stage-inner{min-height:100%;width:max-content;min-width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.draw-page{position:relative;flex:none;border-radius:6px;overflow:hidden;box-shadow:0 1px 2px rgba(30,20,60,.08),0 10px 34px rgba(30,20,60,.16)}
+.draw-page canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.draw-page canvas:last-of-type{touch-action:none;cursor:crosshair}
+.draw-page.tool-eraser canvas:last-of-type{cursor:none}
+.draw-break{position:absolute;left:0;right:0;height:0;border-top:1.5px dashed rgba(120,100,180,.35);pointer-events:none}
+.draw-page-tag{position:absolute;right:8px;display:flex;align-items:center;gap:4px;padding:2px 2px 2px 8px;border-radius:8px;background:rgba(255,255,255,.82);box-shadow:0 0 0 1px rgba(120,100,180,.16);pointer-events:none}
+.draw-page-tag b{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:rgba(110,95,160,.75)}
+.draw-page-tag button{pointer-events:auto;display:inline-grid;place-items:center;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:#8a80a0}
+.draw-page-tag button:hover{background:#fdecee;color:#b23b45}
+.is-dark .draw-break{border-color:rgba(200,190,240,.22)}
+.is-dark .draw-page-tag{background:rgba(29,31,38,.85);box-shadow:0 0 0 1px rgba(200,190,240,.18)}
+.is-dark .draw-page-tag b{color:rgba(210,200,245,.6)}
+.is-dark .draw-page-tag button{color:#a9a2c0}
+.is-dark .draw-page-tag button:hover{background:rgba(255,122,140,.14);color:#ff8c9b}
+.draw-reset{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 11px;border:1px solid transparent;border-radius:9px;background:transparent;font-size:12.5px;font-weight:600;color:#5f566f;transition:background .12s,color .12s}
+.draw-reset:hover:not(:disabled){background:#fdecee;color:#b23b45}
+.draw-reset:disabled{opacity:.4}
+.draw-ask-backdrop{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:20px;background:rgba(23,16,32,.38);animation:fadeIn .12s}
+.draw-ask{width:min(400px,100%);padding:22px 22px 18px;border-radius:16px;background:#fff;box-shadow:0 20px 60px rgba(23,16,32,.3)}
+.draw-ask-icon{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fdecee;color:#b23b45;margin-bottom:12px}
+.draw-ask h3{margin:0 0 6px;font-size:16.5px}
+.draw-ask p{margin:0;font-size:13.5px;line-height:1.55;color:var(--muted)}
+.draw-ask-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.draw-ring{position:absolute;top:0;left:0;border-radius:50%;border:1.5px solid rgba(90,70,160,.7);box-shadow:0 0 0 1px rgba(255,255,255,.7);pointer-events:none;opacity:0}
+.draw-page:not(.tool-eraser) .draw-ring{border-color:rgba(90,70,160,.35)}
+.draw-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 18px;border-top:1px solid var(--border);background:#faf9fd;font-size:12px;color:#7b7290}
+.draw-count{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draw-zoom{display:flex;align-items:center;gap:2px;flex:none}
+.draw-zoom .draw-icon{width:34px;height:34px}
+.draw-zoom-level{min-width:54px;height:30px;border:0;border-radius:8px;background:transparent;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;color:#5f566f}
+.draw-zoom-level:hover:not(:disabled){background:#efeaf9;color:var(--accent)}
+.draw-zoom-level:disabled{opacity:1;cursor:default}
+.draw-head-history,.draw-save-short{display:none}
+.draw-head-history,.draw-bar-history{align-items:center;gap:4px}
+.draw-bar-history{display:flex}
+.draw-add-page{flex:none;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border:1px dashed #b9b0d3;border-radius:9px;background:rgba(255,255,255,.7);font-size:12.5px;font-weight:600;color:var(--accent)}
+.draw-add-page:hover:not(:disabled){background:#fff;border-style:solid}
+.draw-add-page:disabled{opacity:.45}
+.draw-error{margin:0;padding:9px 18px;font-size:13px;color:#b23b45;background:#fff1f3;border-top:1px solid #f4d9df}
+.drawing-editor.is-full .draw-stage{padding:16px 18px}
+
+html[data-theme=dark] .drawing-editor{background:var(--surface)}
+html[data-theme=dark] .draw-toolbar{background:var(--surface-2);border-color:var(--border)}
+html[data-theme=dark] .draw-head{border-color:var(--border)}
+html[data-theme=dark] .draw-icon{color:var(--text-2)}
+html[data-theme=dark] .draw-icon:hover:not(:disabled){background:var(--surface-3)}
+html[data-theme=dark] .draw-pill,html[data-theme=dark] .draw-seg{background:var(--surface-3)}
+html[data-theme=dark] .draw-seg button{color:var(--text-2)}
+html[data-theme=dark] .draw-seg button.active{background:var(--surface);color:#c4b5ff}
+html[data-theme=dark] .draw-stage{background-color:#15141b;background-image:radial-gradient(rgba(200,190,240,.08) 1px,transparent 1px)}
+html[data-theme=dark] .draw-swatch{border-color:var(--surface)}
+html[data-theme=dark] .draw-add-page{background:rgba(255,255,255,.04);border-color:rgba(200,190,240,.28);color:#c4b5ff}
+html[data-theme=dark] .draw-foot{background:var(--surface-2);border-color:var(--border);color:var(--muted)}
+html[data-theme=dark] .draw-zoom-level{color:var(--text-2)}
+html[data-theme=dark] .draw-zoom-level:hover:not(:disabled){background:var(--surface-3)}
+html[data-theme=dark] .draw-reset{color:var(--text-2)}
+html[data-theme=dark] .draw-reset:hover:not(:disabled){background:rgba(255,122,140,.12);color:#ff8c9b}
+html[data-theme=dark] .draw-ask{background:var(--surface);box-shadow:0 0 0 1px var(--border),0 20px 60px rgba(0,0,0,.5)}
+html[data-theme=dark] .draw-ask-icon{background:rgba(255,122,140,.14);color:#ff8c9b}
+html[data-theme=dark] .drawing-view{border-color:var(--border)}
+
+/* Tablets (iPad, Android) and anything narrower: the editor takes the whole screen, clear of the
+   notch and the home indicator, and the toolbar wraps onto a second row instead of scrolling
+   tools out of sight. */
+@media (max-width:1024px),(pointer:coarse) and (max-width:1366px){
+  .drawing-editor{top:0;left:0;transform:none;width:100%;height:100%;height:100dvh;border-radius:0;animation:none}
+  .draw-head{padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));padding-top:max(10px,env(safe-area-inset-top))}
+  .draw-toolbar{padding:8px max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left));gap:8px 10px}
+  .draw-foot{padding:6px max(16px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  .draw-sep{display:none}
+  .draw-stage{padding:16px}
+}
+/* Fingers need bigger targets than a mouse pointer. */
+@media (pointer:coarse){
+  .draw-swatch{width:28px;height:28px}
+  .draw-colors{gap:5px}
+  .draw-slot{min-width:226px}
+  .draw-icon{width:38px;height:38px}
+  .draw-pill .draw-icon{width:36px;height:34px}
+  .draw-page-tag button{width:32px;height:32px}
+  .draw-size input{height:28px}
+  .draw-swatch:hover{transform:none}
+}
+/* Phones. */
+@media (max-width:600px){
+  .draw-head{gap:8px;padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
+  .draw-head h2{font-size:14.5px}
+  .draw-head-actions{gap:4px}
+  .draw-head-history{display:flex}
+  .draw-bar-history{display:none}
+  .draw-full-button.is-fallback{display:none}
+  .draw-cancel{width:36px;padding:0;justify-content:center}
+  .draw-cancel span,.draw-save-long{display:none}
+  .draw-save-short{display:inline}
+  .draw-save{padding:6px 12px}
+  .draw-toolbar{padding:6px max(10px,env(safe-area-inset-right)) 8px max(10px,env(safe-area-inset-left));gap:6px 8px;justify-content:space-between}
+  .draw-seg button{padding:6px 9px}
+  .draw-seg button span{display:none}
+  .draw-size{gap:6px}
+  .draw-size input{width:72px}
+  .draw-size output{width:1.8em}
+  .draw-history{margin-left:0}
+  .draw-reset{width:36px;padding:0;justify-content:center}
+  .draw-reset span{display:none}
+  .draw-stage{padding:10px}
+  .draw-foot{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
+  .draw-count-note{display:none}
+  .draw-add-page{padding:0 11px}
+}
+@media (max-width:360px){ .draw-add-page span{display:none} }
+/* A phone on its side: every pixel of height goes to the page, so the toolbar fits one row. */
+@media (max-height:500px){
+  .draw-head{padding-top:max(5px,env(safe-area-inset-top));padding-bottom:5px}
+  .draw-head h2{font-size:14px}
+  .draw-head-history{display:flex}
+  .draw-bar-history{display:none}
+  .draw-toolbar{padding-top:4px;padding-bottom:4px;gap:4px 8px;flex-wrap:nowrap}
+  .draw-seg button{padding:6px 8px}
+  .draw-seg button span,.draw-reset span{display:none}
+  .draw-reset{width:36px;padding:0;justify-content:center}
+  .draw-size input{width:64px}
+  .draw-history{margin-left:0}
+  .draw-foot{padding-top:3px;padding-bottom:max(3px,env(safe-area-inset-bottom))}
+  .draw-stage{padding:8px}
 }

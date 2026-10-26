@@ -5,6 +5,7 @@ import { TEAM_PLAN_IDS, SEATS } from '../../../shared/teams.js';
 import { BRAND } from '../../../shared/brand.js';
 import { COUNTRY_NAMES, PHONE_PATTERN } from '../../../shared/countries.js';
 import { SCOPE_IDS } from '../../../shared/agent.js';
+import { DRAWING_ID, DRAWING_VERSION, PAGE, MAX_HEIGHT, PAPERS, THEMES, TOOLS, SIZE, LIMITS, HEX } from '../../../shared/drawing.js';
 export const idSchema = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid identifier');
 export const usernameSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/, 'Use 3–24 letters, numbers, or underscores');
 /**
@@ -52,14 +53,37 @@ export const teamSchema = z.object({ name: z.string().trim().min(2).max(60), kin
 export const teamInviteSchema = z.object({ role: z.enum(['teacher', 'student']).default('student'), maxUses: z.number().int().min(0).max(500).default(0), expiresInDays: z.number().int().min(1).max(90).optional() });
 export const joinCodeSchema = z.object({ code: z.string().trim().min(6).max(16) });
 export const assignmentSchema = z.object({ folderId: idSchema, title: z.string().trim().max(80).default(''), instructions: z.string().max(500).default(''), dueAt: z.iso.datetime().nullish() });
-const side = z.object({ text: z.string().max(10000).default(''), image: idSchema.nullable().optional() });
-const filled = v => v.text.trim() || v.image;
+export const drawingIdSchema = z.string().regex(DRAWING_ID, 'Invalid drawing');
+const side = z.object({ text: z.string().max(10000).default(''), image: idSchema.nullable().optional(), drawing: drawingIdSchema.nullable().optional() });
+const filled = v => v.text.trim() || v.image || v.drawing;
+
+/**
+ * A drawing as the editor saves it. Numbers and a closed set of words only: there is no free
+ * text anywhere in the document, so nothing in it can be markup, and every colour is a hex code
+ * rather than any CSS a browser would accept.
+ */
+const coordinate = z.number().finite().min(-50).max(Math.max(PAGE.width, MAX_HEIGHT) + 50).transform(Math.round);
+const strokeSchema = z.object({
+  t: z.enum(TOOLS),
+  c: z.string().regex(HEX, 'Invalid colour'),
+  s: z.number().finite().min(SIZE.min).max(SIZE.max),
+  p: z.array(coordinate).min(2).max(LIMITS.pointsPerStroke * 2).refine(p => p.length % 2 === 0, 'Points come in pairs'),
+}).strict();
+export const drawingSchema = z.object({
+  v: z.literal(DRAWING_VERSION),
+  w: z.literal(PAGE.width),
+  h: z.number().int().min(PAGE.height).max(MAX_HEIGHT).refine(h => h % PAGE.height === 0, 'A drawing is a whole number of pages'),
+  paper: z.enum(PAPERS),
+  theme: z.enum(THEMES),
+  strokes: z.array(strokeSchema).max(LIMITS.strokes),
+}).strict().refine(d => d.strokes.reduce((n, s) => n + s.p.length / 2, 0) <= LIMITS.points, 'This drawing is too detailed to save. Try clearing part of it.')
+  .refine(d => d.strokes.some(s => s.t !== 'eraser'), 'Draw something before saving.');
 // A cloze card ({{c1::…}} on the front) needs no back: the hidden text is the answer.
 // Shared with the assistant's card schema below, which no longer pipes through this one and so
 // would otherwise quietly stop deduplicating tags.
 const tagList = z.array(z.string().trim().toLowerCase().min(1).max(30)).max(10).default([]).transform(v => [...new Set(v)]);
-export const cardSchema = z.object({ front: side.refine(filled, 'Add text or an image to the front'), back: side, tags: tagList, hint: z.string().max(1000).default(''), source: z.union([z.literal(''), z.url().refine(v => /^https?:\/\//.test(v), 'Use an http or https URL')]).default('') })
-  .refine(v => filled(v.back) || hasCloze(v.front.text), { path: ['back'], message: 'Add text or an image to the back, or use a cloze deletion like {{c1::answer}} on the front' });
+export const cardSchema = z.object({ front: side.refine(filled, 'Add text, an image or a drawing to the front'), back: side, tags: tagList, hint: z.string().max(1000).default(''), source: z.union([z.literal(''), z.url().refine(v => /^https?:\/\//.test(v), 'Use an http or https URL')]).default('') })
+  .refine(v => filled(v.back) || hasCloze(v.front.text), { path: ['back'], message: 'Add text, an image or a drawing to the back, or use a cloze deletion like {{c1::answer}} on the front' });
 /**
  * A card as an assistant writes one.
  *

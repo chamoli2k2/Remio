@@ -1,4 +1,5 @@
 import Img from './Img';
+import DrawingView from './DrawingView';
 import RichText, { sideOf, plainText } from './RichText';
 
 /**
@@ -25,13 +26,14 @@ import RichText, { sideOf, plainText } from './RichText';
  * `display` beats the browser's own rule for `[hidden]`, so leaving it implicit would show both
  * sides at once.
  */
-export default function CardFaces({ card, flipped, sizes }) {
+export default function CardFaces({ card, flipped, sizes, folderId = card.folder }) {
   // Asked for by name rather than by the flag, because `sideOf` is where the cloze rule lives: a
   // cloze card with an empty back has no second side, and its "answer" is its own front with the
   // deletions filled in.
   return [['front', sideOf(card, false)], ['back', sideOf(card, true)]].map(([name, side]) => (
     <span className="card-face" key={name} hidden={name === (flipped ? 'front' : 'back')}>
       {side.image && <Img id={side.image} alt={plainText(side.text) || 'Flashcard image'} sizes={sizes}/>}
+      {side.drawing && <DrawingView folderId={folderId} id={side.drawing} label={plainText(side.text) || 'Flashcard drawing'}/>}
       <RichText text={side.text} cloze={side.cloze}/>
     </span>
   ));

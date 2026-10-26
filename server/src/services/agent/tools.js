@@ -126,13 +126,21 @@ export async function createCollection(user, input) {
  * that will try again: "card 7: add text or an image to the back" produces a fixed card 7, and a
  * bare "validation failed" produces another guess.
  */
-function parseCards(input) {
+function parseCards(input, shared = {}) {
   assert(Array.isArray(input) && input.length, 400, 'Send at least one card.');
   assert(input.length <= AGENT_LIMITS.cardsPerCall, 400,
     `Send at most ${AGENT_LIMITS.cardsPerCall} cards in one call. Split a longer set across several calls.`);
+  const batchTags = Array.isArray(shared.tags) ? shared.tags.filter(t => typeof t === 'string') : [];
+  const batchSource = typeof shared.source === 'string' ? shared.source : '';
   const cards = [], problems = [];
   input.forEach((raw, i) => {
-    try { cards.push(agentCardSchema.parse(raw)); }
+    // Tags and a source said once for the batch, so a model need not repeat them on every card.
+    // The card's own come first, and the card's own source wins.
+    const own = Array.isArray(raw?.tags) ? raw.tags : [];
+    const withShared = raw && typeof raw === 'object'
+      ? { ...raw, tags: [...new Set([...own, ...batchTags])].slice(0, 10), source: raw.source || batchSource }
+      : raw;
+    try { cards.push(agentCardSchema.parse(withShared)); }
     catch (e) { problems.push(`card ${i + 1}: ${toAppError(e).message}`); }
   });
   assert(!problems.length, 400, problems.slice(0, 5).join('; '));
@@ -190,8 +198,8 @@ function imageUrlsIn(parsed) {
  * id is unique per user in the database, so the retry either finds the finished batch and is
  * handed the original answer, or loses the race on the index and is handed it a moment later.
  */
-export async function addCards(user, grant, { collectionId, cards: input, requestId }) {
-  const parsed = parseCards(input);
+export async function addCards(user, grant, { collectionId, cards: input, requestId, tags = [], source = '' }) {
+  const parsed = parseCards(input, { tags, source });
 
   const done = await AgentBatch.findOne({ user: user.id, requestId });
   if (done) return { ...done.result, replayed: true };

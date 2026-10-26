@@ -16,7 +16,7 @@ import * as teams from '../controllers/teamController.js';
 import * as agent from '../controllers/agentController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePremium, requireDashboard, requireSuperadmin, requireVerifiedEmail } from '../middleware/account.js';
-import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, folderDeleteSchema, cardSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema } from '../middleware/validate.js';
+import { validate, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, folderDeleteSchema, cardSchema, drawingSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema } from '../middleware/validate.js';
 import { requireImports, requireSignupOpen } from '../middleware/config.js';
 import { throttle as rateLimit } from '../middleware/throttle.js';
 import { megabytes, setting } from '../services/settingsService.js';
@@ -92,6 +92,8 @@ r.delete('/folders/:id', requireAuth, validate(folderDeleteSchema), a(folders.re
 r.patch('/folders/:id/save', requireAuth, validate(z.object({ saved: z.boolean() })), a(folders.save));
 r.get('/folders/:id/activity', a(folders.activity));
 r.get('/folders/:id/cards', a(cards.list)); r.post('/folders/:id/cards', requireAuth, validate(cardSchema), a(cards.create));
+r.post('/folders/:id/drawings', requireAuth, rateLimit({ windowMs: 60000, limit: () => setting('throttle.uploadsPerMinute') }), validate(drawingSchema), a(cards.saveDrawing));
+r.get('/folders/:id/drawings/:drawingId', a(cards.drawing));
 r.post('/folders/:id/images', requireAuth, rateLimit({ windowMs: 60000, limit: () => setting('throttle.uploadsPerMinute') }), uploadImage, a(cards.upload));
 const uploadImport = sizedUpload('limits.importMb', 'file');
 // Import and export are gated inside the controller, which knows the folder and therefore the team seat.

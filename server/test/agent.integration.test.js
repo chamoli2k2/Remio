@@ -269,6 +269,35 @@ integration('cards are added, and a retried call does not add them twice', async
   assert.equal(written[1].back.text, '');
 });
 
+integration('tags and a source given once for the batch reach every card, without overriding a card of its own', async () => {
+  const { access_token } = await connect();
+  const { data: made } = await callTool(access_token, 'create_collection', { title: 'Shared fields' });
+  const res = await callTool(access_token, 'add_cards', {
+    collectionId: made.id, requestId: crypto.randomUUID(),
+    tags: ['Physics', 'optics'], source: 'https://example.org/chapter-2',
+    cards: [
+      { front: 'What does a convex lens do?', back: 'It converges light.' },
+      { front: 'Snell\'s law?', back: '$n_1 \\sin\\theta_1 = n_2 \\sin\\theta_2$', tags: ['refraction', 'optics'], source: 'https://example.org/snell' },
+    ],
+  });
+  assert.equal(res.isError, false, JSON.stringify(res.data));
+  const [plain, own] = await Card.find({ folder: made.id }).sort({ createdAt: 1 });
+  assert.deepEqual(plain.tags, ['physics', 'optics']);
+  assert.equal(plain.source, 'https://example.org/chapter-2');
+  assert.deepEqual(own.tags, ['refraction', 'optics', 'physics'], 'merged, the card\'s own first, without repeats');
+  assert.equal(own.source, 'https://example.org/snell');
+  assert.match(own.back.text, /\\sin/, 'math is stored as written');
+});
+
+integration('the assistant is told how cards are formatted and how to write them economically', async () => {
+  const { access_token } = await connect();
+  const res = await mcp(access_token, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } });
+  const text = res.text || JSON.stringify(res.body);
+  for (const expected of ['Markdown', '$…$', '{{c2::', '::hint}}', 'Omit every optional field', 'once per batch']) {
+    assert.ok(text.includes(expected), `instructions mention ${expected}`);
+  }
+});
+
 integration('a card that cannot be stored names itself so the model can fix it', async () => {
   const { access_token } = await connect();
   const { data: made } = await callTool(access_token, 'create_collection', { title: 'Errors' });

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { S3Client, PutObjectCommand, GetObjectCommand, CopyObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, CopyObjectCommand, DeleteObjectsCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { IMAGE_WIDTHS } from '../../../shared/images.js';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AppError } from '../utils/errors.js';
@@ -104,6 +104,42 @@ export async function put(key, body, contentType = 'image/webp') {
       CacheControl: 'private, max-age=31536000, immutable',
     }));
   } catch (cause) { throw fail('store an image', cause); }
+}
+
+/** Reads an object back, or null if there is none under that key. */
+export async function find(key) {
+  try {
+    const out = await s3().send(new GetObjectCommand({ Bucket: bucket(), Key: key }));
+    return Buffer.from(await out.Body.transformToByteArray());
+  } catch (cause) {
+    if (cause?.name === 'NoSuchKey' || cause?.$metadata?.httpStatusCode === 404) return null;
+    throw fail('read a stored file', cause);
+  }
+}
+
+/** Whether an object exists, without downloading it. */
+export async function exists(key) {
+  try {
+    await s3().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+    return true;
+  } catch (cause) {
+    if (cause?.$metadata?.httpStatusCode === 404 || cause?.name === 'NotFound') return false;
+    throw fail('check a stored file', cause);
+  }
+}
+
+/** Every key under a prefix, a page of a thousand at a time, which is the API's limit. */
+export async function listKeys(prefix) {
+  const keys = [];
+  let token;
+  try {
+    do {
+      const out = await s3().send(new ListObjectsV2Command({ Bucket: bucket(), Prefix: prefix, ContinuationToken: token }));
+      for (const item of out.Contents || []) keys.push(item.Key);
+      token = out.IsTruncated ? out.NextContinuationToken : undefined;
+    } while (token);
+  } catch (cause) { throw fail('list stored files', cause); }
+  return keys;
 }
 
 /** Server-side copy: the bytes never travel to us and back, and cost no egress. */

@@ -3,6 +3,7 @@ import * as storage from '../services/storage.js';
 import * as mediaService from '../services/mediaService.js';
 import { Card, Media, Revision, Progress } from '../models/index.js';
 import * as cards from '../services/cardService.js';
+import * as drawings from '../services/drawingService.js';
 import { accessFolder, mutateFolder } from '../services/accessService.js';
 import { requireFolderPremium } from '../services/teamAccess.js';
 import { assert } from '../utils/errors.js';
@@ -107,4 +108,19 @@ export const image = async (req, res) => {
   res.set({ 'Content-Type': media.contentType, 'X-Content-Type-Options': 'nosniff' });
   if (!published) res.set('Cache-Control', 'private, no-store');
   res.send(media.data);
+};
+
+export const saveDrawing = async (req, res) => res.status(201).json(await drawings.save(req.params.id, req.user, req.body));
+/**
+ * A saved drawing never changes — an edit is a new id — so whoever may see it may keep it. Public
+ * for a published collection, private otherwise, and immutable either way.
+ */
+export const drawing = async (req, res) => {
+  const { folder, body } = await drawings.read(req.params.id, req.params.drawingId, req.user);
+  res.set({
+    'Content-Type': 'application/json; charset=utf-8',
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': `${folder.visibility === 'global' ? 'public' : 'private'}, max-age=31536000, immutable`,
+  });
+  res.send(body);
 };

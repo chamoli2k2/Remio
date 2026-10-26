@@ -21,7 +21,7 @@ export function renderRich(text, { cloze = 'show', katex = null } = {}) {
 export const plainText = text => renderCloze(text, 'show', { open: '', close: '' }).replace(/\$\$?/g, '').replace(/[*_`>#]+/g, '').trim();
 /** Which side to show. A cloze card with an empty back reveals its front with the deletions filled in as its "answer". */
 export function sideOf(card, flipped) {
-  const clozeCard = hasCloze(card.front.text) && !card.back.text.trim() && !card.back.image;
+  const clozeCard = hasCloze(card.front.text) && !card.back.text.trim() && !card.back.image && !card.back.drawing;
   if (clozeCard) return { ...card.front, cloze: flipped ? 'show' : 'hide' };
   return { ...(flipped ? card.back : card.front), cloze: 'show' };
 }

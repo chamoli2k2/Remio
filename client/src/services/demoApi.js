@@ -110,7 +110,7 @@ const demoReports = [
 let demoOrders = [{ id: 'demo-order-1', plan: 'quarterly', method: 'razorpay', name: 'Sara Iyer', email: 'sara@demo.test', phone: '+91 98765 43210', country: 'India', address: '221B Baker Street, Mumbai 400001', status: 'pending', user: { username: 'sara' }, createdAt: new Date().toISOString() }];
 let folders = sampleFolders.map((f, i) => ({ ...f, cards: undefined, id: `folder-${i}`, owner: i === 4 ? collaborators[1] : user, role: i === 4 ? 'viewer' : 'owner', version: 0, members: i === 0 ? [{ user: collaborators[0], role: 'editor' }] : [], memberCount: i === 0 ? 2 : 1, archived: false, cardCount: f.cards.length, createdAt: new Date().toISOString(), updatedAt: new Date(Date.now() - i * 3600000).toISOString() }));
 let cards = sampleFolders.flatMap((f, i) => f.cards.map(([front, back, tags], j) => ({ id: `card-${i}-${j}`, folder: `folder-${i}`, front: { text: front }, back: { text: back }, tags, hint: '', source: '', version: 0, progress: { version: 0, repetitions: 0, interval: 0, bookmarked: false, dueAt: null } })));
-let reviews = [], activity = [], revisions = {}, images = {};
+let reviews = [], activity = [], revisions = {}, images = {}, drawings = {};
 const clone = x => structuredClone(x);
 const error = message => { throw new Error(message); };
 // A paid-up classroom so the preview can show a roster, assignments, and the teacher's report.
@@ -263,11 +263,13 @@ export async function demoRequest(path, options = {}) {
     const folder = folders.find(f => f.id === id); if (!folder) error('Folder not found.');
     if (action === 'cards' && method === 'GET') return { cards: clone(cards.filter(c => c.folder === id)) };
     if (action === 'activity') return { activity: clone(activity.filter(a => a.folder === id)) };
+    if (action === 'drawings' && method === 'GET') { const doc = drawings[`${id}/${parts[3]}`]; if (!doc) error('Drawing not found.'); return clone(doc); }
     // The server answers entitlement per folder; the preview account has the toolkit everywhere.
     if (!action && method === 'GET') return { folder: { ...clone(folder), premium: true } };
     if (action === 'save') { folder.saved = body.saved; return { ok: true }; }
     if (action === 'copy') { const copy = { ...clone(folder), id: uuid(), title: `${folder.title} (copy)`, owner: clone(user), role: 'owner', members: [], visibility: 'private', version: 0, originalCreator: folder.owner.username }; folders.unshift(copy); cards.push(...cards.filter(c => c.folder === id).map(c => ({ ...clone(c), id: uuid(), folder: copy.id, progress: { version: 0, interval: 0, repetitions: 0, bookmarked: false } }))); return { folder: clone(copy) }; }
     if (folder.role !== 'owner' && folder.role !== 'editor') error('This folder is read-only. Make a copy to edit it.');
+    if (action === 'drawings' && method === 'POST') { const drawingId = crypto.randomUUID(); drawings[`${id}/${drawingId}`] = clone(body); return { id: drawingId }; }
     if (action === 'images') { const file = body.get('image'); const imageId = uuid(); images[imageId] = URL.createObjectURL(file); return { id: imageId, url: images[imageId] }; }
     if (action === 'members') { if (folder.role !== 'owner') error('Only the owner can manage access.'); const target = collaborators.find(c => c.username === body.username.replace('@', '')); if (!target) error('In this preview, try @alex or @maya. Real invitations require the backend.'); folder.members = folder.members.filter(m => m.user.id !== target.id); if (body.role !== 'remove') folder.members.push({ user: target, role: body.role }); folder.memberCount = folder.members.length + 1; folder.version++; return { folder: clone(folder) }; }
     if (action === 'archive') { folder.archived = body.archived; return { ok: true }; }
