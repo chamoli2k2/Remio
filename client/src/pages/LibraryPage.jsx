@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import AdSlot from '../components/AdSlot';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { Plus, ArrowRight, Play, Search, LayoutGrid, List, SlidersHorizontal, BookOpen, Layers, Target, Flame, Globe2, Users, Archive } from 'lucide-react';
+import { Plus, ArrowRight, Search, LayoutGrid, List, BookOpen, Flame, Layers, Globe2, Users, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useApp } from '../hooks/useApp';
 import { api } from '../services/api';
@@ -12,6 +12,38 @@ import FolderModal from '../components/FolderModal';
 import ShareModal from '../components/ShareModal';
 import DeleteFolderModal from '../components/DeleteFolderModal';
 import Select from '../components/Select';
+
+const RING_R = 20, RING_C = 2 * Math.PI * RING_R;
+/**
+ * Today at a glance: what is waiting, how far along the daily goal is, and the one thing to do next.
+ * One strip instead of a hero and a separate goal card, so the collections start above the fold.
+ */
+function TodayStrip({ stats, onStudy }) {
+  const done = stats?.reviewsToday || 0, goal = stats?.goal || 20, share = Math.min(1, done / goal), streak = stats?.streak?.current || 0;
+  return <section className="today-strip" aria-label="Today">
+    <div className="today-copy">
+      <span className="banner-label"><span className="tiny-line"/> A LITTLE PROGRESS, EVERY DAY</span>
+      <h2>Keep your curiosity in good company.</h2>
+      <p>{stats?.due ? `${stats.due} cards are ready when you are.` : 'Your next discovery is just a card away.'}</p>
+    </div>
+    <div className="today-art" aria-hidden="true">
+      <div className="today-card is-behind"/>
+      <div className="today-card is-flipping">
+        <div className="today-card-face"><span>DAILY THOUGHT</span><p>What will you learn today?</p></div>
+        <div className="today-card-face is-back"><Layers size={16}/><p>a little goes a long way</p></div>
+      </div>
+    </div>
+    <div className="today-meta">
+      <Link to="/settings?section=study" className={`today-chip today-goal ${share >= 1 ? 'is-done' : ''}`} aria-label={`Daily goal: ${done} of ${goal} cards reviewed today. Edit daily goal`}>
+        <svg viewBox="0 0 48 48" width="42" height="42" aria-hidden="true"><circle cx="24" cy="24" r={RING_R} className="today-ring-track"/><circle cx="24" cy="24" r={RING_R} className="today-ring-fill" strokeDasharray={RING_C} strokeDashoffset={RING_C * (1 - share)}/></svg>
+        <span><strong>{done}<small> / {goal}</small></strong><span>Daily goal</span></span>
+      </Link>
+      {streak > 0 && <div className="today-chip today-streak"><span className="today-chip-icon"><Flame size={18}/></span><span><strong>{streak}</strong><span>day streak</span></span></div>}
+    </div>
+    <Button className="white-button today-cta" onClick={onStudy}>Start a study session <ArrowRight size={17}/></Button>
+  </section>;
+}
+
 export default function LibraryPage({ mode = 'library' }) {
   const { user, refresh } = useApp(); const navigate = useNavigate(); const [params, setParams] = useSearchParams();
   const [tab, setTab] = useState('all'), [layout, setLayout] = useState('grid'), [sort, setSort] = useState('recent'), [create, setCreate] = useState(false), [edit, setEdit] = useState(null), [share, setShare] = useState(null), [archive, setArchive] = useState(null), [remove, setRemove] = useState(null);
@@ -24,7 +56,7 @@ export default function LibraryPage({ mode = 'library' }) {
   const title = { library: 'My library', shared: 'Better, together.', explore: 'Follow your curiosity.', archive: 'Archived folders' }[mode];
   const sub = { library: 'A home for everything you want to remember.', shared: 'Shared collections. Fresh perspectives. Your own progress.', explore: 'Find your next subject in the community’s public collections.', archive: 'Your collections are safely tucked away. Restore them anytime.' }[mode];
   return <><div className="page-heading"><div><div className="eyebrow">{mode === 'library' ? `YOUR PERSONAL LEARNING SPACE` : mode === 'explore' ? 'THE COMMUNITY LIBRARY' : 'YOUR WORKSPACE'}</div><h1>{title}</h1><p>{sub}</p></div><Button className="primary" onClick={() => setCreate(true)}><Plus size={18}/> New folder</Button></div>
-    {mode === 'library' && <section className="learning-overview"><div className="study-banner"><div><span className="banner-label"><span className="tiny-line"/> A LITTLE PROGRESS, EVERY DAY</span><h2>Keep your curiosity<br/>in good company.</h2><p>{stats?.due ? `${stats.due} cards are ready when you are.` : 'Your next discovery is just a card away.'}</p><Button className="white-button" onClick={() => { const first = all.find(f => f.cardCount); first ? navigate(`/folders/${first.id}/study?mode=due`) : setCreate(true); }}>Start a study session <ArrowRight size={17}/></Button></div><div className="banner-card-preview" aria-hidden="true"><div className="mini-study-card back-card"><Layers size={19}/></div><div className="mini-study-card front-card"><span>DAILY THOUGHT</span><p>What will you<br/>learn today?</p><span className="mini-flip">a little goes a long way <ArrowRight size={12}/></span></div></div></div><div className="goal-card"><div className="goal-top"><span className="goal-icon"><Target size={20}/></span><span>Daily goal</span><Link to="/settings?section=study" aria-label="Edit daily goal"><SlidersHorizontal size={16}/></Link></div><div className="goal-number">{stats?.reviewsToday || 0}<span> / {stats?.goal || 20}</span></div><p>cards reviewed today</p><div className="goal-progress"><span style={{ width: `${Math.min(100, ((stats?.reviewsToday || 0) / (stats?.goal || 20)) * 100)}%` }}/></div><div className="goal-bottom"><span>Small steps, lasting knowledge.</span><span>✦</span></div></div></section>}
+    {mode === 'library' && <TodayStrip stats={stats} onStudy={() => { const first = all.find(f => f.cardCount); first ? navigate(`/folders/${first.id}/study?mode=due`) : setCreate(true); }}/>}
     {mode === 'library' && <div className="library-section-heading"><h2>Your collections <span>{all.length}</span></h2><span><BookOpen size={15}/> {stats?.totalCards || 0} cards, endless possibilities</span></div>}
     <div className="library-toolbar">{mode === 'library' ? <div className="tabs" role="tablist" aria-label="Folder filters">{[['all', 'All folders'], ['private', 'Private'], ['global', 'Global'], ['saved', 'Liked']].map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{label}{value === 'all' && <span>{all.length}</span>}</button>)}</div> : <div className="collection-label">{mode === 'explore' ? <Globe2 size={18}/> : mode === 'shared' ? <Users size={18}/> : <Archive size={18}/>} {all.length} collections</div>}<div className="toolbar-right"><div className="folder-search"><Search size={16}/><input aria-label="Filter folders" placeholder="Search folders" value={query} onChange={e => setParams(e.target.value ? { q: e.target.value } : {})}/></div><Select compact label="Sort folders" value={sort} onChange={setSort} options={[{ value: 'recent', label: 'Recently updated' }, { value: 'name', label: 'Name A–Z' }, { value: 'cards', label: 'Most cards' }]}/><div className="view-switch"><button className={layout === 'grid' ? 'active' : ''} onClick={() => setLayout('grid')} aria-label="Grid view" aria-pressed={layout === 'grid'}><LayoutGrid size={17}/></button><button className={layout === 'list' ? 'active' : ''} onClick={() => setLayout('list')} aria-label="List view" aria-pressed={layout === 'list'}><List size={18}/></button></div></div></div>
     {loading ? <Loading/> : error ? <ErrorState message={error}/> : folders.length === 0 ? <Empty title={query ? 'No matching folders' : mode === 'shared' ? 'Learning together starts here' : mode === 'archive' ? 'Nothing archived' : 'Make space for something new'} text={query ? 'Try a different search or filter.' : mode === 'shared' ? `Ask a friend to share a folder with @${user.username}.` : mode === 'archive' ? 'Archived collections will appear here.' : 'Create your first folder and add a few things you want to remember.'} action={mode === 'library' && <Button className="primary" onClick={() => setCreate(true)}><Plus size={17}/> Create a folder</Button>}/> : <div className={`folder-grid ${layout === 'list' ? 'folder-list' : ''}`}>{folders.map(f => mode === 'archive' ? <div className="archive-item" key={f.id}><h3>{f.title}</h3><p>{f.cardCount} cards</p><div className="archive-item-actions"><Button className="secondary" onClick={async () => { try { await api(`/folders/${f.id}/archive`, { method: 'PATCH', body: { archived: false } }); refresh(); toast.success('Folder restored'); } catch (e) { reportError(e); } }}>Restore folder</Button><Button className="danger-button" onClick={() => setRemove(f)}>Delete forever</Button></div></div> : <FolderTile key={f.id} folder={f} list={layout === 'list'} onEdit={setEdit} onShare={setShare} onArchive={setArchive} onDelete={setRemove}/>)}</div>}

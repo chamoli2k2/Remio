@@ -352,6 +352,52 @@ html.is-standalone body{overscroll-behavior:none;-webkit-tap-highlight-color:tra
 @keyframes pull-spin{to{transform:rotate(360deg)}}
 html[data-theme=dark] .edge-back,html[data-theme=dark] .pull-refresh{background:var(--surface-2);box-shadow:0 6px 20px #0008}
 html[data-theme=dark] .edge-back.is-ready{background:var(--accent);color:#fff}
+/* Library: today at a glance. One strip, three zones — what is waiting, how today is going, what to do. */
+.today-strip{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;grid-template-areas:"copy art meta cta";align-items:center;gap:16px 24px;padding:20px 24px;margin-bottom:30px;border-radius:18px;color:#fff;background:#5a45e0;background-image:radial-gradient(circle at 100% 0,#9c86f6 0,transparent 55%),linear-gradient(115deg,#5a45e0 0%,#6d55ea 100%);box-shadow:0 12px 32px -14px #5a45e099}
+.today-copy{grid-area:copy;min-width:0}
+.today-strip .banner-label{color:#d6ccff}
+.today-copy h2{margin:7px 0 4px;font-size:21px;line-height:1.25;letter-spacing:-.5px;color:#fff}
+.today-copy p{margin:0;font-size:13px;color:#e6dfff}
+.today-meta{grid-area:meta;display:flex;gap:10px}
+.today-chip{display:flex;align-items:center;gap:10px;min-height:58px;padding:8px 16px 8px 8px;border-radius:14px;background:#ffffff1a;border:1px solid #ffffff29;color:#fff;text-decoration:none}
+a.today-chip:hover{background:#ffffff2b}
+a.today-chip:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.today-chip strong{display:block;font-family:'Manrope Variable',sans-serif;font-size:18px;font-weight:700;line-height:1.1}
+.today-chip strong small{font-size:12px;font-weight:500;color:#ddd4ff}
+.today-chip span>span{display:block;margin-top:2px;font-size:11px;color:#ddd4ff;white-space:nowrap}
+.today-goal svg{flex:none;transform:rotate(-90deg)}
+.today-ring-track{fill:none;stroke:#ffffff38;stroke-width:5}
+.today-ring-fill{fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+.today-goal.is-done .today-ring-fill{stroke:#7be0b0}
+.today-chip-icon{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:12px;background:#ffffff1f;color:#ffd27a}
+.today-cta{grid-area:cta;white-space:nowrap}
+/* A card that turns over on its own: the one gesture the whole product is about. */
+.today-art{grid-area:art;position:relative;width:128px;height:78px;perspective:700px}
+.today-card{position:absolute;inset:0;border-radius:12px}
+.today-card.is-behind{background:#ffffff26;border:1px solid #ffffff33;transform:rotate(-7deg) translate(-8px,3px)}
+.today-card.is-flipping{transform-style:preserve-3d;animation:today-flip 7s cubic-bezier(.65,0,.35,1) infinite}
+.today-card-face{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:5px;padding:10px 12px;border-radius:12px;background:#fff;color:#3b2f73;box-shadow:0 10px 24px -10px #1d124d80;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.today-card-face span{font-size:7.5px;font-weight:700;letter-spacing:1.3px;color:#8b7bd8}
+.today-card-face p{margin:0;font-family:'Manrope Variable',sans-serif;font-size:12.5px;font-weight:700;line-height:1.25}
+.today-card-face.is-back{transform:rotateY(180deg);background:#2f2563;color:#fff;align-items:flex-start}
+.today-card-face.is-back svg{color:#b7a8ff}
+.today-card-face.is-back p{font-size:12px;font-weight:600}
+@keyframes today-flip{0%,38%{transform:rotateY(0) translateY(0)}44%{transform:rotateY(90deg) translateY(-4px)}50%,88%{transform:rotateY(180deg) translateY(0)}94%{transform:rotateY(270deg) translateY(-4px)}100%{transform:rotateY(360deg)}}
+@media(prefers-reduced-motion:reduce){.today-card.is-flipping{animation:none}}
+html[data-theme=dark] .today-card-face{background:#efeaff}
+html[data-theme=dark] .today-card-face.is-back{background:#231c4a}
+@media(max-width:1180px){.today-strip{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"copy cta" "meta art"}.today-art{justify-self:end}}
+@media(max-width:600px){.library-toolbar .tabs{flex:1 1 100%;overflow-x:auto;scrollbar-width:none}.library-toolbar .tabs button{white-space:nowrap;flex:none}.library-toolbar .toolbar-right{flex:1 1 100%;margin-left:0;display:flex;flex-wrap:wrap;gap:10px}.library-toolbar .folder-search{flex:1 1 100%}.library-toolbar .folder-search input{width:100%}.library-toolbar .toolbar-right>select,.library-toolbar .toolbar-right>:nth-child(2){flex:1;max-width:none}.today-strip{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"copy art" "meta meta" "cta cta";padding:18px;gap:14px;margin-bottom:24px}.today-copy h2{font-size:18px}.today-art{width:92px;height:62px;align-self:start}.today-card-face{padding:7px 9px;gap:3px}.today-card-face span{font-size:6px}.today-card-face p,.today-card-face.is-back p{font-size:10px}.today-card-face.is-back svg{width:12px;height:12px}.today-meta>.today-chip{flex:1}.today-cta{width:100%;justify-content:center}}
+/* Page headings: a title bar, not a hero. The content below is what the page is for. */
+.page-heading{align-items:flex-end;gap:10px 20px;margin-bottom:16px}
+.page-heading .eyebrow{font-size:9.5px;margin-bottom:3px}
+.page-heading h1{font-size:25px;line-height:1.15;letter-spacing:-.7px}
+.page-heading p{font-size:13px;margin-top:3px;max-width:none}
+.page-heading>.button{padding:8px 14px;font-size:13px;gap:6px}
+.page-heading>.button svg{width:16px;height:16px}
+@media(max-width:760px){.page-heading{margin-bottom:14px}.page-heading h1{font-size:23px}.page-heading p{font-size:12.5px;max-width:none}}
+@media(max-width:600px){.main-content .page-heading{align-items:center;flex-wrap:nowrap}.page-heading>div{min-width:0}.page-heading .eyebrow{display:none}.page-heading h1{font-size:22px}.page-heading p{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}.page-heading>.button{flex:none;padding:8px 12px;font-size:12px}}
+html[data-theme=dark] .today-strip{background:#4b3bb0;background-image:radial-gradient(circle at 100% 0,#7a66e0 0,transparent 55%),linear-gradient(115deg,#4a39ad 0%,#5a47c4 100%);box-shadow:none}
 /* Legal and contact pages. These use the theme variables throughout so dark mode needs no overrides. */
 .legal-head{max-width:720px;margin-bottom:40px}
 .legal-head h1{font-size:44px;line-height:1.1;letter-spacing:-1.6px;color:var(--ink);margin:10px 0 0}
