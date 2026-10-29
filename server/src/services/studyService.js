@@ -18,7 +18,7 @@ export async function reviewCard(user, body) {
     Object.assign(progress, schedule(before, body.rating, now, { retention: user.desiredRetention || DEFAULT_RETENTION })); progress.version++;
     await progress.save({ session }); const result = { ...progress.toJSON(), preview: previewSchedule(progress.toObject(), user.desiredRetention || DEFAULT_RETENTION, now) };
     const mode = body.mode || 'classic';
-    const game = await awardReview({ user, card, before, after: progress, rating: body.rating, mode, localHour: body.localHour, board: body.board, now }, session);
+    const game = await awardReview({ user, card, before, after: progress, rating: body.rating, mode, reply: body.reply, localHour: body.localHour, board: body.board, now }, session);
     await Review.create([{ user: user.id, card: card.id, requestId: body.requestId, rating: body.rating, mode, result, game, elapsedDays: result.elapsedDays, folder: card.folder }], { session });
     return { progress: result, game };
   });

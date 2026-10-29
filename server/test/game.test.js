@@ -98,7 +98,7 @@ after(async () => {
 });
 
 integration('a review earns XP and the first badge, and a retried request is not paid twice', async () => {
-  const body = { cardId: cards[0].id, rating: 'good', requestId: crypto.randomUUID(), version: 0, mode: 'type', localHour: 2 };
+  const body = { cardId: cards[0].id, rating: 'good', requestId: crypto.randomUUID(), version: 0, mode: 'type', reply: 'Paris', localHour: 2 };
   const first = await learner.post('/api/reviews').send(body);
   assert.equal(first.status, 200, JSON.stringify(first.body));
   assert.equal(first.body.game.xp, xpForReview({ rating: 'good', mode: 'type', combo: 1, firstSight: true }));
@@ -115,6 +115,19 @@ integration('the same card again within minutes pays one XP, and a wrong answer 
   const [c] = (await freshCards()).filter(x => x.id === cards[0].id);
   const repeat = await review(c, { rating: 'again' });
   assert.equal(repeat.status, 200); assert.equal(repeat.body.game.xp, XP.repeatXp); assert.equal(repeat.body.game.combo, 0);
+});
+
+integration('a typed or spoken answer left blank is scheduled but earns and counts nothing', async () => {
+  const fresh = await freshCards(), before = await GameProfile.findOne({}).lean();
+  const blank = await review(fresh[3], { mode: 'voice', rating: 'again', reply: '   ' });
+  assert.equal(blank.status, 200); assert.equal(blank.body.game.xp, 0); assert.equal(blank.body.game.skipped, true);
+  assert.equal(blank.body.progress.reps, 1, 'the card is still scheduled');
+  const missing = await review((await freshCards())[3], { mode: 'type', rating: 'good' });
+  assert.equal(missing.body.game.xp, 0, 'no reply at all is a skip too, whatever the rating says');
+  const after = await GameProfile.findOne({}).lean();
+  assert.equal(after.xp, before.xp); assert.equal(after.reviews, before.reviews); assert.equal(after.today.reviews, before.today.reviews);
+  assert.equal(after.combo, 0); assert.ok(!after.modesTried.includes('voice'));
+  assert.equal(await Review.countDocuments({ reply: { $exists: true } }), 0, 'the reply is not stored');
 });
 
 integration('reaching the daily goal adds the bonus once', async () => {
@@ -140,7 +153,7 @@ integration('a match board only counts after its pairs were actually reviewed', 
 integration('XP stops at the daily cap', async () => {
   await GameProfile.updateOne({}, { $set: { 'today.xp': XP.dailyCap - 2 } });
   const fresh = await freshCards();
-  const capped = await review(fresh[6], { mode: 'voice' });
+  const capped = await review(fresh[6], { mode: 'voice', reply: 'Santiago' });
   assert.equal(capped.body.game.xp, 2); assert.equal(capped.body.game.capped, true);
 });
 

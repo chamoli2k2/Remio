@@ -98,7 +98,7 @@ export function TypeQuestion({ card, graded, onGraded }) {
   }
   return <form className="type-box" onSubmit={check}>
     <input ref={input} value={value} onChange={e => setValue(e.target.value)} disabled={!!graded} placeholder="Type your answer" autoComplete="off" autoCapitalize="off" spellCheck={false} enterKeyHint="done" maxLength={200} aria-label="Your answer"/>
-    {!graded && <div className="type-actions"><button type="button" className="text-button" onClick={() => onGraded({ rating: 'again', verdict: 'wrong', reply: '', overridable: false })}>I don’t know</button><button type="submit" className="button primary" disabled={!value.trim()}>Check <kbd>↵</kbd></button></div>}
+    {!graded && <div className="type-actions"><button type="button" className="text-button" onClick={() => onGraded({ rating: 'again', verdict: 'wrong', reply: '', skipped: true, overridable: false })}>I don’t know</button><button type="submit" className="button primary" disabled={!value.trim()}>Check <kbd>↵</kbd></button></div>}
     {graded && graded.verdict !== 'right' && <p className="type-diff">{graded.reply ? <>You wrote <s>{graded.reply}</s> · </> : null}Answer: <strong>{target}</strong></p>}
   </form>;
 }
@@ -149,7 +149,7 @@ export function SpeakAnswer({ card, answerSide, graded, onGraded }) {
     const pct = Math.round((graded.score || 0) * 100);
     return <div className={`speak-panel is-graded is-${graded.verdict}`}>
       <div className="speak-panel-label">YOUR ANSWER<span className="speak-score">{pct}% match</span></div>
-      <p className="speak-said">{graded.reply || <em>Nothing was said.</em>}</p>
+      <p className="speak-said">{graded.reply || <em>Skipped.</em>}</p>
       <div className="speak-meter" aria-hidden="true"><span style={{ width: `${pct}%` }}/></div>
       {(graded.hit?.length > 0 || graded.missed?.length > 0) && <div className="speak-words">
         {graded.hit.map(w => <span key={`h${w}`} className="speak-word is-hit"><Check size={11}/>{w}</span>)}
@@ -176,7 +176,7 @@ export function SpeakAnswer({ card, answerSide, graded, onGraded }) {
       </div>
       <div className="speak-actions">
         {text && <button type="button" className="text-button" onClick={() => { setText(''); base.current = ''; }}>Clear</button>}
-        <button type="button" className="text-button" onClick={() => onGraded({ rating: 'again', verdict: 'wrong', reply: '', score: 0, hit: [], missed: [], overridable: false })}>I don’t know</button>
+        <button type="button" className="text-button" onClick={() => onGraded({ rating: 'again', verdict: 'wrong', reply: '', skipped: true, score: 0, hit: [], missed: [], overridable: false })}>I don’t know</button>
         <button type="button" className="button primary" disabled={!text.trim()} onClick={check}>Check answer</button>
       </div>
     </div>

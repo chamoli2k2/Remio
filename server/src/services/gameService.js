@@ -1,5 +1,5 @@
 import { GameProfile, Progress } from '../models/index.js';
-import { XP, BADGES, isCorrect, xpForReview, levelOf, metricOf } from '../../../shared/game.js';
+import { XP, BADGES, isCorrect, isSkip, xpForReview, levelOf, metricOf } from '../../../shared/game.js';
 
 /**
  * Experience and badges, awarded inside the review's own transaction.
@@ -11,7 +11,9 @@ import { XP, BADGES, isCorrect, xpForReview, levelOf, metricOf } from '../../../
  * What the client says about how a card was answered — the mode, the local hour, a finished match
  * board — is believed, the same way the rating already is. Nobody is ranked against anybody here,
  * so the defences are the ones that stop a loop from being worth running: a repeated card pays one
- * XP, a day pays at most `XP.dailyCap`, and a board only counts after its pairs were reviewed.
+ * XP, a day pays at most `XP.dailyCap`, a board only counts after its pairs were reviewed, and a
+ * typed or spoken answer sent blank is a skip that earns nothing and counts toward nothing. The
+ * blank is judged from the reply itself, not from anything the client claims about it.
  */
 
 const DAY = 86400000;
@@ -20,9 +22,14 @@ const previousDay = key => dayKey(new Date(Date.parse(`${key}T00:00:00Z`) - DAY)
 const MAX_FOLDERS = Math.max(...BADGES.filter(b => b.metric === 'folders').map(b => b.target));
 const DEEP_ROOTS_DAYS = 21;
 
-export async function awardReview({ user, card, before, after, rating, mode = 'classic', localHour, board, now = new Date() }, session) {
+export async function awardReview({ user, card, before, after, rating, mode = 'classic', reply, localHour, board, now = new Date() }, session) {
   const profile = await GameProfile.findOneAndUpdate({ user: user.id }, { $setOnInsert: { user: user.id } }, { upsert: true, new: true, session });
   const startLevel = levelOf(profile.xp).level, correct = isCorrect(rating), day = dayKey(now);
+  if (isSkip(mode, reply)) {
+    profile.combo = 0;
+    await profile.save({ session });
+    return { xp: 0, total: profile.xp, level: levelOf(profile.xp), levelUp: false, combo: 0, goalBonus: false, capped: false, badges: [], skipped: true };
+  }
   const repeat = !!before?.lastReviewedAt && now - new Date(before.lastReviewedAt) < XP.repeatWindowMs;
   const firstSight = !before?.reps && !before?.lastReviewedAt;
 

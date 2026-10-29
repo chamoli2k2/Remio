@@ -28,6 +28,10 @@ export const XP = {
 
 export const isCorrect = rating => rating !== 'again';
 
+/** Modes where the learner produces the answer. Leaving it blank is a skip: scheduled, but worth nothing. */
+export const ANSWERED_MODES = ['type', 'voice'];
+export const isSkip = (mode, reply) => ANSWERED_MODES.includes(mode) && !String(reply ?? '').trim();
+
 /** XP for one review, before the daily cap. */
 export function xpForReview({ rating, mode = 'classic', combo = 0, firstSight = false, repeat = false }) {
   if (repeat) return XP.repeatXp;

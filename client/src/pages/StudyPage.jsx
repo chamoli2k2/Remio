@@ -73,7 +73,7 @@ export default function StudyPage() {
     try {
       while (pending.current.items.length) {
         const item = pending.current.items[0];
-        const body = { cardId: item.cardId, rating: item.rating, requestId: item.requestId, version: item.version, mode: item.mode, localHour: item.localHour, ...(item.board ? { board: item.board } : {}) };
+        const body = { cardId: item.cardId, rating: item.rating, requestId: item.requestId, version: item.version, mode: item.mode, localHour: item.localHour, ...(item.reply != null ? { reply: item.reply.slice(0, 4000) } : {}), ...(item.board ? { board: item.board } : {}) };
         const res = await api('/reviews', { method: 'POST', body });
         pending.current.items.shift();
         setRatings(v => [...v, item.rating]);
@@ -86,7 +86,7 @@ export default function StudyPage() {
   const itemFor = (c, rating, extra = {}) => ({ cardId: c.id, rating, version: c.progress?.version || 0, mode: style === 'classic' ? 'classic' : style, ...extra });
   const rate = rating => submit([itemFor(card, pending.current?.items[0]?.rating || rating)]);
   const onGraded = result => { setGraded(result); setFlipped(true); };
-  const proceed = (rating = graded?.rating) => submit([itemFor(card, rating, { seconds: graded?.seconds })]);
+  const proceed = (rating = graded?.rating) => submit([itemFor(card, rating, { seconds: graded?.seconds, reply: graded?.reply })]);
   function finishBoard({ mistakes, total }) {
     const items = board.map((c, i) => itemFor(c, !mistakes[c.id] ? 'good' : mistakes[c.id] === 1 ? 'hard' : 'again', i === board.length - 1 ? { board: { pairs: board.length, mistakes: total } } : {}));
     submit(items, { board: total ? 0 : 50 * board.length });
@@ -155,7 +155,7 @@ export default function StudyPage() {
 
   const verdict = graded && <div className={`verdict-bar is-${graded.verdict}`} role="status">
     <span className="verdict-icon">{graded.verdict === 'wrong' ? <X size={18}/> : <Check size={18}/>}</span>
-    <div><strong>{graded.verdict === 'right' ? PRAISE[index % PRAISE.length] : graded.verdict === 'close' ? (style === 'voice' ? 'Partly there. Compare with the card.' : 'Almost. Check the spelling.') : 'Not this time.'}</strong><small>{graded.verdict === 'wrong' ? 'It will come back sooner, so you can try again.' : 'Read the explanation while it’s fresh.'}</small></div>
+    <div><strong>{graded.verdict === 'right' ? PRAISE[index % PRAISE.length] : graded.verdict === 'close' ? (style === 'voice' ? 'Partly there. Compare with the card.' : 'Almost. Check the spelling.') : 'Not this time.'}</strong><small>{graded.skipped ? 'Skipped, so no XP. It will come back sooner.' : graded.verdict === 'wrong' ? 'It will come back sooner, so you can try again.' : 'Read the explanation while it’s fresh.'}</small></div>
     <div className="verdict-actions">{graded.overridable && <button type="button" className="text-button" disabled={busy} onClick={() => proceed('good')}>I was right</button>}<Button className="primary" disabled={busy} onClick={() => proceed()}>{busy ? 'Saving…' : 'Continue'} <ArrowRight size={16}/></Button></div>
   </div>;
 
