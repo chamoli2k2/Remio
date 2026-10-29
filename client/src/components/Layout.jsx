@@ -5,6 +5,7 @@ import { LibraryBig, Compass, Users, ChartNoAxesCombined, Plus, Settings2, Menu 
 import { Avatar, Button } from './ui';
 import { useApp, useQuery } from '../hooks/useApp';
 import { api } from '../services/api';
+import { flushSoon } from '../services/reviewSync';
 import { reportError } from '../services/errors';
 import FolderModal from './FolderModal';
 import ThemeToggle from './ThemeToggle';
@@ -60,7 +61,7 @@ export default function Layout() {
     ['PEOPLE', [['/teams', GraduationCap, 'Classrooms'], ['/shared', Users, 'Shared with me'], ['/friends', UserPlus, 'Friends'], ['/explore', Compass, 'Explore']]],
   ];
   async function signOut() {
-    try { if (!isDemo) await api('/auth/logout', { method: 'POST' }); setUser(null); setMobile(false); navigate('/'); }
+    try { if (!isDemo) { await flushSoon(); await api('/auth/logout', { method: 'POST' }); } setUser(null); setMobile(false); navigate('/'); }
     catch (e) { reportError(e); }
   }
   async function onSearch(value) {

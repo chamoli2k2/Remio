@@ -179,6 +179,13 @@ function demoTeams(path, method, body, id, action, parts) {
   if (action === 'folders' || action === 'checkout' || action === 'order') error('This needs a signed-in account outside the preview.');
   return { ok: true };
 }
+function demoReview(body) {
+  const existing = reviews.find(r => r.requestId === body.requestId); if (existing) return { progress: clone(existing.result) };
+  const card = cards.find(c => c.id === body.cardId); if (!card || body.version !== card.progress.version) error('This card has already been reviewed.');
+  const interval = { again: 0, hard: 1, good: Math.max(1, (card.progress.interval || 0) * 2), easy: Math.max(4, (card.progress.interval || 0) * 3) }[body.rating];
+  Object.assign(card.progress, { version: card.progress.version + 1, repetitions: body.rating === 'again' ? 0 : card.progress.repetitions + 1, interval, dueAt: new Date(Date.now() + (interval ? interval * 86400000 : 600000)).toISOString() });
+  reviews.push({ ...body, result: clone(card.progress) }); return { progress: clone(card.progress) };
+}
 export async function demoRequest(path, options = {}) {
   const method = options.method || 'GET'; const body = typeof options.body === 'string' ? JSON.parse(options.body) : options.body || {};
   const parts = path.split('?')[0].split('/').filter(Boolean); const [entity, id, action] = parts;
@@ -292,7 +299,8 @@ export async function demoRequest(path, options = {}) {
     if (method === 'DELETE') { cards = cards.filter(c => c.id !== id); folder.cardCount--; return { ok: true }; }
     if (method === 'PATCH') { if (body.version !== card.version) error('This card changed. Reopen it to see the latest version.'); (revisions[id] ||= []).unshift({ id: uuid(), version: card.version, snapshot: clone(card), editor: clone(user), createdAt: new Date().toISOString() }); Object.assign(card, body, { version: card.version + 1 }); return { card: clone(card) }; }
   }
-  if (entity === 'reviews') { const existing = reviews.find(r => r.requestId === body.requestId); if (existing) return { progress: clone(existing.result) }; const card = cards.find(c => c.id === body.cardId); if (body.version !== card.progress.version) error('This card has already been reviewed.'); const interval = { again: 0, hard: 1, good: Math.max(1, (card.progress.interval || 0) * 2), easy: Math.max(4, (card.progress.interval || 0) * 3) }[body.rating]; Object.assign(card.progress, { version: card.progress.version + 1, repetitions: body.rating === 'again' ? 0 : card.progress.repetitions + 1, interval, dueAt: new Date(Date.now() + (interval ? interval * 86400000 : 600000)).toISOString() }); reviews.push({ ...body, result: clone(card.progress) }); return { progress: clone(card.progress) }; }
+  if (path === '/reviews/batch') return { results: body.reviews.map(r => { try { return { requestId: r.requestId, ok: true, ...demoReview(r), game: null }; } catch (e) { return { requestId: r.requestId, ok: false, status: 409, code: 'VERSION_CONFLICT', error: e.message }; } }) };
+  if (entity === 'reviews') return demoReview(body);
   error('This action is not available.');
 }
 export const demoImage = id => images[id];

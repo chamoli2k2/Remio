@@ -211,13 +211,19 @@ export const deleteUserSchema = z.object({
  * checked, never stored. `echo` marks a spoken answer said back after reading it, which by
  * definition was not remembered, so it can only be rated "again".
  */
-export const reviewSchema = z.object({
+const reviewItem = z.object({
   cardId: idSchema, rating: z.enum(['again', 'hard', 'good', 'easy']), requestId: z.uuid(), version: z.number().int().min(0),
   mode: z.enum(MODE_IDS).default('classic'),
   reply: z.string().max(4000).optional(),
   echo: z.boolean().optional(),
   localHour: z.number().int().min(0).max(23).optional(),
   board: z.object({ pairs: z.number().int().min(2).max(6), mistakes: z.number().int().min(0).max(100) }).optional(),
+  // When the card was answered on the device. The server clamps it to the last week and never past
+  // its own clock, and uses it only for scheduling, so a wrong clock cannot buy XP or a streak.
+  reviewedAt: z.iso.datetime({ offset: true }).optional(),
 }).refine(b => !b.echo || (b.mode === 'voice' && b.rating === 'again'), { message: 'Only a spoken answer rated "again" can be said back.', path: ['echo'] });
+export const reviewSchema = reviewItem;
+/** Reviews answered on the device and synced together, oldest first. */
+export const reviewBatchSchema = z.object({ reviews: z.array(reviewItem).min(1).max(100) });
 
 export const validate = schema => (req, _res, next) => { try { req.body = schema.parse(req.body); next(); } catch (e) { next(e); } };

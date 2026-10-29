@@ -5,6 +5,7 @@ import Heatmap from '../components/Heatmap';
 import { toast } from 'sonner';
 import { useApp, useQuery } from '../hooks/useApp';
 import { api } from '../services/api';
+import { discard as discardReviews } from '../services/reviewSync';
 import { Button, Field, ErrorState, Loading, Avatar } from '../components/ui';
 import ThemeToggle from '../components/ThemeToggle';
 import ConfirmEmailFirst, { ResendLinkButton } from '../components/ConfirmEmailFirst';
@@ -294,7 +295,7 @@ function DangerPanel() {
       ? <Button className="danger-button" onClick={() => setOpen(true)}><Trash2 size={16}/> I want to delete my account</Button>
       : <form className="form-stack" onSubmit={async e => {
         e.preventDefault(); setBusy(true); setError('');
-        try { await api('/auth/account', { method: 'DELETE', body: form }); setUser(null); }
+        try { await api('/auth/account', { method: 'DELETE', body: form }); discardReviews(); setUser(null); }
         catch (e) { setError(e.message); setBusy(false); }
       }}>
         <Field label="Your password"><input required type="password" autoComplete="current-password" maxLength={128} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}/></Field>

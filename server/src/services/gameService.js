@@ -1,4 +1,4 @@
-import { GameProfile, Progress } from '../models/index.js';
+import { GameProfile } from '../models/index.js';
 import { XP, BADGES, isCorrect, isSkip, xpForReview, levelOf, metricOf } from '../../../shared/game.js';
 import { compareAnswer } from '../../../shared/answers.js';
 
@@ -25,15 +25,22 @@ const previousDay = key => dayKey(new Date(Date.parse(`${key}T00:00:00Z`) - DAY)
 const MAX_FOLDERS = Math.max(...BADGES.filter(b => b.metric === 'folders').map(b => b.target));
 const DEEP_ROOTS_DAYS = 21;
 
-export async function awardReview({ user, card, before, after, rating, mode = 'classic', reply, echo = false, localHour, board, now = new Date() }, session) {
-  const profile = await GameProfile.findOneAndUpdate({ user: user.id }, { $setOnInsert: { user: user.id } }, { upsert: true, new: true, session });
+export const loadProfile = (user, session) => GameProfile.findOneAndUpdate({ user: user.id }, { $setOnInsert: { user: user.id } }, { upsert: true, new: true, session });
+export function saveProfile(profile, session) { profile.markModified('today'); return profile.save({ session }); }
+
+/**
+ * Apply one review to a loaded profile, in memory; the caller saves the profile once for a whole
+ * batch. `now` is the server's clock and decides days and streaks; `at` is when the card was
+ * actually answered, which may be a little earlier if it was synced late, and only decides
+ * whether this is a repeat. `countDeepRoots` counts cards whose memory has grown past three weeks.
+ */
+export async function applyReview(profile, { user, card, before, after, rating, mode = 'classic', reply, echo = false, localHour, board, now = new Date(), at = now, countDeepRoots }) {
   const startLevel = levelOf(profile.xp).level, correct = isCorrect(rating), day = dayKey(now);
   if (isSkip(mode, reply) || (echo && (compareAnswer(reply, card)?.score ?? 0) < XP.echoMatch)) {
     profile.combo = 0;
-    await profile.save({ session });
     return { xp: 0, total: profile.xp, level: levelOf(profile.xp), levelUp: false, combo: 0, goalBonus: false, capped: false, badges: [], skipped: true };
   }
-  const repeat = !!before?.lastReviewedAt && now - new Date(before.lastReviewedAt) < XP.repeatWindowMs;
+  const repeat = !!before?.lastReviewedAt && at - new Date(before.lastReviewedAt) < XP.repeatWindowMs;
   const firstSight = !before?.reps && !before?.lastReviewedAt;
 
   if (profile.today?.day !== day) profile.today = { day, reviews: 0, xp: 0, goalMet: false };
@@ -72,13 +79,11 @@ export async function awardReview({ user, card, before, after, rating, mode = 'c
 
   const has = new Set(profile.badges.map(b => b.id));
   if (!has.has('deep-roots') && (after?.stability || 0) >= DEEP_ROOTS_DAYS) {
-    profile.deepRoots = await Progress.countDocuments({ user: user.id, stability: { $gte: DEEP_ROOTS_DAYS } }).session(session);
+    profile.deepRoots = await countDeepRoots(DEEP_ROOTS_DAYS);
   }
   const fresh = BADGES.filter(b => !has.has(b.id) && metricOf(profile, b.metric) >= b.target).map(b => b.id);
   for (const id of fresh) profile.badges.push({ id, at: now });
 
-  profile.markModified('today');
-  await profile.save({ session });
   const level = levelOf(profile.xp);
   return { xp: gained, total: profile.xp, level, levelUp: level.level > startLevel, combo: profile.combo, goalBonus, capped: gained < earned, badges: fresh };
 }

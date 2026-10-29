@@ -1,35 +1,59 @@
 import { uuid } from '../services/uuid';
 import AdSlot from '../components/AdSlot';
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { preload } from 'react-dom';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { X, ArrowRight, RotateCcw, Lightbulb, Check, ExternalLink, Flame, Trophy, Zap, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useApp } from '../hooks/useApp';
-import { api } from '../services/api';
+import { api, imageUrl } from '../services/api';
+import { enqueue, flush, flushSoon, subscribe, versionFor, pendingCards, pendingCount } from '../services/reviewSync';
 import Img from '../components/Img';
 import DrawingView from '../components/DrawingView';
-import { Button, Loading, ErrorState, Tag, FolderIcon, Empty } from '../components/ui';
+import { Loading, ErrorState, Tag, FolderIcon, Empty, Button } from '../components/ui';
 import RichText, { sideOf, plainText } from '../components/RichText';
-import { MODES, MODE_IDS, XP } from '../../../shared/game.js';
+import { MODES, MODE_IDS, XP, xpForReview, isSkip, isCorrect } from '../../../shared/game.js';
+import { srcSet } from '../../../shared/images.js';
 import { answerPool, playable, boardFrom, pointsFor, recordBest, partsOf, SpeechRecognition } from '../components/study/modes';
 import { ModePicker, ModeTag, ChoiceQuestion, TrueFalseQuestion, TypeQuestion, SpeakAnswer, MatchBoard } from '../components/study/StudyModes';
 import { BadgeMedal, LevelBar, badgeById } from '../components/study/GameBits';
 
 const PRAISE = ['Spot on.', 'Nailed it.', 'Exactly right.', 'You knew that.', 'Sharp.'];
 const FALLBACK = { mcq: 'choose from', truefalse: 'judge', type: 'type', voice: 'say', match: 'match' };
+const IMAGE_SIZES = '(max-width: 640px) 90vw, 520px';
+
+/**
+ * Cards for a session. Reviews still waiting in the outbox are sent first, so the progress loaded
+ * includes them; if they cannot be sent, a due-only session leaves those cards out rather than
+ * offering them again.
+ */
+async function loadSession(id, dueOnly) {
+  await flushSoon(2500);
+  const [f, c] = await Promise.all([api(`/folders/${id}`), api(`/folders/${id}/cards`)]);
+  const queued = dueOnly ? pendingCards() : new Set();
+  return { ...f, cards: c.cards.filter(card => !dueOnly || (!queued.has(card.id) && (!card.progress?.dueAt || new Date(card.progress.dueAt) <= new Date()))) };
+}
 
 export default function StudyPage() {
   const { id } = useParams(); const [params, setParams] = useSearchParams(); const dueOnly = params.get('mode') === 'due'; const { refresh } = useApp();
-  const { data, loading, error } = useQuery(`study:${id}:${dueOnly ? 'due' : 'all'}`, () => Promise.all([api(`/folders/${id}`), api(`/folders/${id}/cards`)]).then(([f, c]) => ({ ...f, cards: c.cards.filter(card => !dueOnly || !card.progress?.dueAt || new Date(card.progress.dueAt) <= new Date()) })));
+  const { data, loading, error } = useQuery(`study:${id}:${dueOnly ? 'due' : 'all'}`, () => loadSession(id, dueOnly));
   const [queue, setQueue] = useState(null), [index, setIndex] = useState(0), [flipped, setFlipped] = useState(false), [hint, setHint] = useState(false);
-  const [busy, setBusy] = useState(false), [failure, setFailure] = useState(''), [ratings, setRatings] = useState([]);
+  const [ratings, setRatings] = useState([]), [sync, setSync] = useState(() => ({ pending: pendingCount(), offline: false }));
   // Picked once on the screen before the first card, then fixed: it is in the URL so a reload keeps it.
   const mode = MODE_IDS.includes(params.get('play')) ? params.get('play') : null;
   const [graded, setGraded] = useState(null);
   const [session, setSession] = useState({ points: 0, xp: 0, combo: 0, level: null, badges: [], best: null });
   const [pop, setPop] = useState(null);
-  const pending = useRef(null), inFlight = useRef(false);
+  // What each queued review was shown as worth, so the server's figure can replace it when it lands;
+  // when each card was last answered here; and the card last answered, so a double tap counts once.
+  const estimates = useRef(new Map()), answeredAt = useRef(new Map()), answered = useRef(-1);
   useEffect(() => { if (data && !queue) setQueue(data.cards); }, [data, queue]);
+  useEffect(() => subscribe(event => {
+    if (event.results) for (const r of event.results) if (estimates.current.has(r.requestId)) { settle(r, estimates.current.get(r.requestId)); estimates.current.delete(r.requestId); }
+    if ('pending' in event) setSync({ pending: event.pending, offline: !!event.offline });
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Leaving the session sends what is left and drops its cached cards, so coming back loads fresh ones.
+  useEffect(() => () => { flush(); refresh(`study:${id}`); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pool = useMemo(() => answerPool(data?.cards || []), [data]);
   const unavailable = useMemo(() => {
@@ -48,14 +72,11 @@ export default function StudyPage() {
 
   const startIn = next => setParams(p => { const n = new URLSearchParams(p); n.set('play', next); return n; });
 
-  /** Award feedback for one answered card: points, the floating XP, and any badge or level it earned. */
-  function celebrate(game, item, extraPoints = 0) {
-    setSession(s => {
-      const combo = game?.combo ?? (item.rating === 'again' ? 0 : s.combo + 1);
-      const points = pointsFor({ rating: item.rating, combo, seconds: item.seconds }) + extraPoints;
-      return { ...s, points: s.points + points, xp: s.xp + (game?.xp || 0), combo, level: game?.level || s.level, badges: [...s.badges, ...(game?.badges || [])] };
-    });
-    if (game?.xp) setPop({ key: uuid(), xp: game.xp, goal: game.goalBonus });
+  /** The server's answer for a review shown earlier: correct the XP shown, and celebrate what it earned. */
+  function settle(result, estimate) {
+    const game = result.ok ? result.game : null;
+    setSession(s => ({ ...s, xp: s.xp + (game?.xp || 0) - estimate, level: game?.level || s.level, badges: [...s.badges, ...(game?.badges || [])] }));
+    if (game?.goalBonus) toast.success(`Daily goal reached. +${XP.goalBonus} XP.`, { icon: <Trophy size={16}/> });
     for (const badgeId of game?.badges || []) {
       const b = badgeById[badgeId];
       if (b) toast.custom(() => <div className="badge-toast"><BadgeMedal id={badgeId} size={44}/><div><span>BADGE UNLOCKED</span><strong>{b.name}</strong><p>{b.blurb}</p></div></div>, { duration: 6000 });
@@ -64,35 +85,52 @@ export default function StudyPage() {
   }
 
   /**
-   * Send answered cards one after another, then move past them. A failure keeps what is left, with
-   * the same request ids, so "try again" cannot count a card twice.
+   * Answer cards and move straight on. The reviews go to the outbox and reach the server in a batch
+   * a few seconds later, so nothing here waits on the network. The XP shown at once is worked out
+   * with the server's own rules; the server's figure replaces it when the batch is acknowledged,
+   * which is also when a daily goal, a badge or a level is confirmed.
    */
-  async function submit(items, { board: boardBonus = 0 } = {}) {
-    if (inFlight.current) return; inFlight.current = true; setBusy(true); setFailure('');
-    if (!pending.current) pending.current = { items: items.map(it => ({ ...it, requestId: uuid(), localHour: new Date().getHours() })), advance: items.length, boardBonus };
-    try {
-      while (pending.current.items.length) {
-        const item = pending.current.items[0];
-        const body = { cardId: item.cardId, rating: item.rating, requestId: item.requestId, version: item.version, mode: item.mode, localHour: item.localHour, ...(item.reply != null ? { reply: item.reply.slice(0, 4000) } : {}), ...(item.echo ? { echo: true } : {}), ...(item.board ? { board: item.board } : {}) };
-        const res = await api('/reviews', { method: 'POST', body });
-        pending.current.items.shift();
-        setRatings(v => [...v, item.rating]);
-        celebrate(res.game, item, pending.current.items.length ? 0 : pending.current.boardBonus);
-      }
-      const step = pending.current.advance; pending.current = null;
-      setIndex(v => v + step); setFlipped(false); setHint(false); setGraded(null); refresh();
-    } catch (e) { setFailure(e.message); } finally { inFlight.current = false; setBusy(false); }
+  function answer(items, { board: boardBonus = 0 } = {}) {
+    if (answered.current === index) return;
+    answered.current = index;
+    const now = Date.now(); let combo = session.combo, points = boardBonus, xp = 0;
+    const reviews = items.map(({ card: c, seconds, ...it }) => {
+      const echo = !!it.echo, skipped = isSkip(it.mode, it.reply);
+      combo = isCorrect(it.rating) && !skipped ? combo + 1 : 0;
+      const last = answeredAt.current.get(c.id) ?? (c.progress?.lastReviewedAt ? new Date(c.progress.lastReviewedAt).getTime() : null);
+      const repeat = last != null && now - last < XP.repeatWindowMs;
+      const estimate = skipped ? 0 : echo ? (repeat ? XP.repeatXp : XP.echoXp) : xpForReview({ rating: it.rating, mode: it.mode, combo, firstSight: !c.progress?.reps && last == null, repeat });
+      answeredAt.current.set(c.id, now);
+      const requestId = uuid();
+      estimates.current.set(requestId, estimate); xp += estimate;
+      if (!skipped) points += pointsFor({ rating: it.rating, combo, seconds });
+      // Only the server's blank check needs a typed or spoken reply, so only a short piece of it is
+      // sent; an answer said back is compared with the card, so it goes whole.
+      const reply = it.reply == null ? undefined : echo ? it.reply.slice(0, 4000) : it.reply.trim().slice(0, 100);
+      return { ...it, reply, cardId: c.id, requestId, version: versionFor(c), localHour: new Date(now).getHours(), reviewedAt: new Date(now).toISOString() };
+    });
+    enqueue(reviews);
+    setSession(s => ({ ...s, points: s.points + points, xp: s.xp + xp, combo }));
+    setRatings(v => [...v, ...items.map(i => i.rating)]);
+    if (xp) setPop({ key: uuid(), xp });
+    setIndex(v => v + items.length); setFlipped(false); setHint(false); setGraded(null);
   }
-  const itemFor = (c, rating, extra = {}) => ({ cardId: c.id, rating, version: c.progress?.version || 0, mode: style === 'classic' ? 'classic' : style, ...extra });
-  const rate = rating => submit([itemFor(card, pending.current?.items[0]?.rating || rating)]);
+  const itemFor = (c, rating, extra = {}) => ({ card: c, rating, mode: style === 'classic' ? 'classic' : style, ...extra });
+  const rate = rating => answer([itemFor(card, rating)]);
   const onGraded = result => { setGraded(result); setFlipped(true); };
-  const proceed = (rating = graded?.rating) => submit([graded?.echo?.passed
+  const proceed = (rating = graded?.rating) => answer([graded?.echo?.passed
     ? itemFor(card, 'again', { reply: graded.echo.reply, echo: true })
     : itemFor(card, rating, { seconds: graded?.seconds, reply: graded?.reply })]);
   function finishBoard({ mistakes, total }) {
     const items = board.map((c, i) => itemFor(c, !mistakes[c.id] ? 'good' : mistakes[c.id] === 1 ? 'hard' : 'again', i === board.length - 1 ? { board: { pairs: board.length, mistakes: total } } : {}));
-    submit(items, { board: total ? 0 : 50 * board.length });
+    answer(items, { board: total ? 0 : 50 * board.length });
   }
+
+  // The next card's pictures start downloading while this one is being answered.
+  const next = queue?.[index + 1];
+  useEffect(() => {
+    for (const s of next ? [next.front, next.back] : []) if (s?.image) preload(imageUrl(s.image), { as: 'image', imageSrcSet: srcSet(w => `${imageUrl(s.image)}?w=${w}`), imageSizes: IMAGE_SIZES });
+  }, [next]);
 
   useEffect(() => {
     function key(e) {
@@ -107,6 +145,7 @@ export default function StudyPage() {
 
   const finished = queue && index >= queue.length;
   useEffect(() => { if (finished && session.best == null) setSession(s => ({ ...s, best: recordBest(id, activeMode, s.points) })); }, [finished]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (finished) flush(); }, [finished]);
 
   if (loading || !queue) return error ? <ErrorState message={error}/> : <Loading/>;
   if (!queue.length) return <Empty title="You’re all caught up" text="There are no cards due in this folder. Come back later or try a quick review." action={<Link className="button primary" to={`/folders/${id}`}>Back to folder</Link>}/>;
@@ -116,6 +155,7 @@ export default function StudyPage() {
   if (!mode || unavailable[mode]) return <div className="study-page">{header}<ModePicker unavailable={unavailable} count={queue.length} onPick={startIn}/></div>;
   function anotherMode() {
     setQueue(null); setIndex(0); setRatings([]); setGraded(null); setFlipped(false);
+    answered.current = -1; estimates.current.clear();
     setSession({ points: 0, xp: 0, combo: 0, level: session.level, badges: [], best: null });
     setParams({ mode: 'all' });
   }
@@ -124,7 +164,7 @@ export default function StudyPage() {
     const remembered = ratings.filter(r => r !== 'again').length;
     return <div className="study-page">{header}<div className="study-complete">
       <span className="complete-icon"><Check size={36}/></span><span className="eyebrow">A LITTLE WISER THAN BEFORE</span><h1>That’s a good session.</h1>
-      <p>You reviewed {ratings.length} cards in {MODES[activeMode].label.toLowerCase()}. Your next reviews are scheduled.</p>
+      <p>You reviewed {ratings.length} cards in {MODES[activeMode].label.toLowerCase()}. {!sync.pending ? 'Your next reviews are scheduled.' : sync.offline ? 'Your answers are saved on this device and will sync when you are back online.' : 'Saving your answers…'}</p>
       <div className="session-result">
         <div><strong>{session.points.toLocaleString()}</strong><span>points{session.best?.isNew ? ' · new best' : ''}</span></div>
         <div><strong>{remembered}</strong><span>remembered</span></div>
@@ -151,7 +191,6 @@ export default function StudyPage() {
     return <div className="study-page is-playing">{header}{hud}
       <div className="study-counter"><span>Cards {index + 1}–{index + board.length} of {queue.length}</span><span>Match each question to its answer.</span></div>
       <MatchBoard key={`${index}-${board.length}`} cards={board} onDone={finishBoard}/>
-      {failure && <div className="study-retry"><ErrorState message={failure}/><Button className="primary" disabled={busy} onClick={() => submit([])}>Try again</Button></div>}
     </div>;
   }
 
@@ -159,7 +198,7 @@ export default function StudyPage() {
   const verdict = graded && <div className={`verdict-bar is-${echoed ? 'close' : graded.verdict}`} role="status">
     <span className="verdict-icon">{graded.verdict === 'wrong' && !echoed ? <X size={18}/> : <Check size={18}/>}</span>
     <div><strong>{echoed ? 'Said it back.' : graded.verdict === 'right' ? PRAISE[index % PRAISE.length] : graded.verdict === 'close' ? (style === 'voice' ? 'Partly there. Compare with the card.' : 'Almost. Check the spelling.') : 'Not this time.'}</strong><small>{echoed ? `Worth ${XP.echoXp} XP for practising it. It will still come back sooner.` : graded.skipped ? (style === 'voice' ? 'No XP unless you say it back. It will come back sooner.' : 'Skipped, so no XP. It will come back sooner.') : graded.verdict === 'wrong' ? 'It will come back sooner, so you can try again.' : 'Read the explanation while it’s fresh.'}</small></div>
-    <div className="verdict-actions">{graded.overridable && <button type="button" className="text-button" disabled={busy} onClick={() => proceed('good')}>I was right</button>}<Button className="primary" disabled={busy} onClick={() => proceed()}>{busy ? 'Saving…' : 'Continue'} <ArrowRight size={16}/></Button></div>
+    <div className="verdict-actions">{graded.overridable && <button type="button" className="text-button" onClick={() => proceed('good')}>I was right</button>}<Button className="primary" onClick={() => proceed()}>Continue <ArrowRight size={16}/></Button></div>
   </div>;
 
   const question = { card, pool, graded, onGraded };
@@ -172,7 +211,6 @@ export default function StudyPage() {
         <div className="study-card speak-question"><div className="study-card-label">THE QUESTION</div><div className="study-card-body">{faceOf(sideOf(card, false))}</div><div className="study-card-bottom"><div>{card.tags.map(t => <Tag key={t}>{t}</Tag>)}</div>{card.hint && !graded && <button className="text-button" onClick={() => setHint(v => !v)}><Lightbulb size={16}/>{hint ? card.hint : 'Show hint'}</button>}{graded && card.source && <a href={card.source} target="_blank" rel="noreferrer" className="text-button">Source <ExternalLink size={14}/></a>}</div></div>
         <SpeakAnswer card={card} graded={graded} onGraded={setGraded} onEcho={echo => setGraded(g => ({ ...g, echo }))} answerSide={faceOf(sideOf(card, true))}/>
       </div>
-      {failure && <ErrorState message={failure}/>}
       {verdict && <div className="study-actions mode-actions">{verdict}</div>}
     </div>;
   }
@@ -181,8 +219,7 @@ export default function StudyPage() {
     <div className="study-counter"><span>Card {index + 1} of {queue.length}</span><span>{style === 'classic' ? (flipped ? 'How well did you remember?' : 'Take a moment. You know more than you think.') : graded ? 'Here’s the full answer.' : MODES[style].label}</span></div>
     {style === 'classic' && activeMode !== 'classic' && <p className="mode-fallback">{activeMode === 'voice' ? 'This card has no written answer to compare with' : `This answer is too long to ${FALLBACK[activeMode]}`}, so flip it and rate yourself.</p>}
     <div className={`study-card ${flipped ? 'answer-visible' : ''} ${graded ? `is-graded is-${graded.verdict}` : ''}`}><div className="study-card-label">{flipped ? 'THE ANSWER' : 'THE QUESTION'}</div><div className="study-card-body" data-face={flipped ? 'back' : 'front'}>{side.image && <Img id={side.image} alt={plainText(side.text) || 'Study image'} sizes="(max-width: 640px) 90vw, 520px" eager/>}{side.drawing && <DrawingView folderId={data.folder.id} id={side.drawing} label={plainText(side.text) || 'Study drawing'}/>}<RichText text={side.text} cloze={side.cloze}/></div><div className="study-card-bottom"><div>{card.tags.map(t => <Tag key={t}>{t}</Tag>)}</div>{!flipped && card.hint && <button className="text-button" onClick={() => setHint(v => !v)}><Lightbulb size={16}/>{hint ? card.hint : 'Show hint'}</button>}{flipped && card.source && <a href={card.source} target="_blank" rel="noreferrer" className="text-button">Source <ExternalLink size={14}/></a>}</div></div>
-    {failure && <ErrorState message={failure}/>}
-    {style === 'classic' ? <div className="study-actions">{!flipped ? <><Button className="primary reveal-button" onClick={() => setFlipped(true)}>Reveal answer <RotateCcw size={18}/></Button><span className="keyboard-hint">or press <kbd>space</kbd></span></> : <><div className="rating-buttons">{[['again', 'Again', 'Review in 10 min'], ['hard', 'Hard', 'Needs practice'], ['good', 'Good', 'Got it right'], ['easy', 'Easy', 'Knew it instantly']].map(([value, label, sub], i) => <button key={value} className={`rating ${value}`} disabled={busy || pending.current && pending.current.items[0]?.rating !== value} onClick={() => rate(value)}><span>{label}<kbd>{i + 1}</kbd></span><small>{card.progress?.preview?.[value] ? <>Next in <strong>{card.progress.preview[value]}</strong></> : sub}</small></button>)}</div><span className="keyboard-hint">{busy ? 'Saving your progress…' : card.progress?.retrievability != null ? <>Predicted recall right now: <strong>{Math.round(card.progress.retrievability * 100)}%</strong> · Be honest with yourself.</> : 'Be honest with yourself. Every review helps.'}</span></>}</div>
+    {style === 'classic' ? <div className="study-actions">{!flipped ? <><Button className="primary reveal-button" onClick={() => setFlipped(true)}>Reveal answer <RotateCcw size={18}/></Button><span className="keyboard-hint">or press <kbd>space</kbd></span></> : <><div className="rating-buttons">{[['again', 'Again', 'Review in 10 min'], ['hard', 'Hard', 'Needs practice'], ['good', 'Good', 'Got it right'], ['easy', 'Easy', 'Knew it instantly']].map(([value, label, sub], i) => <button key={value} className={`rating ${value}`} onClick={() => rate(value)}><span>{label}<kbd>{i + 1}</kbd></span><small>{card.progress?.preview?.[value] ? <>Next in <strong>{card.progress.preview[value]}</strong></> : sub}</small></button>)}</div><span className="keyboard-hint">{card.progress?.retrievability != null ? <>Predicted recall right now: <strong>{Math.round(card.progress.retrievability * 100)}%</strong> · Be honest with yourself.</> : 'Be honest with yourself. Every review helps.'}</span></>}</div>
       : <div className="study-actions mode-actions" key={`${card.id}-${style}`}>
         {style === 'mcq' && <ChoiceQuestion {...question}/>}
         {style === 'truefalse' && <TrueFalseQuestion {...question}/>}

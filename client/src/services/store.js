@@ -91,9 +91,10 @@ export function createStore() {
   }
 
   /** Marks keys out of date. Anything on screen reloads once; anything off screen is simply dropped so
-   *  it reloads the next time it is needed. Pass prefixes to scope it, or nothing to mean everything. */
+   *  it reloads the next time it is needed. Pass prefixes to scope it, a function of the key to pick
+   *  keys some other way, or nothing to mean everything. */
   function invalidate(...prefixes) {
-    const matches = key => !prefixes.length || prefixes.some(p => key === p || key.startsWith(p));
+    const matches = typeof prefixes[0] === 'function' ? prefixes[0] : key => !prefixes.length || prefixes.some(p => key === p || key.startsWith(p));
     for (const key of new Set([...entries.keys(), ...loaders.keys(), ...listeners.keys()])) {
       if (!matches(key)) continue;
       if (inflight.has(key)) stale.add(key);
