@@ -1935,3 +1935,6 @@ html[data-theme=dark] .study-card-body,html[data-theme=dark] .card-content{scrol
   .study-page:has(> .study-card) .study-actions{margin-top:14px;gap:10px}
 }
 @media(min-width:761px){.study-page:not(.is-playing)>.study-actions{min-height:97px;justify-content:flex-start}}
+/* A card in the collection grid only keeps the wheel while it has text left to scroll; otherwise the
+   page scrolls as usual, wherever the pointer is. */
+.card-content{overscroll-behavior:auto}
