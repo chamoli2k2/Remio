@@ -1920,3 +1920,18 @@ html[data-theme=dark] .study-card-body,html[data-theme=dark] .card-content{scrol
   .study-page.is-playing .study-card{height:clamp(150px,calc(100dvh - 500px),360px)}
 }
 @media(max-width:760px){.study-card,.study-page .study-card{height:clamp(180px,calc(100dvh - 460px),480px)}}
+
+/* Studying on a computer: the screen never scrolls. The workspace is exactly one window tall, and
+   the card takes whatever height the header, the rating buttons and the site footer leave, so all of
+   them are always in view and only the card's text scrolls. If the window is too short for even
+   that, the study area scrolls on its own and the footer still stays put. */
+@media(min-width:761px){
+  .workspace:has(.study-page > .study-card){height:100vh;height:100dvh;overflow:hidden}
+  .workspace:has(.study-page > .study-card)>*{flex-shrink:0}
+  .workspace:has(.study-page > .study-card)>.main-content{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow-y:auto;padding-top:12px;padding-bottom:14px}
+  .main-content>.study-page:has(> .study-card){flex:1 1 auto;min-height:0;width:100%;display:flex;flex-direction:column}
+  .study-page:has(> .study-card)>*{flex-shrink:0}
+  .study-page>.study-card,.study-page.is-playing>.study-card{flex:1 1 0;height:auto;min-height:170px;max-height:none}
+  .study-page:has(> .study-card) .study-actions{margin-top:14px;gap:10px}
+}
+@media(min-width:761px){.study-page:not(.is-playing)>.study-actions{min-height:97px;justify-content:flex-start}}
