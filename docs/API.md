@@ -150,28 +150,151 @@ registered at all.
 
 | Scope | Grants |
 | --- | --- |
-| `collections:read` | List collections and search their cards. |
+| `collections:read` | List collections, search and read their cards, and read the answer style. |
 | `collections:write` | Create new collections. Always private, always owned by the user. |
-| `cards:write` | Add new cards to a collection. |
+| `cards:write` | Add new cards to a collection, and save the answer style. |
+| `cards:edit` | Edit one existing card at a time in a private collection. **Opt-in** — see below. |
 | `images:write` | Fetch pictures from web addresses the assistant supplies. |
+
+A request with no `scope` gets every scope except `cards:edit`, and `cards:edit` is left out of
+`scopes_supported` in both discovery documents, so a client that asks for everything it is shown
+still cannot edit. A client that wants it names it in `scope`, and the consent screen lists it.
 
 ### Tools
 
 | Tool | Scope | Notes |
 | --- | --- | --- |
 | `list_collections` | `collections:read` | Read only. |
-| `search_cards` | `collections:read` | Read only. Used to avoid writing the same material twice. |
+| `search_cards` | `collections:read` | Read only. By text, tags or both. |
+| `get_card` | `collections:read` | Read only. One card in full, with its version. |
+| `get_answer_style` | `collections:read` | Read only. How the person wants answers written. |
 | `create_collection` | `collections:write` | `visibility` is not a parameter and is forced to private. |
-| `add_cards` | `cards:write` | At most 50 per call. Requires a `requestId` for idempotency. A card naming an image also needs `images:write`. |
+| `add_cards` | `cards:write` | At most 50 per call. Requires a `requestId` for idempotency. A card naming an image also needs `images:write`. Unchanged; kept for existing clients. |
+| `create_cards` | `cards:write` | Bulk create with a result per card, `atomic` and `dryRun`. Images also need `images:write`. |
+| `set_answer_style` | `cards:write` | Saves a preference on the account or one collection. |
+| `update_card` | `cards:edit` | Partial edit of one card, with optimistic concurrency. Private collections only. Only listed for a connection that holds `cards:edit`. Marked `destructiveHint`. |
 | `set_collection_cover` | `images:write` | Private collections only. Records the previous cover so undo restores it. |
 
-The surface is additive by design. There is no tool that deletes, edits an existing card, or
-publishes, because an assistant summarising a document is reading text an attacker may have
-written and no instruction to the model reliably survives an instruction hidden in the document.
-The defence is that there is nothing dangerous to instruct: the worst outcome of a successful
-prompt injection is unwanted cards in a new private collection.
+The surface is additive by default. There is no tool that deletes or publishes, because an
+assistant summarising a document is reading text an attacker may have written and no instruction
+to the model reliably survives an instruction hidden in the document. The defence is that there
+is nothing dangerous to instruct: with the default scopes, the worst outcome of a successful
+prompt injection is unwanted cards in a private collection.
 
-Every write belongs to an `AgentBatch`, listed at `GET /api/agent/batches` and reversible with
+Editing is the one exception and is fenced accordingly: it needs the opt-in `cards:edit` scope, it
+changes one card per call against the version the assistant last read, it is refused on published
+collections (checked again inside the write transaction), and it goes through the same
+`cardService.updateCard` as an edit in the app — same permission check, a `Revision` of what was
+there before so the person can restore it from the card's history, and the same `card.updated`
+activity and live event after the commit.
+
+Read tools see collections the person owns, is a member of (viewer or editor) or reaches through
+a team, and never archived ones. Somebody else's collection — private or published — answers
+exactly like one that does not exist. Searching without a `collectionId` keeps its original
+reach: only collections the person can add to.
+
+### Tool reference
+
+Results are JSON in the text content of the tool result. A refusal has `isError: true` and is
+a plain sentence, except where noted below, where it is JSON: `{ "error", "code", ...details }`.
+Card indexes are 0-based positions in the `cards` array sent.
+
+**`search_cards`** — `{ query?, collectionId?, tags? }`
+
+- `query`: at most 200 characters. It needs at least 2 characters unless `tags` are given, and is matched literally against the front and back.
+- `tags`: up to 5, case-insensitive; a card has to have all of them.
+- Returns `{ matches: [{ id, collectionId, collection, front, back, tags, version }], more? }`.
+  - At most 20 matches, newest edit first.
+  - `front` and `back` are 120-character previews.
+  - `more: true` means there were more matches.
+- Existing callers are unaffected: `query` and `collectionId` behave as before, and the new fields are additions.
+
+**`get_card`** — `{ collectionId, cardId }`
+
+- Returns `{ id, collectionId, collection, version, front, back, hint, tags, source, frontImage, backImage, hasDrawing?, updatedAt, editable }`.
+  - Each image is `null` or `{ attached: true, url?, name? }`. `url` is the address an assistant originally fetched it from. Media ids are never returned.
+  - `editable` says whether `update_card` would be accepted for this connection.
+- `404 COLLECTION_NOT_FOUND` or `404 CARD_NOT_FOUND` otherwise. A card is only found inside the collection named.
+
+**`create_cards`** — `{ collectionId, requestId, cards, tags?, source?, atomic = true, dryRun = false }`
+
+- Arguments and limits:
+  - `cards`: 1–50, each `{ front, back?, hint?, tags?, source?, frontImage?, backImage? }`, the same shape as `add_cards`.
+  - At most 6 distinct image URLs per call.
+  - Counts against `agent.cardsPerDay` and `agent.imagesPerDay`.
+  - `requestId`: at most 100 characters. Required unless `dryRun`.
+- Validation and permissions:
+  - Every card is validated on its own, and every reason it fails is collected.
+  - The collection and editor permission are checked before anything is fetched.
+- `atomic: true` is all or nothing. If any card is invalid, or any picture cannot be fetched, nothing is written and the call fails with `400 CARDS_INVALID` and `{ collectionId, atomic, created: 0, failed, results }`.
+  - In `results`, each failing card is `{ index, status: "invalid", errors: [..] }`.
+  - Every other card is `{ index, status: "not_created" }`.
+  - The `requestId` is not spent, so the corrected batch may reuse it.
+- `atomic: false` writes the valid cards and reports the rest. A card whose picture failed is still created if what remains is a valid card, with `warnings`; otherwise it is `invalid`.
+- Success returns `{ collectionId, collection, atomic, created, failed, results: [{ index, status: "created", id, warnings? } | { index, status: "invalid", errors }], imagesStored?, remainingToday, imagesRemainingToday? }`.
+  - The created cards are one `AgentBatch`, shown on the review screen and undoable as a whole.
+  - The write goes through `cardService.insertCards`, the same function file imports use.
+- `dryRun: true` validates the batch and checks the collection and permissions. It fetches nothing, writes nothing and uses no allowance.
+  - Returns `{ dryRun: true, collectionId, collection, atomic, wouldCreate, invalid, results: [{ index, status: "valid" | "invalid" | "not_created", errors? }], imagesToFetch?, fitsAllowance, remainingToday, imagesRemainingToday? }`.
+  - Image URLs are checked for shape only, so a picture can still fail on the real call.
+- Idempotency: the `requestId` is stored with a SHA-256 digest of the request.
+  - The same id with the same arguments returns the original result with `replayed: true`.
+  - The same id with different arguments, or an id already used by `add_cards`, is refused with `409 REQUEST_ID_REUSED`. It is never answered with another request's result.
+
+**`update_card`** — `{ collectionId, cardId, expectedVersion, front?, back?, hint?, tags?, source?, frontImage?, backImage?, dryRun = false }`
+
+- Only the fields sent are changed. Any field that is omitted stays as it is.
+  - `tags` replaces the whole list (up to 10).
+  - `hint` and `source` take `""` to clear them.
+  - An image field takes an https URL to fetch, or `""` to remove the picture.
+  - Drawings are kept untouched.
+- The merged card has to pass the same `cardSchema` as an edit in the app. If it doesn't, the call fails with `400 CARD_INVALID` and `{ errors, draft }`.
+- The version must match. If the card has moved on, nothing is saved and the call fails with `409 VERSION_CONFLICT`: `{ status: 409, cardId, expectedVersion, currentVersion, current: <card as get_card returns it>, draft: <the fields sent> }`. That is enough to show the person both versions without losing the draft.
+  - A retry of an edit that already went through (the card is at `expectedVersion + 1` and already says what was sent) returns success with `replayed: true`.
+- Success returns `{ collectionId, cardId, previousVersion, version, changed: [field…], card }`.
+  - The version goes up by exactly one.
+  - An edit that changes nothing returns `unchanged: true` and does not bump the version.
+- `dryRun: true` runs every check and returns `{ dryRun: true, version, nextVersion, changes: [{ field, from, to }], imagesToFetch? }` without saving.
+- Images:
+  - A new picture needs `images:write` and counts against `agent.imagesPerDay`.
+  - It is fetched before the transaction.
+  - If any picture fails, nothing is saved: `400 IMAGE_FAILED` with `{ failures, draft }`.
+- Refused with `403 PUBLISHED` on a published collection, `403` for a viewer, and `409` for an archived collection.
+- Every edit records an `AgentBatch` with `kind: "edit"`, for the audit trail and the image allowance.
+  - These rows are left out of `GET /api/agent/batches`, and undo refuses them with `409 EDIT_NOT_UNDOABLE`.
+  - An edit is reversed from the card's history.
+
+**`get_answer_style`** — `{ collectionId? }`
+
+- Returns `{ style, source: "default" | "account" | "collection", collection?, guidance: [sentence…], customGuidance?: { text, note }, defaults }`.
+- `style` is `{ detail, format, include, audience, custom }`. A collection's style overrides the account's field by field, and anything unset falls back to the default:
+  - `detail`: `standard`
+  - `format`: `prose`
+  - `include`: `["examples"]`
+  - `audience`: `general`
+  - `custom`: `""`
+
+**`set_answer_style`** — `{ collectionId?, style?, reset? }`
+
+- `style` options; unknown keys are refused:
+  - `detail`: `brief` | `standard` | `detailed`
+  - `format`: `prose` | `bullets` | `steps` | `example-first` | `custom`. `custom` requires `custom` text.
+  - `include`: any of `examples`, `analogies`, `code`, `tradeoffs`
+  - `audience`: `general` | `beginner` | `interview` | `revision`
+  - `custom`: at most 500 characters
+- Omitted options keep their saved value; `reset: true` forgets the style at that level.
+- A collection-level style needs editor access, and at most 100 collections may have one.
+- Returns the same shape as `get_answer_style`.
+
+Answer styles are stored on the user (`answerStyle`, `collectionStyles`, both `select: false`),
+not on the collection, so they are never part of a public collection or the `/auth/me` payload, and
+collaborators keep their own. `custom` is the person's own words and is treated as untrusted:
+
+- It is reduced to one line, with control characters, code fences and HTML-like tags removed, before it is stored.
+- It is returned separately from `guidance`, with a note telling the model it is a formatting preference only. It cannot change the instructions, grant a permission, or ask for anything to be created, edited or shown.
+- No option adds fixed headings; the guidance tells the model not to add labels such as "Example:" unless the person asked for them.
+
+Every write of new cards belongs to an `AgentBatch`, listed at `GET /api/agent/batches` and reversible with
 `POST /api/agent/batches/:id/undo`. Undo is session-authenticated and has no tool, so the thing
 being undone cannot undo it — or prevent it.
 

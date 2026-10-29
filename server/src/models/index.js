@@ -3,7 +3,14 @@ import { COUNTRY_NAMES, HOME_COUNTRY } from '../../../shared/countries.js';
 const { Schema, model } = mongoose;
 const ref = (name, required = true) => ({ type: Schema.Types.ObjectId, ref: name, required });
 const options = { timestamps: true, toJSON: { transform: (_doc, ret) => { ret.id = ret._id.toString(); delete ret._id; delete ret.__v; return ret; } } };
-const user = new Schema({ username: { type: String, required: true, unique: true, lowercase: true }, email: { type: String, required: true, unique: true, lowercase: true, select: false }, emailVerifiedAt: { type: Date, default: null }, passwordHash: { type: String, select: false }, googleId: { type: String, select: false }, name: { type: String, required: true }, bio: { type: String, default: '' }, country: { type: String, enum: COUNTRY_NAMES, default: HOME_COUNTRY }, dailyGoal: { type: Number, default: 20 }, desiredRetention: { type: Number, default: 0.9, min: 0.7, max: 0.97 }, termsAcceptedAt: { type: Date, default: null }, termsVersion: { type: String, default: '' }, tokenVersion: { type: Number, default: 0, select: false }, account: { type: String, enum: ['normal', 'premium', 'admin', 'superadmin'], default: 'normal' }, premiumPlan: { type: String, default: '' }, premiumExpiresAt: { type: Date, default: null }, savedFolders: [ref('Folder')], followers: { type: Number, default: 0 }, following: { type: Number, default: 0 }, friends: { type: Number, default: 0 } }, options);
+/**
+ * How a person likes an assistant to write their answers; see shared/answerStyle.js. Every field is
+ * optional, and an unset one falls through to the default. Kept on the account, with an optional
+ * override per collection, rather than on the collection itself: it is one person's preference,
+ * and a collaborator on the same collection may want something else.
+ */
+const answerStyle = new Schema({ detail: String, format: String, include: { type: [String], default: undefined }, audience: String, custom: String }, { _id: false });
+const user = new Schema({ answerStyle: { type: answerStyle, default: undefined, select: false }, collectionStyles: { type: [{ folder: ref('Folder'), style: answerStyle, _id: false }], default: undefined, select: false }, username: { type: String, required: true, unique: true, lowercase: true }, email: { type: String, required: true, unique: true, lowercase: true, select: false }, emailVerifiedAt: { type: Date, default: null }, passwordHash: { type: String, select: false }, googleId: { type: String, select: false }, name: { type: String, required: true }, bio: { type: String, default: '' }, country: { type: String, enum: COUNTRY_NAMES, default: HOME_COUNTRY }, dailyGoal: { type: Number, default: 20 }, desiredRetention: { type: Number, default: 0.9, min: 0.7, max: 0.97 }, termsAcceptedAt: { type: Date, default: null }, termsVersion: { type: String, default: '' }, tokenVersion: { type: Number, default: 0, select: false }, account: { type: String, enum: ['normal', 'premium', 'admin', 'superadmin'], default: 'normal' }, premiumPlan: { type: String, default: '' }, premiumExpiresAt: { type: Date, default: null }, savedFolders: [ref('Folder')], followers: { type: Number, default: 0 }, following: { type: Number, default: 0 }, friends: { type: Number, default: 0 } }, options);
 // Sparse and unique: one Google account can only ever be one account here.
 user.index({ googleId: 1 }, { unique: true, sparse: true });
 // One row per signed-in device. The refresh token rotates on every use; the last few hashes are kept
@@ -53,7 +60,7 @@ agentToken.index({ user: 1, createdAt: -1 });
  * What an assistant did, in one reviewable unit.
  *
  * Every write an assistant makes belongs to a batch, and a batch can be undone whole. This is not
- * really a security control — the tools are additive, so nothing here can destroy anything — it is
+ * really a security control — the tools that write batches are additive, so nothing here can destroy anything — it is
  * an admission that a model will sometimes produce forty cards of confident nonsense, and the cost
  * of that should be one click rather than forty.
  *
@@ -91,6 +98,15 @@ const agentBatch = new Schema({
   coverMedia: ref('Media', false),
   previousCover: { type: String, default: '' },
   requestId: { type: String, required: true },
+  /**
+   * What wrote this batch. `edit` rows exist only to count the pictures an edit fetched against the
+   * daily allowance: an edit is undone from the card's own history, so undo refuses them and the
+   * review list leaves them out. Older rows have no kind and are card or cover batches.
+   */
+  kind: { type: String, enum: ['cards', 'cover', 'edit'], default: undefined },
+  // A digest of the request, so a request id reused for different cards is refused rather than
+  // answered with the result of the first. Older rows have none and are replayed as before.
+  fingerprint: { type: String, default: undefined },
   // The reply already sent for this request id, replayed verbatim on a retry.
   result: Schema.Types.Mixed,
   undoneAt: { type: Date, default: null },

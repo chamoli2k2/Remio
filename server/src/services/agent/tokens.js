@@ -5,7 +5,7 @@ import { hashToken } from '../../utils/hash.js';
 import { setting } from '../settingsService.js';
 import { assert } from '../../utils/errors.js';
 import { hasPremium } from '../../../../shared/account.js';
-import { TOKEN_PREFIX, TOKEN_BYTES, looksLikeToken, scopeString, SCOPE_IDS } from '../../../../shared/agent.js';
+import { TOKEN_PREFIX, TOKEN_BYTES, looksLikeToken, scopeString, SCOPES, SCOPE_IDS } from '../../../../shared/agent.js';
 
 /**
  * Minting, checking and revoking an assistant's permission to act for a user.
@@ -68,8 +68,8 @@ export const allows = (grant, scope) => SCOPE_IDS.includes(scope) && (grant?.sco
 
 export function requireScope(grant, scope) {
   assert(allows(grant, scope), 403,
-    `This assistant was not given permission to ${scope === 'cards:write' ? 'add cards' : scope === 'collections:write' ? 'create collections' : 'read your collections'}. Reconnect it from Settings to change that.`,
-    'SCOPE_REQUIRED');
+    `This assistant was not given the “${SCOPES[scope]?.label || scope}” permission (${scope}). Reconnect it from Settings to change that.`,
+    'SCOPE_REQUIRED', { details: { scope } });
 }
 
 /**

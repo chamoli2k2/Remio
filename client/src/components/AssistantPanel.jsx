@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useApp, useQuery, useStore } from '../hooks/useApp';
 import { api } from '../services/api';
 import { Button, Field, ErrorState, Loading } from './ui';
-import { SCOPES, SCOPE_IDS } from '../../../shared/agent.js';
+import { SCOPES, SCOPE_IDS, DEFAULT_SCOPES } from '../../../shared/agent.js';
 import { BRAND } from '../../../shared/brand.js';
 
 /**
@@ -179,7 +179,7 @@ function NewToken({ token, endpoint, onDone }) {
 function ConnectForm({ onCreated, max, count }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [name, setName] = useState('');
-  const [scopes, setScopes] = useState(SCOPE_IDS);
+  const [scopes, setScopes] = useState(DEFAULT_SCOPES);
   const toggle = id => setScopes(s => (s.includes(id) ? s.filter(x => x !== id) : SCOPE_IDS.filter(x => s.includes(x) || x === id)));
   if (count >= max) return <p className="muted">You have connected {max} assistants, which is the limit. Disconnect one you no longer use to make another.</p>;
   return <form className="form-stack assistant-form" onSubmit={async e => {
@@ -286,7 +286,7 @@ export default function AssistantPanel() {
           */}
         <div className="assistant-note">
           <ShieldCheck size={17}/>
-          <p>An assistant can only <strong>add</strong>. It cannot delete a card, change one you already have, or publish anything. Pictures it adds are re-made into our own file first, and only go into private collections. Everything it writes is listed below and can be undone.</p>
+          <p>An assistant can only <strong>add</strong>, unless you also allow it to edit cards. It can never delete a card or publish anything, and any edit it makes is kept in the card’s history. Pictures it adds are re-made into our own file first, and only go into private collections. Everything it adds is listed below and can be undone.</p>
         </div>
 
         <h3>Connected{grants.length ? ` · ${grants.length}` : ''}</h3>

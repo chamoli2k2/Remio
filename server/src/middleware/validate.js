@@ -5,6 +5,7 @@ import { TEAM_PLAN_IDS, SEATS } from '../../../shared/teams.js';
 import { BRAND } from '../../../shared/brand.js';
 import { COUNTRY_NAMES, PHONE_PATTERN } from '../../../shared/countries.js';
 import { SCOPE_IDS } from '../../../shared/agent.js';
+import { DETAIL, FORMAT, EXTRAS, AUDIENCE, CUSTOM_GUIDANCE_MAX, cleanGuidance } from '../../../shared/answerStyle.js';
 import { MODE_IDS } from '../../../shared/game.js';
 import { DRAWING_ID, DRAWING_VERSION, PAGE, MAX_HEIGHT, PAPERS, THEMES, TOOLS, SIZE, LIMITS, HEX } from '../../../shared/drawing.js';
 export const idSchema = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid identifier');
@@ -139,6 +140,41 @@ export const agentCardSchema = z.object({
 
 /** What an assistant may set when it creates a collection. Visibility is absent on purpose — see agent/tools.js. */
 export const agentCollectionSchema = folderSchema.pick({ title: true, description: true, color: true, icon: true });
+
+/**
+ * One card's changes, as an assistant sends them to `update_card`.
+ *
+ * Every field is optional and nothing is defaulted, because an absent field means "leave it as it
+ * is" — a default here would quietly blank whatever the person had written. An image is an https
+ * address to fetch, or an empty string to take the picture off. A source that is not a URL is
+ * refused rather than swept, unlike on a new card, since sweeping it would erase the one already
+ * there.
+ */
+const httpsImage = z.url().max(2000).refine(v => /^https:\/\//i.test(v), 'Image URLs have to start with https');
+export const agentCardPatchSchema = z.object({
+  front: z.string().max(10000).optional(),
+  back: z.string().max(10000).optional(),
+  hint: z.string().max(1000).optional(),
+  tags: z.array(z.string().trim().toLowerCase().min(1).max(30)).max(10).transform(v => [...new Set(v)]).optional(),
+  source: z.union([z.literal(''), z.url().max(2000).refine(v => /^https?:\/\//i.test(v), 'Use an http or https URL')]).optional(),
+  frontImage: z.union([z.literal(''), httpsImage]).optional(),
+  backImage: z.union([z.literal(''), httpsImage]).optional(),
+}).refine(p => Object.values(p).some(v => v !== undefined), 'Send at least one field to change.');
+
+/**
+ * How someone likes their answers written. All optional, so a call can change one thing; unknown
+ * keys are refused so a misspelt option is an error rather than a setting that silently did
+ * nothing. The guidance is the person's own words and is cleaned to a single short line before it
+ * is stored, because it will be read back to a model.
+ */
+const uniq = v => [...new Set(v)];
+export const answerStyleSchema = z.object({
+  detail: z.enum(Object.keys(DETAIL)).optional(),
+  format: z.enum(Object.keys(FORMAT)).optional(),
+  include: z.array(z.enum(Object.keys(EXTRAS))).max(Object.keys(EXTRAS).length).transform(uniq).optional(),
+  audience: z.enum(Object.keys(AUDIENCE)).optional(),
+  custom: z.string().max(CUSTOM_GUIDANCE_MAX, `Keep custom guidance under ${CUSTOM_GUIDANCE_MAX} characters.`).transform(cleanGuidance).optional(),
+}).strict();
 
 /**
  * Minting a token by hand, for a client that cannot do the approval flow.

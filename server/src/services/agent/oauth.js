@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { AgentToken, OAuthClient, OAuthGrant } from '../../models/index.js';
 import { hashToken } from '../../utils/hash.js';
 import { publicOrigin } from '../../utils/origin.js';
-import { SCOPE_IDS, SCOPES, parseScopes, scopeString, MCP_PATH } from '../../../../shared/agent.js';
+import { DEFAULT_SCOPES, SCOPES, parseScopes, scopeString, MCP_PATH } from '../../../../shared/agent.js';
 import { issueForClient, refreshForClient, requireAgentsEnabled, requireAgentEntitlement } from './tokens.js';
 
 /**
@@ -50,7 +50,10 @@ export const authorizationServerMetadata = () => ({
   token_endpoint: `${base()}/oauth/token`,
   registration_endpoint: `${base()}/oauth/register`,
   revocation_endpoint: `${base()}/oauth/revoke`,
-  scopes_supported: SCOPE_IDS,
+  // The additive set only. A client that asks for everything it is shown should not come away able
+  // to edit; one that wants `cards:edit` asks for it by name, and the consent screen lists it
+  // (RFC 8414 lets a server leave supported scopes unadvertised).
+  scopes_supported: DEFAULT_SCOPES,
   response_types_supported: ['code'],
   grant_types_supported: ['authorization_code', 'refresh_token'],
   // S256 only. Advertising `plain` would let a client choose it, and a downgrade a client can pick
@@ -64,7 +67,7 @@ export const authorizationServerMetadata = () => ({
 export const protectedResourceMetadata = () => ({
   resource: resourceUrl(),
   authorization_servers: [base()],
-  scopes_supported: SCOPE_IDS,
+  scopes_supported: DEFAULT_SCOPES,
   bearer_methods_supported: ['header'],
   resource_documentation: `${base()}/settings`,
 });

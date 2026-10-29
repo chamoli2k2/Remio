@@ -29,25 +29,44 @@ export async function createCard(folderId, user, body) {
     await recordEvent(folder, user, 'card.created', stripCloze(body.front.text).slice(0, 100) || 'Image card', session, card.id); return card;
   });
 }
+/**
+ * The one way many cards are written at once, inside a folder transaction the caller already holds.
+ *
+ * File imports and an assistant's batches both come through here, so they get the same rules:
+ * an archived folder refuses them, drawings cannot be smuggled in by id, tags are merged and capped
+ * the same way, and one activity event summarises the lot. All or nothing: the cards are inserted
+ * together, so a failure leaves none of them behind.
+ */
+export async function insertCards(folder, user, cards, session, { extraTags = [], detail } = {}) {
+  assert(!folder.archived, 409, 'Restore this folder before adding cards.');
+  const docs = cards.map(c => ({ ...c, front: { ...c.front, drawing: null }, back: { ...c.back, drawing: null }, tags: [...new Set([...(c.tags || []), ...extraTags])].slice(0, 10), folder: folder.id, createdBy: user.id, updatedBy: user.id }));
+  const created = await Card.insertMany(docs, { session });
+  await recordEvent(folder, user, 'cards.imported', detail ?? `${created.length} cards imported`, session, folder.id, { count: created.length });
+  return created;
+}
 /** Bulk insert already-parsed cards in one transaction; one activity event summarises the import. */
 export async function importCards(folderId, user, cards, { extraTags = [] } = {}) {
   assert(cards.length, 400, 'No cards were found in that file.'); assert(cards.length <= MAX_CARDS, 400, `Import at most ${MAX_CARDS} cards at a time.`);
-  return mutateFolder(folderId, user, 'editor', async (folder, session) => {
-    assert(!folder.archived, 409, 'Restore this folder before adding cards.');
-    const docs = cards.map(c => ({ ...c, front: { ...c.front, drawing: null }, back: { ...c.back, drawing: null }, tags: [...new Set([...c.tags, ...extraTags])].slice(0, 10), folder: folder.id, createdBy: user.id, updatedBy: user.id }));
-    const created = await Card.insertMany(docs, { session });
-    await recordEvent(folder, user, 'cards.imported', `${created.length} cards imported`, session, folder.id, { count: created.length }); return created;
-  });
+  return mutateFolder(folderId, user, 'editor', (folder, session) => insertCards(folder, user, cards, session, { extraTags }));
 }
 export async function exportCards(folderId, user) {
   const folder = await accessFolder(folderId, user); const cards = await Card.find({ folder: folder.id }).sort({ createdAt: 1 });
   return { folder, cards: cards.map(c => ({ front: { text: c.front.text }, back: { text: c.back.text }, tags: c.tags, hint: c.hint, source: c.source })) };
 }
-export async function updateCard(id, user, body) {
-  const current = await Card.findById(id); assert(current, 404, 'Card not found.');
+/**
+ * Replace a card's content, if it is still at the version the editor started from.
+ *
+ * `folderId` pins the card to the folder the caller named, so a card id from somewhere else reads
+ * as not found rather than being edited through the wrong folder's permissions. `prepare` builds the
+ * body inside the transaction from the card as it is now — how a partial change is merged onto
+ * fields it does not mention, and how pictures fetched for the edit are stored in the same commit.
+ */
+export async function updateCard(id, user, body, { folderId, prepare } = {}) {
+  const current = await Card.findById(id); assert(current && (!folderId || String(current.folder) === String(folderId)), 404, 'Card not found.');
   return mutateFolder(current.folder, user, 'editor', async (folder, session) => {
-    const card = await Card.findById(id).session(session); assert(card, 404, 'Card not found.');
+    const card = await Card.findById(id).session(session); assert(card && String(card.folder) === String(folder._id), 404, 'Card not found.');
     assert(card.version === body.version, 409, 'Someone edited this card. Your draft is kept; close and reopen the card to review their changes.', 'VERSION_CONFLICT');
+    if (prepare) body = { ...(await prepare(card, folder, session)), version: body.version };
     await verifyImages(body, folder, session); await drawings.verify(body, folder.id);
     await Revision.create([{ card: card.id, folder: folder.id, editor: user.id, version: card.version, snapshot: { front: card.front, back: card.back, tags: card.tags, hint: card.hint, source: card.source } }], { session });
     const { version, ...data } = body; Object.assign(card, data); card.version++; card.updatedBy = user.id; await card.save({ session });
