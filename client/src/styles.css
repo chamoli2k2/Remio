@@ -1845,3 +1845,17 @@ html[data-theme=dark] .pg-level-stats span{background:var(--surface-2);color:var
 .study-card-body>*,.card-content>*{flex-shrink:0}
 html[data-theme=dark] .study-card-body,html[data-theme=dark] .card-content{scrollbar-color:#5a5080 transparent}
 @media(max-width:760px){.study-card-body{max-height:55vh}.card-content{max-height:260px}}
+
+/* The sidebar can be hidden on wider screens from the hamburger in the top bar or its own header. */
+.sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:18px}
+.sidebar-head .brand{min-width:0;margin-bottom:0}
+.sidebar-hide{flex-shrink:0;color:var(--muted)}
+.sidebar,.workspace{transition:transform .2s ease,margin-left .2s ease,width .2s ease}
+@media(min-width:761px){
+  .mobile-toggle{display:flex;margin-right:4px}
+  .app-shell:not(.sidebar-collapsed) .mobile-toggle{display:none}
+  .app-shell.sidebar-collapsed .sidebar{transform:translateX(-100%);visibility:hidden}
+  .app-shell.sidebar-collapsed .sidebar-resizer{display:none}
+  .app-shell.sidebar-collapsed .workspace{margin-left:0;width:100%}
+}
+@media(prefers-reduced-motion:reduce){.sidebar,.workspace{transition:none}}

@@ -45,6 +45,8 @@ function useSidebarWidth() {
 export default function Layout() {
   const { user, isDemo, setUser } = useApp(); const navigate = useNavigate();
   const [create, setCreate] = useState(false), [mobile, setMobile] = useState(false), [query, setQuery] = useState(''), [people, setPeople] = useState([]);
+  const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('remio:sidebar-hidden') === '1'; } catch { return false; } });
+  useEffect(() => { try { localStorage.setItem('remio:sidebar-hidden', collapsed ? '1' : '0'); } catch { /* private mode */ } }, [collapsed]);
   const { data } = useQuery('/folders');
   const sidebar = useSidebarWidth();
   /**
@@ -69,10 +71,12 @@ export default function Layout() {
     if (value.trim().length < 2) { setPeople([]); return; }
     try { const d = await api(`/users?q=${encodeURIComponent(value.trim())}`); setPeople(d.users || []); } catch { setPeople([]); }
   }
-  return <div className="app-shell">
+  // On a phone the button opens the drawer; on a wider screen it hides or shows the sidebar.
+  const toggleNav = () => (window.matchMedia('(max-width: 760px)').matches ? setMobile(true) : setCollapsed(v => !v));
+  return <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
     {mobile && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobile(false)}/>}
-    <aside className={`sidebar ${mobile ? 'open' : ''}`}>
-      <Link className="brand" to="/" onClick={() => setMobile(false)}><img src="/favicon.svg" alt={`${BRAND.name} logo`} width="30" height="30"/><span className="brand-word">{BRAND.name}<span className="brand-period">.</span></span></Link>
+    <aside className={`sidebar ${mobile ? 'open' : ''}`} inert={collapsed && !mobile ? true : undefined}>
+      <div className="sidebar-head"><Link className="brand" to="/" onClick={() => setMobile(false)}><img src="/favicon.svg" alt={`${BRAND.name} logo`} width="30" height="30"/><span className="brand-word">{BRAND.name}<span className="brand-period">.</span></span></Link><button className="icon-button sidebar-hide" aria-label="Hide sidebar" title="Hide sidebar" onClick={() => (mobile ? setMobile(false) : setCollapsed(true))}><MenuIcon size={19}/></button></div>
       <Button className="primary sidebar-create" onClick={() => setCreate(true)}><span className="sidebar-create-icon"><Plus size={16}/></span> Create a folder</Button>
       <div className="sidebar-scroll">
         {groups.map(([caption, items]) => <div className="nav-group" key={caption}>
@@ -92,7 +96,7 @@ export default function Layout() {
       <div className="account"><Link className="account-id" to={`/u/${user?.username || ''}`} onClick={() => setMobile(false)}><Avatar user={user} small/><span><strong>{user?.name || 'Guest'}</strong><span>@{user?.username || 'guest'}</span></span></Link><button className="account-out" onClick={signOut} title={isDemo ? 'Leave preview' : 'Sign out'}><LogOut size={15}/><span>{isDemo ? 'Leave' : 'Sign out'}</span></button></div>
     </aside>
     <div className="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the sidebar" aria-valuenow={sidebar.width || SIDEBAR.default} aria-valuemin={SIDEBAR.min} aria-valuemax={SIDEBAR.max} tabIndex={0} onPointerDown={sidebar.drag} onKeyDown={sidebar.nudge} onDoubleClick={sidebar.reset}/>
-    <div className="workspace"><NoticeBanner/><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-toggle" aria-label="Open navigation" onClick={() => setMobile(true)}><MenuIcon size={20}/></button><strong>Library</strong></div><form className="global-search" onSubmit={e => { e.preventDefault(); if (people[0]) navigate(`/u/${people[0].username}`); else navigate(`/?q=${encodeURIComponent(query)}`); }}><Search size={16}/><input aria-label="Search folders and people" placeholder="Folders or people…" value={query} onChange={e => onSearch(e.target.value)}/>{people.length > 0 && <div className="search-people">{people.map(p => <Link key={p.id} to={`/u/${p.username}`} onClick={() => { setQuery(''); setPeople([]); }}><Avatar user={p} small/><span>{p.name} <small>@{p.username}</small></span></Link>)}</div>}</form><NotificationBell/><ThemeToggle/><Link to={`/u/${user?.username || ''}`} aria-label="Your profile"><Avatar user={user} small/></Link></header>
+    <div className="workspace"><NoticeBanner/><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-toggle" aria-label={collapsed ? 'Show sidebar' : 'Open navigation'} aria-expanded={!collapsed} title={collapsed ? 'Show sidebar' : 'Hide sidebar'} onClick={toggleNav}><MenuIcon size={20}/></button><strong>Library</strong></div><form className="global-search" onSubmit={e => { e.preventDefault(); if (people[0]) navigate(`/u/${people[0].username}`); else navigate(`/?q=${encodeURIComponent(query)}`); }}><Search size={16}/><input aria-label="Search folders and people" placeholder="Folders or people…" value={query} onChange={e => onSearch(e.target.value)}/>{people.length > 0 && <div className="search-people">{people.map(p => <Link key={p.id} to={`/u/${p.username}`} onClick={() => { setQuery(''); setPeople([]); }}><Avatar user={p} small/><span>{p.name} <small>@{p.username}</small></span></Link>)}</div>}</form><NotificationBell/><ThemeToggle/><Link to={`/u/${user?.username || ''}`} aria-label="Your profile"><Avatar user={user} small/></Link></header>
       {isDemo && <div className="demo-banner"><span className="demo-pill">INTERACTIVE PREVIEW</span><span>Try the sample workspace. Changes reset on refresh; accounts and live sharing require the backend.</span></div>}
       <main className="main-content"><Outlet/></main><SiteFooter/>
     </div>
