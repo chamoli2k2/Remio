@@ -167,6 +167,33 @@ integration('an authorization request may only be sent where the client register
   assert.ok(editing.body.scopes.some(s => s.id === 'cards:edit' && s.label === 'Edit cards'), 'an edit request is shown on the consent screen');
 });
 
+integration('the person chooses the permissions on the consent screen, and the token carries their choice', async () => {
+  await owner.delete('/api/agent/grants');
+  const reg = await request(app).post('/oauth/register').send({ client_name: 'ChatGPT', redirect_uris: [REDIRECT] });
+  const verifier = crypto.randomBytes(48).toString('base64url');
+  const query = {
+    response_type: 'code', client_id: reg.body.client_id, redirect_uri: REDIRECT,
+    code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256',
+  };
+  const shown = await owner.get('/api/oauth/consent').query(query);
+  assert.deepEqual(shown.body.available.map(s => s.id), SCOPE_IDS, 'every permission is offered');
+  assert.equal(shown.body.available.find(s => s.id === 'cards:edit').requested, false, 'editing is not pre-ticked');
+
+  const approved = await owner.post('/api/oauth/consent').send({ ...query, approve: true, granted: ['collections:read', 'cards:edit'] });
+  assert.equal(approved.status, 200, JSON.stringify(approved.body));
+  const code = new URL(approved.body.redirect).searchParams.get('code');
+  const tok = await request(app).post('/oauth/token').send({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: REDIRECT, client_id: reg.body.client_id });
+  assert.equal(tok.body.scope, 'collections:read cards:edit');
+  const names = (await mcp(tok.body.access_token, 'tools/list')).body.result.tools.map(t => t.name);
+  assert.ok(names.includes('update_card'));
+  assert.ok((await callTool(tok.body.access_token, 'create_collection', { title: 'x' })).isError, 'an unticked permission is not granted');
+
+  const none = await owner.post('/api/oauth/consent').send({ ...query, approve: true, granted: [] });
+  assert.equal(none.status, 400, 'approving nothing is refused');
+  const invented = await owner.post('/api/oauth/consent').send({ ...query, approve: true, granted: ['admin:all'] });
+  assert.equal(invented.status, 400);
+});
+
 integration('a code is bound to its verifier, to its client, and to one use', async () => {
   const reg = await request(app).post('/oauth/register').send({ client_name: 'Claude', redirect_uris: [REDIRECT] });
   const verifier = crypto.randomBytes(48).toString('base64url');
@@ -916,7 +943,7 @@ integration('only a connection that may edit is told how to', async () => {
   };
   const plain = await init((await connect()).access_token);
   assert.ok(plain.includes('get_answer_style'));
-  assert.ok(!plain.includes('update_card'));
+  assert.ok(!plain.includes('VERSION_CONFLICT'), 'no editing guidance without the permission');
   assert.ok((await init((await connect(owner, SCOPE_IDS)).access_token)).includes('VERSION_CONFLICT'));
 });
 

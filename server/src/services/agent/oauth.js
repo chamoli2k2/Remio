@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { AgentToken, OAuthClient, OAuthGrant } from '../../models/index.js';
 import { hashToken } from '../../utils/hash.js';
 import { publicOrigin } from '../../utils/origin.js';
-import { DEFAULT_SCOPES, SCOPES, parseScopes, scopeString, MCP_PATH } from '../../../../shared/agent.js';
+import { DEFAULT_SCOPES, OPT_IN_SCOPES, SCOPE_IDS, SCOPES, parseScopes, scopeString, MCP_PATH } from '../../../../shared/agent.js';
 import { issueForClient, refreshForClient, requireAgentsEnabled, requireAgentEntitlement } from './tokens.js';
 
 /**
@@ -172,6 +172,9 @@ export async function describeAuthorize(query) {
     client: { id: client.clientId, name: client.name, uri: client.uri, redirectHost: host },
     request: { redirectUri, codeChallenge: challenge, resource, state: String(query.state || '') },
     scopes: scopes.map(id => ({ id, ...SCOPES[id] })),
+    // Everything the person may tick on the screen, which is free to grant less or more than the
+    // application asked for. Editing is never ticked for them unless the application asked.
+    available: SCOPE_IDS.map(id => ({ id, ...SCOPES[id], requested: scopes.includes(id), optIn: OPT_IN_SCOPES.includes(id) })),
   };
 }
 
@@ -182,10 +185,17 @@ export async function describeAuthorize(query) {
  * suggestion and this is the door: a request replayed after Premium lapsed, or after an operator
  * closed the feature, has to fail even though the page that produced it looked fine.
  */
-export async function approve(user, query) {
+export async function approve(user, query, granted) {
   requireAgentsEnabled();
   requireAgentEntitlement(user);
-  const { client, request, scopes } = await describeAuthorize(query);
+  const described = await describeAuthorize(query);
+  const { client, request } = described;
+  // What the person chose on the screen wins over what the application asked for; the token
+  // response carries the scope actually granted, as RFC 6749 §3.3 allows.
+  const scopes = Array.isArray(granted) && granted.length
+    ? SCOPE_IDS.filter(id => granted.includes(id)).map(id => ({ id }))
+    : described.scopes;
+  if (!scopes.length) throw new OAuthError('invalid_scope', 'Choose at least one permission.');
 
   const code = crypto.randomBytes(32).toString('hex');
   await OAuthGrant.create({

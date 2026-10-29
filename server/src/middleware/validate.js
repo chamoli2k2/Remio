@@ -205,6 +205,8 @@ export const agentConsentSchema = z.object({
   state: z.string().max(2000).optional().default(''),
   resource: z.string().max(2000).optional().default(''),
   approve: z.boolean(),
+  // The permissions the person ticked. Absent means "what the application asked for".
+  granted: z.array(z.enum(SCOPE_IDS)).min(1, 'Choose at least one permission.').max(SCOPE_IDS.length).optional(),
 });
 
 /**

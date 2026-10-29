@@ -125,7 +125,10 @@ const EDITING = [
 const ECONOMY = [
   'Keep each front to one clear question or prompt.',
   'Omit every optional field you would leave empty; do not send empty strings or empty arrays.',
+  'Use create_cards to add cards: it reports every card, created or not. Check its results and fix or report any card marked invalid; never say a card was saved unless its status is created. add_cards is the older tool and does the same write.',
   'Give tags and source once per batch in create_cards or add_cards rather than on every card.',
+  'When the person is not sure about a batch, or asks to see it first, call create_cards with dryRun: true and show what would be created.',
+  'To look up a card, use search_cards (by keyword or tags) and then get_card for the full text. If the person asks to change a card and you have no update_card tool, tell them to reconnect and tick the Edit cards permission.',
   `Send full batches of up to ${AGENT_LIMITS.cardsPerCall} cards instead of many small calls.`,
   'Skip search_cards for a collection you just created or that has 0 cards; otherwise search once or twice with a distinctive keyword, not a sentence.',
   'Reuse ids you already have instead of listing collections again, and reply to the person with a short summary rather than repeating the cards back.',
@@ -207,7 +210,7 @@ export function buildServer({ user, grant }) {
 
   server.registerTool('create_collection', {
     title: 'Create a collection',
-    description: 'Create a new, empty, private collection owned by this person, then call add_cards with the id it returns. It cannot publish or change existing collections.',
+    description: 'Create a new, empty, private collection owned by this person, then call create_cards with the id it returns. It cannot publish or change existing collections.',
     inputSchema: {
       title: z.string().describe('Short and specific, e.g. "Organic Chemistry — Reaction Mechanisms".'),
       description: z.string().default('').describe('Optional one sentence on what it covers.'),

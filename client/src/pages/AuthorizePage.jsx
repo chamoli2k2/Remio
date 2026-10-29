@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Bot, ShieldCheck, Undo2, Check } from 'lucide-react';
+import { Bot, ShieldCheck, Undo2 } from 'lucide-react';
 import { useApp } from '../hooks/useApp';
 import { api } from '../services/api';
 import { Button, ErrorState, Loading } from '../components/ui';
@@ -27,6 +27,7 @@ export default function AuthorizePage() {
   const query = Object.fromEntries(params);
   const [state, setState] = useState({ loading: true });
   const [busy, setBusy] = useState('');
+  const [picked, setPicked] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -47,7 +48,7 @@ export default function AuthorizePage() {
   async function decide(approve) {
     setBusy(approve ? 'yes' : 'no');
     try {
-      const { redirect } = await api('/oauth/consent', { method: 'POST', body: { ...query, approve } });
+      const { redirect } = await api('/oauth/consent', { method: 'POST', body: { ...query, approve, ...(approve ? { granted: chosen } : {}) } });
       window.location.href = redirect;
     } catch (e) { setState(s => ({ ...s, error: e.message })); setBusy(''); }
   }
@@ -65,6 +66,10 @@ export default function AuthorizePage() {
 
   const { client, scopes, entitled, enabled } = state.data;
   const blocked = !enabled || !entitled;
+  const options = state.data.available || scopes.map(s => ({ ...s, requested: true }));
+  const chosen = picked ?? options.filter(s => s.requested).map(s => s.id);
+  const toggle = id => setPicked(chosen.includes(id) ? chosen.filter(x => x !== id) : options.map(o => o.id).filter(x => x === id || chosen.includes(x)));
+  const canEdit = chosen.includes('cards:edit');
 
   return <div className="consent-page"><div className="consent-card">
     <div className="consent-head">
@@ -87,22 +92,24 @@ export default function AuthorizePage() {
         <Button className="secondary" onClick={() => decide(false)} loading={busy === 'no'}>Go back to the application</Button>
       </div>
       : <>
-        <h2>It will be able to</h2>
-        <ul className="consent-scopes">{scopes.map(s => <li key={s.id}>
-          <Check size={16}/><div><strong>{s.label}</strong><small>{s.detail}</small></div>
+        <h2>Choose what it may do</h2>
+        <ul className="consent-scopes">{options.map(s => <li key={s.id}>
+          <label>
+            <input type="checkbox" checked={chosen.includes(s.id)} onChange={() => toggle(s.id)}/>
+            <span><strong>{s.label}{s.optIn && <em className="consent-optional">Optional</em>}{!s.requested && !s.optIn && <em className="consent-optional">Not requested</em>}</strong><small>{s.detail}</small></span>
+          </label>
         </li>)}</ul>
 
         <div className="consent-note">
           <ShieldCheck size={17}/>
-          <p>It can only add. It cannot delete a card, change one you already have, see your email or payment details, or publish anything.</p>
-        </div>
-        <div className="consent-note">
-          <Undo2 size={17}/>
-          <p>Everything it writes is listed in your settings, and you can undo any of it in one click — or disconnect it entirely, at any time.</p>
+          <p>{canEdit
+            ? 'It can add cards and edit them one at a time in private collections. Every edit is kept in the card’s history. It can never delete anything, publish, or see your email or payment details.'
+            : 'It can only add. It cannot delete a card, change one you already have, see your email or payment details, or publish anything.'}
+          {' '}<Undo2 size={13} className="consent-inline-icon"/> Everything it adds is listed in your settings and can be undone in one click, and you can disconnect it at any time.</p>
         </div>
 
         <div className="consent-actions">
-          <Button className="primary" loading={busy === 'yes'} disabled={!!busy} onClick={() => decide(true)}>Approve</Button>
+          <Button className="primary" loading={busy === 'yes'} disabled={!!busy || !chosen.length} onClick={() => decide(true)}>Approve</Button>
           <Button className="secondary" loading={busy === 'no'} disabled={!!busy} onClick={() => decide(false)}>Cancel</Button>
         </div>
         {state.error && <ErrorState message={state.error}/>}

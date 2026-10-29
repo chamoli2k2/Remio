@@ -1859,3 +1859,42 @@ html[data-theme=dark] .study-card-body,html[data-theme=dark] .card-content{scrol
   .app-shell.sidebar-collapsed .workspace{margin-left:0;width:100%}
 }
 @media(prefers-reduced-motion:reduce){.sidebar,.workspace{transition:none}}
+
+/* Consent screen: permissions are a checklist, and the card fits a laptop screen without scrolling. */
+.consent-page{padding:clamp(12px,3vh,32px) 14px;align-items:safe center}
+.consent-card{max-width:520px;padding:clamp(18px,3vh,26px) clamp(16px,4vw,26px)}
+.consent-head{margin-bottom:14px}
+.consent-head h1{font-size:clamp(20px,2.6vw,23px);margin:8px 0 5px}
+.consent-head p{font-size:13px;line-height:1.5}
+.consent-facts{flex-direction:row;flex-wrap:wrap;gap:6px 18px;margin-bottom:14px;padding:10px 12px}
+.consent-facts>div{flex:1 1 180px;flex-direction:column;align-items:flex-start;gap:1px}
+.consent-facts dd{text-align:left}
+.consent-card h2{font-size:11.5px;margin-bottom:8px}
+.consent-scopes{gap:4px;margin-bottom:12px}
+.consent-scopes label{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s,background .15s}
+.consent-scopes label:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.consent-scopes input{flex:none;margin-top:3px;width:16px;height:16px;accent-color:var(--accent)}
+.consent-scopes strong{font-size:13px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.consent-scopes small{font-size:11.5px;line-height:1.45;margin-top:2px}
+.consent-optional{font-style:normal;font-size:10px;font-weight:600;letter-spacing:.3px;padding:1px 7px;border-radius:99px;background:var(--surface-2);color:var(--muted)}
+.consent-note{padding:10px 12px;margin-bottom:0}
+.consent-note p{font-size:12px;line-height:1.5}
+.consent-inline-icon{vertical-align:-2px;color:var(--accent)}
+.consent-actions{margin-top:14px}
+.consent-foot{margin-top:10px}
+@media(max-width:480px){.consent-scopes small{font-size:11px}.consent-actions{flex-direction:column-reverse}}
+@media(min-width:700px){
+  .consent-card{max-width:720px}
+  .consent-scopes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .consent-scopes li:last-child:nth-child(odd){grid-column:1 / -1}
+  .consent-head{display:grid;grid-template-columns:auto 1fr;column-gap:10px;text-align:left;align-items:center}
+  .consent-head h1{margin:0}
+  .consent-head p{grid-column:1 / -1;margin-top:4px}
+  .consent-actions{max-width:420px;margin-left:auto;margin-right:auto}
+}
+@media(max-height:820px){.consent-scopes small{font-size:11px;line-height:1.4}.consent-scopes label{padding:7px 10px}}
+@media(max-width:699px){
+  .consent-head{margin-bottom:10px}.consent-head svg{width:22px;height:22px}
+  .consent-facts{padding:8px 10px;gap:4px 14px}
+  .consent-actions{position:sticky;bottom:0;z-index:2;margin:12px -16px 0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--border);flex-direction:row}
+}

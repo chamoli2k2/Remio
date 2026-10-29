@@ -75,8 +75,8 @@ export const consentInfo = async (req, res) => {
  * into an open redirect.
  */
 export const consent = async (req, res) => {
-  const { approve, ...query } = req.body;
+  const { approve, granted, ...query } = req.body;
   try {
-    res.json(approve ? await oauth.approve(req.user, query) : await oauth.deny(query));
+    res.json(approve ? await oauth.approve(req.user, query, granted) : await oauth.deny(query));
   } catch (e) { throw asAppError(e); }
 };

@@ -74,7 +74,7 @@ export default function DashboardAssistants({ onOpenSettings }) {
     <header className="dash-section-head">
       <div>
         <h2>AI assistants <span className={`sub-pill ${enabled ? 'is-active' : 'is-expired'}`}>{enabled ? 'On' : 'Off'}</span></h2>
-        <p>People with Premium can connect Claude, ChatGPT or another app to add cards for them. Assistants can only add, never delete.</p>
+        <p>People with Premium can connect Claude, ChatGPT or another app to add cards for them. Assistants add cards, and edit them only if the person allows it; they never delete.</p>
       </div>
       <div className="dash-filters">
         {isSuperadmin(user) && <Button className={enabled ? 'secondary' : 'primary'} loading={switching} onClick={toggle}><Power size={15}/> {enabled ? 'Switch off for everyone' : 'Switch on'}</Button>}

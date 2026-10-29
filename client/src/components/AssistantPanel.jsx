@@ -97,6 +97,8 @@ const PROMPTS = [
   `Turn my notes below into ${BRAND.name} flashcards, with a question on the front and a short answer on the back.`,
   `Add 10 flashcards about the French Revolution to my History collection in ${BRAND.name}.`,
   `Show me my ${BRAND.name} collections.`,
+  `From now on, write my ${BRAND.name} answers briefly, as bullet points, with a code example where it helps.`,
+  `Find my ${BRAND.name} card about photosynthesis and make the answer clearer. (Needs the “Edit cards” permission.)`,
 ];
 
 /**
