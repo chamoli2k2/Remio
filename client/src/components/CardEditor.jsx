@@ -40,7 +40,7 @@ function SideEditor({ side, index, collaborative, live, form, updateSide, pasteI
     {children}
   </div>;
 }
-export default function CardEditor({ folder, card, onClose, onEditing, liveVersion }) {
+export default function CardEditor({ folder, card, onClose, onEditing, onSaved, liveVersion }) {
   const { refresh, user } = useApp(); const blank = { front: { text: '', image: null, drawing: null }, back: { text: '', image: null, drawing: null }, tags: [], hint: '', source: '' };
   const key = `${BRAND.storage.draft}:${user.id}:${folder.id}:${card?.id || 'new'}`;
   const [form, setForm] = useState(() => { try { const draft = JSON.parse(sessionStorage.getItem(key)); if (draft) return draft; } catch {} return card ? { front: card.front, back: card.back, tags: card.tags, hint: card.hint, source: card.source } : blank; });
@@ -67,7 +67,7 @@ export default function CardEditor({ folder, card, onClose, onEditing, liveVersi
     if (!body.front.text.trim() && !body.front.image && !body.front.drawing) { setError('Add text, an image or a drawing to the front.'); return; }
     if (!body.back.text.trim() && !body.back.image && !body.back.drawing && !hasCloze(body.front.text)) { setError('Add text, an image or a drawing to the back, or turn the front into a cloze card with {{c1::answer}}.'); return; }
     setBusy(true); setError('');
-    try { const finalTags = tag.trim() ? [...new Set([...form.tags, tag.trim().toLowerCase().replace(/^#/, '')])].slice(0, 10) : form.tags; const r = await api(card ? `/cards/${card.id}` : `/folders/${folder.id}/cards`, { method: card ? 'PATCH' : 'POST', body: { ...body, tags: finalTags, ...(card ? { version: versionRef.current } : {}) } }); if (r.card) versionRef.current = r.card.version; sessionStorage.removeItem(key); refresh(); toast.success(card ? 'Card updated' : 'Flashcard created'); if (another) { setForm(blank); setTag(''); } else onClose(); }
+    try { const finalTags = tag.trim() ? [...new Set([...form.tags, tag.trim().toLowerCase().replace(/^#/, '')])].slice(0, 10) : form.tags; const r = await api(card ? `/cards/${card.id}` : `/folders/${folder.id}/cards`, { method: card ? 'PATCH' : 'POST', body: { ...body, tags: finalTags, ...(card ? { version: versionRef.current } : {}) } }); if (r.card) { versionRef.current = r.card.version; onSaved?.(r.card); } sessionStorage.removeItem(key); refresh(); toast.success(card ? 'Card updated' : 'Flashcard created'); if (another) { setForm(blank); setTag(''); } else onClose(); }
     catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   const status = !card ? null : collaborative ? <span className="live-badge" title="Changes sync instantly with collaborators"><Radio size={12}/> Live{live.peers.length ? ` · ${live.peers.length} other${live.peers.length > 1 ? 's' : ''} editing` : ''}</span> : live.error ? <span className="live-badge offline" title={live.error}><WifiOff size={12}/> Solo edit</span> : <span className="live-badge offline"><Radio size={12}/> Connecting…</span>;

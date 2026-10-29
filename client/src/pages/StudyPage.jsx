@@ -1,9 +1,9 @@
 import { uuid } from '../services/uuid';
 import AdSlot from '../components/AdSlot';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { preload } from 'react-dom';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { X, ArrowRight, RotateCcw, Lightbulb, Check, ExternalLink, Flame, Trophy, Zap, Sparkles } from 'lucide-react';
+import { X, ArrowRight, RotateCcw, Lightbulb, Check, ExternalLink, Flame, Trophy, Zap, Sparkles, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useApp } from '../hooks/useApp';
 import { api, imageUrl } from '../services/api';
@@ -21,6 +21,7 @@ import { BadgeMedal, LevelBar, badgeById } from '../components/study/GameBits';
 const PRAISE = ['Spot on.', 'Nailed it.', 'Exactly right.', 'You knew that.', 'Sharp.'];
 const FALLBACK = { mcq: 'choose from', truefalse: 'judge', type: 'type', voice: 'say', match: 'match' };
 const IMAGE_SIZES = '(max-width: 640px) 90vw, 520px';
+const CardEditor = lazy(() => import('../components/CardEditor'));
 
 /**
  * Cards for a session. Reviews still waiting in the outbox are sent first, so the progress loaded
@@ -43,7 +44,7 @@ export default function StudyPage() {
   const mode = MODE_IDS.includes(params.get('play')) ? params.get('play') : null;
   const [graded, setGraded] = useState(null);
   const [session, setSession] = useState({ points: 0, xp: 0, combo: 0, level: null, badges: [], best: null });
-  const [pop, setPop] = useState(null);
+  const [pop, setPop] = useState(null), [editing, setEditing] = useState(false);
   // What each queued review was shown as worth, so the server's figure can replace it when it lands;
   // when each card was last answered here; and the card last answered, so a double tap counts once.
   const estimates = useRef(new Map()), answeredAt = useRef(new Map()), answered = useRef(-1);
@@ -134,6 +135,8 @@ export default function StudyPage() {
 
   useEffect(() => {
     function key(e) {
+      // The editor's text areas are not plain inputs, so its typing would otherwise flip and rate the card.
+      if (editing) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       if (style === 'classic') {
         if (e.code === 'Space' && card) { e.preventDefault(); setFlipped(v => !v); }
@@ -202,6 +205,7 @@ export default function StudyPage() {
   </div>;
 
   const question = { card, pool, graded, onGraded };
+  const editable = activeMode === 'classic' && style === 'classic' && ['owner', 'editor'].includes(data.folder.role);
   const faceOf = s => <>{s.image && <Img id={s.image} alt={plainText(s.text) || 'Study image'} sizes="(max-width: 640px) 90vw, 520px" eager/>}{s.drawing && <DrawingView folderId={data.folder.id} id={s.drawing} label={plainText(s.text) || 'Study drawing'}/>}<RichText text={s.text} cloze={s.cloze}/></>;
 
   if (style === 'voice') {
@@ -218,7 +222,8 @@ export default function StudyPage() {
   return <div className={`study-page ${style !== 'classic' ? 'is-playing' : ''}`}>{header}{hud}
     <div className="study-counter"><span>Card {index + 1} of {queue.length}</span><span>{style === 'classic' ? (flipped ? 'How well did you remember?' : 'Take a moment. You know more than you think.') : graded ? 'Here’s the full answer.' : MODES[style].label}</span></div>
     {style === 'classic' && activeMode !== 'classic' && <p className="mode-fallback">{activeMode === 'voice' ? 'This card has no written answer to compare with' : `This answer is too long to ${FALLBACK[activeMode]}`}, so flip it and rate yourself.</p>}
-    <div className={`study-card ${flipped ? 'answer-visible' : ''} ${graded ? `is-graded is-${graded.verdict}` : ''}`}><div className="study-card-label">{flipped ? 'THE ANSWER' : 'THE QUESTION'}</div><div className="study-card-body" data-face={flipped ? 'back' : 'front'}>{side.image && <Img id={side.image} alt={plainText(side.text) || 'Study image'} sizes="(max-width: 640px) 90vw, 520px" eager/>}{side.drawing && <DrawingView folderId={data.folder.id} id={side.drawing} label={plainText(side.text) || 'Study drawing'}/>}<RichText text={side.text} cloze={side.cloze}/></div><div className="study-card-bottom"><div>{card.tags.map(t => <Tag key={t}>{t}</Tag>)}</div>{!flipped && card.hint && <button className="text-button" onClick={() => setHint(v => !v)}><Lightbulb size={16}/>{hint ? card.hint : 'Show hint'}</button>}{flipped && card.source && <a href={card.source} target="_blank" rel="noreferrer" className="text-button">Source <ExternalLink size={14}/></a>}</div></div>
+    <div className={`study-card ${flipped ? 'answer-visible' : ''} ${graded ? `is-graded is-${graded.verdict}` : ''}`}><div className="study-card-label">{flipped ? 'THE ANSWER' : 'THE QUESTION'}</div><div className="study-card-body" data-face={flipped ? 'back' : 'front'}>{side.image && <Img id={side.image} alt={plainText(side.text) || 'Study image'} sizes="(max-width: 640px) 90vw, 520px" eager/>}{side.drawing && <DrawingView folderId={data.folder.id} id={side.drawing} label={plainText(side.text) || 'Study drawing'}/>}<RichText text={side.text} cloze={side.cloze}/></div><div className="study-card-bottom"><div>{card.tags.map(t => <Tag key={t}>{t}</Tag>)}</div><div className="study-card-tools">{!flipped && card.hint && <button className="text-button" onClick={() => setHint(v => !v)}><Lightbulb size={16}/>{hint ? card.hint : 'Show hint'}</button>}{flipped && card.source && <a href={card.source} target="_blank" rel="noreferrer" className="text-button">Source <ExternalLink size={14}/></a>}{editable && <button className="text-button" onClick={() => setEditing(true)}><Pencil size={14}/> Edit card</button>}</div></div></div>
+    {editing && <Suspense fallback={null}><CardEditor folder={data.folder} card={card} onClose={() => setEditing(false)} onSaved={saved => setQueue(q => q.map(c => (c.id === saved.id ? { ...c, ...saved, progress: c.progress } : c)))}/></Suspense>}
     {style === 'classic' ? <div className="study-actions">{!flipped ? <><Button className="primary reveal-button" onClick={() => setFlipped(true)}>Reveal answer <RotateCcw size={18}/></Button><span className="keyboard-hint">or press <kbd>space</kbd></span></> : <><div className="rating-buttons">{[['again', 'Again', 'Review in 10 min'], ['hard', 'Hard', 'Needs practice'], ['good', 'Good', 'Got it right'], ['easy', 'Easy', 'Knew it instantly']].map(([value, label, sub], i) => <button key={value} className={`rating ${value}`} onClick={() => rate(value)}><span>{label}<kbd>{i + 1}</kbd></span><small>{card.progress?.preview?.[value] ? <>Next in <strong>{card.progress.preview[value]}</strong></> : sub}</small></button>)}</div><span className="keyboard-hint">{card.progress?.retrievability != null ? <>Predicted recall right now: <strong>{Math.round(card.progress.retrievability * 100)}%</strong> · Be honest with yourself.</> : 'Be honest with yourself. Every review helps.'}</span></>}</div>
       : <div className="study-actions mode-actions" key={`${card.id}-${style}`}>
         {style === 'mcq' && <ChoiceQuestion {...question}/>}

@@ -1938,3 +1938,4 @@ html[data-theme=dark] .study-card-body,html[data-theme=dark] .card-content{scrol
 /* A card in the collection grid only keeps the wheel while it has text left to scroll; otherwise the
    page scrolls as usual, wherever the pointer is. */
 .card-content{overscroll-behavior:auto}
+.study-card-bottom>.study-card-tools{margin-left:auto;gap:14px;align-items:center;justify-content:flex-end}
