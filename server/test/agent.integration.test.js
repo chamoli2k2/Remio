@@ -293,7 +293,7 @@ integration('the assistant is told how cards are formatted and how to write them
   const { access_token } = await connect();
   const res = await mcp(access_token, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } });
   const text = res.text || JSON.stringify(res.body);
-  for (const expected of ['Markdown', '$…$', '{{c2::', '::hint}}', 'Omit every optional field', 'once per batch']) {
+  for (const expected of ['Markdown', '$…$', '{{c2::', '::hint}}', 'Omit every optional field', 'once per batch', 'direct answer', 'concrete example', 'Do not add these to every card']) {
     assert.ok(text.includes(expected), `instructions mention ${expected}`);
   }
 });
