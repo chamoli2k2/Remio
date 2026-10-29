@@ -1898,3 +1898,16 @@ html[data-theme=dark] .study-card-body,html[data-theme=dark] .card-content{scrol
   .consent-facts{padding:8px 10px;gap:4px 14px}
   .consent-actions{position:sticky;bottom:0;z-index:2;margin:12px -16px 0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--border);flex-direction:row}
 }
+
+/* The study card has a fixed height on every screen, so a long question or answer scrolls inside it
+   and never pushes the rating buttons and footer out of view. */
+.study-card,.study-page .study-card{height:clamp(300px,52dvh,500px);min-height:0}
+.study-page.is-playing .study-card{height:clamp(220px,40dvh,400px);min-height:0}
+.study-card-label,.study-card-bottom{flex-shrink:0}
+.study-card-body{flex:1 1 auto;min-height:0;max-height:none}
+.study-card-bottom{max-height:30%;overflow-y:auto}
+@media(max-width:760px){
+  .study-card,.study-page .study-card{height:clamp(240px,46dvh,440px)}
+  .study-page.is-playing .study-card{height:clamp(170px,34dvh,320px)}
+  .study-card-body{max-height:none}
+}
