@@ -5,6 +5,7 @@ import { TEAM_PLAN_IDS, SEATS } from '../../../shared/teams.js';
 import { BRAND } from '../../../shared/brand.js';
 import { COUNTRY_NAMES, PHONE_PATTERN } from '../../../shared/countries.js';
 import { SCOPE_IDS } from '../../../shared/agent.js';
+import { MODE_IDS } from '../../../shared/game.js';
 import { DRAWING_ID, DRAWING_VERSION, PAGE, MAX_HEIGHT, PAPERS, THEMES, TOOLS, SIZE, LIMITS, HEX } from '../../../shared/drawing.js';
 export const idSchema = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid identifier');
 export const usernameSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/, 'Use 3–24 letters, numbers, or underscores');
@@ -201,6 +202,18 @@ export const googleSignInSchema = z.object({
 export const deleteUserSchema = z.object({
   confirm: z.string().trim().min(1).max(24),
   note: z.string().trim().max(200).optional().default(''),
+});
+
+/**
+ * One answered card. `mode`, `localHour` and `board` only feed experience and badges; the rating
+ * alone decides scheduling. The hour is the learner's own clock, since days and streaks are UTC
+ * but "studying at midnight" means their midnight.
+ */
+export const reviewSchema = z.object({
+  cardId: idSchema, rating: z.enum(['again', 'hard', 'good', 'easy']), requestId: z.uuid(), version: z.number().int().min(0),
+  mode: z.enum(MODE_IDS).default('classic'),
+  localHour: z.number().int().min(0).max(23).optional(),
+  board: z.object({ pairs: z.number().int().min(2).max(6), mistakes: z.number().int().min(0).max(100) }).optional(),
 });
 
 export const validate = schema => (req, _res, next) => { try { req.body = schema.parse(req.body); next(); } catch (e) { next(e); } };

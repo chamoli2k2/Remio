@@ -16,7 +16,7 @@ import * as teams from '../controllers/teamController.js';
 import * as agent from '../controllers/agentController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePremium, requireDashboard, requireSuperadmin, requireVerifiedEmail } from '../middleware/account.js';
-import { validate, refreshSchema, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, folderDeleteSchema, cardSchema, drawingSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema } from '../middleware/validate.js';
+import { validate, refreshSchema, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, folderDeleteSchema, cardSchema, drawingSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema, reviewSchema } from '../middleware/validate.js';
 import { requireImports, requireSignupOpen } from '../middleware/config.js';
 import { throttle as rateLimit } from '../middleware/throttle.js';
 import { megabytes, setting } from '../services/settingsService.js';
@@ -179,6 +179,6 @@ r.post('/agent/batches/:id/undo', requireAuth, rateLimit({ windowMs: 60000, limi
 r.get('/oauth/consent', requireAuth, a(agent.consentInfo));
 r.post('/oauth/consent', requireAuth, authLimit, validate(agentConsentSchema), a(agent.consent));
 r.get('/media/:id', a(cards.image));
-r.post('/reviews', requireAuth, validate(z.object({ cardId: idSchema, rating: z.enum(['again', 'hard', 'good', 'easy']), requestId: z.uuid(), version: z.number().int().min(0) })), a(study.review));
+r.post('/reviews', requireAuth, validate(reviewSchema), a(study.review));
 r.get('/stats', requireAuth, a(study.stats));
 export default r;

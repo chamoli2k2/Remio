@@ -39,6 +39,7 @@ function TodayStrip({ stats, onStudy }) {
         <span><strong>{done}<small> / {goal}</small></strong><span>Daily goal</span></span>
       </Link>
       {streak > 0 && <div className="today-chip today-streak"><span className="today-chip-icon"><Flame size={18}/></span><span><strong>{streak}</strong><span>day streak</span></span></div>}
+      {stats?.game?.level && <Link to="/progress" className="today-chip today-level" aria-label={`Level ${stats.game.level.level}, ${stats.game.level.title}. See your badges`}><span className="today-chip-icon">{stats.game.level.level}</span><span><strong>{stats.game.level.title}</strong><span>{stats.game.level.xp.toLocaleString()} XP</span></span></Link>}
     </div>
     <Button className="white-button today-cta" onClick={onStudy}>Start a study session <ArrowRight size={17}/></Button>
   </section>;

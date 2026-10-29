@@ -14,6 +14,8 @@ import CountryPicker from '../components/CountryPicker';
 import Select, { optionsOf } from '../components/Select';
 import GoogleButton from '../components/GoogleButton';
 import AssistantPanel from '../components/AssistantPanel';
+import { BadgeMedal, LevelBar, badgeById } from '../components/study/GameBits';
+import { MODES } from '../../../shared/game.js';
 export function AuthPage({ mode = 'login' }) {
   const { setUser, error: connectionError, config } = useApp(); const navigate = useNavigate(); const signup = mode === 'signup'; const setSignup = v => navigate((v ? '/signup' : '/login') + window.location.search, { replace: true }); const [busy, setBusy] = useState(false), [error, setError] = useState(''), [country, setCountry] = useState(DEFAULT_COUNTRY), [pickedCountry, setPickedCountry] = useState(false);
   // The served config carries where we think this request is from. It arrives a moment after the
@@ -320,6 +322,7 @@ export function ProgressPage() {
       <TodayCard stats={s}/>
       <div className="pg-kpis">{[[Layers, 'Cards in your library', s.totalCards], [BookOpen, 'Reviews completed', s.reviewed], [Target, 'Ready to review', s.due], [GraduationCap, 'Long-term cards', s.mastered]].map(([Icon, label, value]) =>
         <div className="pg-kpi" key={label}><span className="pg-kpi-icon"><Icon size={18}/></span><div><strong>{Number(value || 0).toLocaleString()}</strong><p>{label}</p></div></div>)}</div>
+      {s.game && <GameCards game={s.game}/>}
       {s.heatmap && <HabitCards stats={s}/>}
       {s.retention && <MemoryCards stats={s}/>}
     </div>
@@ -342,6 +345,36 @@ function TodayCard({ stats: s }) {
       <Link to="/" className="button primary small">Back to your library <ArrowRight size={15}/></Link>
     </div>
   </section>;
+}
+
+/** Level and the badge cabinet: earned badges first, then the ones closest to being earned. */
+function GameCards({ game }) {
+  const earned = game.badges.filter(b => b.at).length;
+  const ordered = [...game.badges].sort((a, b) => (!!b.at - !!a.at) || (b.value / badgeById[b.id].target) - (a.value / badgeById[a.id].target));
+  const modes = Object.entries(MODES).map(([mid, m]) => [m.label, game.correct?.[mid] || 0]).filter(([, n]) => n > 0);
+  return <>
+    <section className="pg-card pg-level">
+      <span className="eyebrow">EXPERIENCE</span>
+      <LevelBar level={game.level}/>
+      <div className="pg-level-stats">
+        <span><strong>{game.level.xp.toLocaleString()}</strong> total XP</span>
+        <span><strong>{game.todayXp.toLocaleString()}</strong> today</span>
+        <span><strong>{game.bestCombo}</strong> best streak of right answers</span>
+      </div>
+      {modes.length > 0 && <p>Right answers by mode: {modes.map(([label, n]) => `${label} ${n}`).join(' · ')}.</p>}
+      <details className="pg-explain"><summary>How XP works</summary><p>Every review earns XP: more for remembering, and more again for typing or saying an answer than for recognising it. A run of right answers adds a bonus, and reaching your daily goal adds 50. Reviewing the same card again within a few minutes earns 1.</p></details>
+    </section>
+    <section className="pg-card pg-badges">
+      <div className="pg-card-head"><div><span className="eyebrow">BADGES</span><h2>{earned ? `${earned} of ${game.badges.length} unlocked.` : 'Your cabinet is waiting.'}</h2></div></div>
+      <ul className="badge-grid">{ordered.map(b => { const meta = badgeById[b.id]; return <li key={b.id} className={`badge-item ${b.at ? 'is-earned' : ''}`} title={meta.blurb}>
+        <BadgeMedal id={b.id} earned={!!b.at} size={50}/>
+        <div><strong>{meta.name}</strong><p>{meta.blurb}</p>
+          {b.at ? <small className={`rarity-label rarity-${meta.rarity}`}>{meta.rarity} · {new Date(b.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</small>
+            : <span className="badge-progress" aria-label={`${b.value} of ${meta.target}`}><span style={{ width: `${(b.value / meta.target) * 100}%` }}/><small>{b.value.toLocaleString()} / {meta.target.toLocaleString()}</small></span>}
+        </div>
+      </li>; })}</ul>
+    </section>
+  </>;
 }
 
 const INSIGHT_ICONS = { sun: Sun, clock: Clock, calendar: CalendarDays, trend: TrendingUp, flame: Flame };

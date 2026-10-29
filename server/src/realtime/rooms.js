@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
-import { CLOZE_RE, hasCloze, renderCloze } from '../../../shared/cloze.js';
+import { hasCloze, renderCloze } from '../../../shared/cloze.js';
+import { answerParts } from '../../../shared/answers.js';
 /**
  * Live quiz rooms: a host turns a folder into a multiple-choice game that friends join with a six-letter code.
  * Rooms are in-memory and ephemeral (they die with the last player), so nothing here touches MongoDB. The store is
@@ -9,8 +10,8 @@ const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
 export const LIMITS = { minCards: 2, maxCards: 30, minSeconds: 5, maxSeconds: 60, maxPlayers: 50 };
 export const SCORE = { base: 1000, floor: 0.5, streakBonus: 100, streakCap: 500 };
 const shuffle = (arr, rand) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-// A cloze card's answer is the hidden text itself ("heart", or "heart / valve" for several blanks).
-const answerOf = card => (card.back.text.trim() || [...card.front.text.matchAll(CLOZE_RE)].map(m => m[2].trim()).join(' / ')).trim();
+// The short form of the answer: the bold key term of a long explanation, or a cloze card's hidden text.
+const answerOf = card => answerParts(card)?.display || '';
 const promptOf = card => card.back.text.trim() || !hasCloze(card.front.text) ? card.front.text : renderCloze(card.front.text, 'hide', { hiddenOpen: '[', hiddenClose: ']' });
 /** Builds one multiple-choice question per card: the card's own answer plus up to three distinct distractors from the deck. */
 export function buildQuestions(cards, { count = LIMITS.maxCards, rand = Math.random } = {}) {

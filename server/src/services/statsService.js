@@ -1,6 +1,7 @@
 import { Folder, Card, Progress, Review } from '../models/index.js';
 import { currentRetrievability, DEFAULT_RETENTION } from './fsrs.js';
 import { stripCloze } from '../../../shared/cloze.js';
+import { gameSummary } from './gameService.js';
 const DAY = 86400000;
 const startOfUtcDay = d => { const s = new Date(d); s.setUTCHours(0, 0, 0, 0); return s; };
 /** Folders the user can study: own, shared with them, or saved public collections. */
@@ -42,7 +43,7 @@ export async function studyStats(user, now = new Date()) {
   return {
     totalCards: cards.length, due, reviewed, reviewsToday, mastered: progress.filter(p => (p.stability || p.interval) >= 21).length, goal: user.dailyGoal,
     retention: { desired: user.desiredRetention || DEFAULT_RETENTION, predicted: predictedRetention, observed: observedRetention, sampled: graded.length, averageStability: Math.round(avgStability * 10) / 10 },
-    forecast, states, hardest, ...(await studyHabits(user, now))
+    forecast, states, hardest, ...(await studyHabits(user, now)), game: await gameSummary(user)
   };
 }
 /**

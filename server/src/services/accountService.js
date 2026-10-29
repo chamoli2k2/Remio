@@ -3,7 +3,7 @@ import * as drawings from './drawingService.js';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import {
-  User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, Activity, Revision,
+  User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision,
   CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment,
   AgentToken, AgentBatch,
 } from '../models/index.js';
@@ -254,6 +254,7 @@ async function eraseAccount(withHash) {
     // Their own study history and anything addressed to them.
     await Progress.deleteMany({ user: id }, opts);
     await Review.deleteMany({ user: id }, opts);
+    await GameProfile.deleteMany({ user: id }, opts);
     await Notification.deleteMany({ $or: [{ user: id }, { actor: id }] }, opts);
     await Relationship.deleteMany({ $or: [{ from: id }, { to: id }] }, opts);
     await Project.deleteMany({ owner: id }, opts);

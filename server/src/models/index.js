@@ -174,8 +174,28 @@ media.index({ folder: 1, sha256: 1 });
 // FSRS memory state (stability, difficulty, state) plus the legacy SM-2 fields (interval, repetitions, ease) kept for compatibility.
 const progress = new Schema({ user: ref('User'), card: ref('Card'), repetitions: { type: Number, default: 0 }, interval: { type: Number, default: 0 }, ease: { type: Number, default: 2.5 }, stability: { type: Number, default: 0 }, difficulty: { type: Number, default: 0 }, state: { type: String, enum: ['new', 'learning', 'review', 'relearning'], default: 'new' }, reps: { type: Number, default: 0 }, lapses: { type: Number, default: 0 }, elapsedDays: { type: Number, default: 0 }, scheduledDays: { type: Number, default: 0 }, dueAt: { type: Date, default: Date.now }, lastReviewedAt: Date, version: { type: Number, default: 0 }, bookmarked: { type: Boolean, default: false } }, options);
 progress.index({ user: 1, card: 1 }, { unique: true }); progress.index({ user: 1, dueAt: 1 });
-const review = new Schema({ user: ref('User'), card: ref('Card'), folder: ref('Folder', false), requestId: { type: String, required: true }, rating: { type: String, enum: ['again', 'hard', 'good', 'easy'] }, elapsedDays: Number, result: Schema.Types.Mixed }, options);
+const review = new Schema({ user: ref('User'), card: ref('Card'), folder: ref('Folder', false), requestId: { type: String, required: true }, rating: { type: String, enum: ['again', 'hard', 'good', 'easy'] }, mode: { type: String, default: 'classic' }, elapsedDays: Number, result: Schema.Types.Mixed, game: Schema.Types.Mixed }, options);
 review.index({ user: 1, requestId: 1 }, { unique: true }); review.index({ user: 1, createdAt: -1 });
+/**
+ * Experience and badges, one row per learner, updated in the same transaction as the review that
+ * earned them. Counters rather than queries over the review log, because a badge check runs on
+ * every answer and has to cost a single read. Day keys are UTC, like the daily goal and streaks.
+ */
+const counter = { type: Number, default: 0 };
+const gameProfile = new Schema({
+  user: { ...ref('User'), unique: true },
+  xp: counter, reviews: counter,
+  correct: { classic: counter, mcq: counter, truefalse: counter, type: counter, voice: counter, match: counter },
+  modesTried: { type: [String], default: [] },
+  combo: counter, bestCombo: counter,
+  // A finished board is only counted once at least that many match reviews have arrived since the last one.
+  matchSinceBoard: counter, boards: counter, flawless: counter, comebacks: counter, night: counter, dawn: counter, doubleGoal: counter, deepRoots: counter,
+  lastDay: { type: String, default: '' }, dayStreak: counter, bestDayStreak: counter,
+  // Only ever needs to reach the largest "different collections" target, so it stops growing there.
+  folders: { type: [Schema.Types.ObjectId], default: [] },
+  today: { day: { type: String, default: '' }, reviews: counter, xp: counter, goalMet: { type: Boolean, default: false } },
+  badges: { type: [{ _id: false, id: String, at: Date }], default: [] },
+}, options);
 const activity = new Schema({ folder: ref('Folder'), actor: ref('User'), action: String, detail: String }, options);
 activity.index({ folder: 1, createdAt: -1 });
 const revision = new Schema({ card: ref('Card'), folder: ref('Folder'), editor: ref('User'), version: Number, snapshot: Schema.Types.Mixed }, options);
@@ -259,5 +279,5 @@ const blob = new Schema({ _id: { type: String }, body: { type: Buffer, required:
 export const Blob = model('Blob', blob);
 
 export const AgentToken = model('AgentToken', agentToken), AgentBatch = model('AgentBatch', agentBatch), OAuthClient = model('OAuthClient', oauthClient), OAuthGrant = model('OAuthGrant', oauthGrant);
-export const User = model('User', user), RefreshToken = model('RefreshToken', refreshToken), AuthToken = model('AuthToken', authToken), Folder = model('Folder', folder), Card = model('Card', card), Media = model('Media', media), Progress = model('Progress', progress), Review = model('Review', review), Activity = model('Activity', activity), Revision = model('Revision', revision), DomainEvent = model('DomainEvent', event), CardDoc = model('CardDoc', cardDoc), Relationship = model('Relationship', relationship), Project = model('Project', project), PremiumOrder = model('PremiumOrder', premiumOrder), Notification = model('Notification', notification), Team = model('Team', team), TeamMember = model('TeamMember', teamMember), TeamInvite = model('TeamInvite', teamInvite), Assignment = model('Assignment', assignment), Setting = model('Setting', setting), AuditEntry = model('AuditEntry', auditEntry), ContentReport = model('ContentReport', contentReport);
-export const allModels = [User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];
+export const User = model('User', user), RefreshToken = model('RefreshToken', refreshToken), AuthToken = model('AuthToken', authToken), Folder = model('Folder', folder), Card = model('Card', card), Media = model('Media', media), Progress = model('Progress', progress), Review = model('Review', review), GameProfile = model('GameProfile', gameProfile), Activity = model('Activity', activity), Revision = model('Revision', revision), DomainEvent = model('DomainEvent', event), CardDoc = model('CardDoc', cardDoc), Relationship = model('Relationship', relationship), Project = model('Project', project), PremiumOrder = model('PremiumOrder', premiumOrder), Notification = model('Notification', notification), Team = model('Team', team), TeamMember = model('TeamMember', teamMember), TeamInvite = model('TeamInvite', teamInvite), Assignment = model('Assignment', assignment), Setting = model('Setting', setting), AuditEntry = model('AuditEntry', auditEntry), ContentReport = model('ContentReport', contentReport);
+export const allModels = [User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];
