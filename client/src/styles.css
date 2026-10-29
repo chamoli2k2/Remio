@@ -1623,6 +1623,10 @@ html[data-theme=dark] .drawing-view{border-color:var(--border)}
 .speak-word.is-missed{background:#f5f2fb;color:#8b779c;text-decoration:line-through;text-decoration-color:#c9bfd8}
 .speak-answer{font-size:15px;line-height:1.6;color:#342a40;overflow-wrap:anywhere}
 .speak-answer img{max-width:100%;border-radius:10px}
+.speak-echo{display:flex;flex-direction:column;gap:10px;margin-top:6px;padding-top:12px;border-top:1px solid var(--border)}
+.speak-echo-note{margin:0;font-size:13px;line-height:1.5;color:#796a85}
+.speak-echo .speak-input textarea{min-height:84px}
+.speak-panel.is-echoed{border-color:#f0dcb1}.is-echoed .speak-meter>span{background:#2ea86b}
 .hud-stats{position:relative;display:flex;align-items:center;gap:8px;margin-left:auto}
 .hud-points,.hud-combo{display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:999px;font-size:12px;font-variant-numeric:tabular-nums}
 .hud-points{background:#f1ecfd;color:#6d5f7e}.hud-points svg{color:var(--accent)}.hud-points strong{color:#342a40;font-size:13.5px}

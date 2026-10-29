@@ -208,14 +208,16 @@ export const deleteUserSchema = z.object({
  * One answered card. `mode`, `reply`, `localHour` and `board` only feed experience and badges; the
  * rating alone decides scheduling. The hour is the learner's own clock, since days and streaks are
  * UTC but "studying at midnight" means their midnight. `reply` is what was typed or said; it is
- * only checked for being blank and is never stored.
+ * checked, never stored. `echo` marks a spoken answer said back after reading it, which by
+ * definition was not remembered, so it can only be rated "again".
  */
 export const reviewSchema = z.object({
   cardId: idSchema, rating: z.enum(['again', 'hard', 'good', 'easy']), requestId: z.uuid(), version: z.number().int().min(0),
   mode: z.enum(MODE_IDS).default('classic'),
   reply: z.string().max(4000).optional(),
+  echo: z.boolean().optional(),
   localHour: z.number().int().min(0).max(23).optional(),
   board: z.object({ pairs: z.number().int().min(2).max(6), mistakes: z.number().int().min(0).max(100) }).optional(),
-});
+}).refine(b => !b.echo || (b.mode === 'voice' && b.rating === 'again'), { message: 'Only a spoken answer rated "again" can be said back.', path: ['echo'] });
 
 export const validate = schema => (req, _res, next) => { try { req.body = schema.parse(req.body); next(); } catch (e) { next(e); } };

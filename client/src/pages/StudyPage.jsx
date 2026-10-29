@@ -10,7 +10,7 @@ import Img from '../components/Img';
 import DrawingView from '../components/DrawingView';
 import { Button, Loading, ErrorState, Tag, FolderIcon, Empty } from '../components/ui';
 import RichText, { sideOf, plainText } from '../components/RichText';
-import { MODES, MODE_IDS } from '../../../shared/game.js';
+import { MODES, MODE_IDS, XP } from '../../../shared/game.js';
 import { answerPool, playable, boardFrom, pointsFor, recordBest, partsOf, SpeechRecognition } from '../components/study/modes';
 import { ModePicker, ModeTag, ChoiceQuestion, TrueFalseQuestion, TypeQuestion, SpeakAnswer, MatchBoard } from '../components/study/StudyModes';
 import { BadgeMedal, LevelBar, badgeById } from '../components/study/GameBits';
@@ -73,7 +73,7 @@ export default function StudyPage() {
     try {
       while (pending.current.items.length) {
         const item = pending.current.items[0];
-        const body = { cardId: item.cardId, rating: item.rating, requestId: item.requestId, version: item.version, mode: item.mode, localHour: item.localHour, ...(item.reply != null ? { reply: item.reply.slice(0, 4000) } : {}), ...(item.board ? { board: item.board } : {}) };
+        const body = { cardId: item.cardId, rating: item.rating, requestId: item.requestId, version: item.version, mode: item.mode, localHour: item.localHour, ...(item.reply != null ? { reply: item.reply.slice(0, 4000) } : {}), ...(item.echo ? { echo: true } : {}), ...(item.board ? { board: item.board } : {}) };
         const res = await api('/reviews', { method: 'POST', body });
         pending.current.items.shift();
         setRatings(v => [...v, item.rating]);
@@ -86,7 +86,9 @@ export default function StudyPage() {
   const itemFor = (c, rating, extra = {}) => ({ cardId: c.id, rating, version: c.progress?.version || 0, mode: style === 'classic' ? 'classic' : style, ...extra });
   const rate = rating => submit([itemFor(card, pending.current?.items[0]?.rating || rating)]);
   const onGraded = result => { setGraded(result); setFlipped(true); };
-  const proceed = (rating = graded?.rating) => submit([itemFor(card, rating, { seconds: graded?.seconds, reply: graded?.reply })]);
+  const proceed = (rating = graded?.rating) => submit([graded?.echo?.passed
+    ? itemFor(card, 'again', { reply: graded.echo.reply, echo: true })
+    : itemFor(card, rating, { seconds: graded?.seconds, reply: graded?.reply })]);
   function finishBoard({ mistakes, total }) {
     const items = board.map((c, i) => itemFor(c, !mistakes[c.id] ? 'good' : mistakes[c.id] === 1 ? 'hard' : 'again', i === board.length - 1 ? { board: { pairs: board.length, mistakes: total } } : {}));
     submit(items, { board: total ? 0 : 50 * board.length });
@@ -98,7 +100,7 @@ export default function StudyPage() {
       if (style === 'classic') {
         if (e.code === 'Space' && card) { e.preventDefault(); setFlipped(v => !v); }
         if (flipped && ['1', '2', '3', '4'].includes(e.key)) rate(['again', 'hard', 'good', 'easy'][Number(e.key) - 1]);
-      } else if (graded && (e.key === 'Enter' || e.code === 'Space')) { e.preventDefault(); proceed(); }
+      } else if (graded && !(e.target instanceof HTMLButtonElement) && (e.key === 'Enter' || e.code === 'Space')) { e.preventDefault(); proceed(); }
     }
     document.addEventListener('keydown', key); return () => document.removeEventListener('keydown', key);
   });
@@ -153,9 +155,10 @@ export default function StudyPage() {
     </div>;
   }
 
-  const verdict = graded && <div className={`verdict-bar is-${graded.verdict}`} role="status">
-    <span className="verdict-icon">{graded.verdict === 'wrong' ? <X size={18}/> : <Check size={18}/>}</span>
-    <div><strong>{graded.verdict === 'right' ? PRAISE[index % PRAISE.length] : graded.verdict === 'close' ? (style === 'voice' ? 'Partly there. Compare with the card.' : 'Almost. Check the spelling.') : 'Not this time.'}</strong><small>{graded.skipped ? 'Skipped, so no XP. It will come back sooner.' : graded.verdict === 'wrong' ? 'It will come back sooner, so you can try again.' : 'Read the explanation while it’s fresh.'}</small></div>
+  const echoed = graded?.echo?.passed;
+  const verdict = graded && <div className={`verdict-bar is-${echoed ? 'close' : graded.verdict}`} role="status">
+    <span className="verdict-icon">{graded.verdict === 'wrong' && !echoed ? <X size={18}/> : <Check size={18}/>}</span>
+    <div><strong>{echoed ? 'Said it back.' : graded.verdict === 'right' ? PRAISE[index % PRAISE.length] : graded.verdict === 'close' ? (style === 'voice' ? 'Partly there. Compare with the card.' : 'Almost. Check the spelling.') : 'Not this time.'}</strong><small>{echoed ? `Worth ${XP.echoXp} XP for practising it. It will still come back sooner.` : graded.skipped ? (style === 'voice' ? 'No XP unless you say it back. It will come back sooner.' : 'Skipped, so no XP. It will come back sooner.') : graded.verdict === 'wrong' ? 'It will come back sooner, so you can try again.' : 'Read the explanation while it’s fresh.'}</small></div>
     <div className="verdict-actions">{graded.overridable && <button type="button" className="text-button" disabled={busy} onClick={() => proceed('good')}>I was right</button>}<Button className="primary" disabled={busy} onClick={() => proceed()}>{busy ? 'Saving…' : 'Continue'} <ArrowRight size={16}/></Button></div>
   </div>;
 
@@ -167,7 +170,7 @@ export default function StudyPage() {
       <div className="study-counter"><span>Card {index + 1} of {queue.length}</span><span>{graded ? 'Compare your answer with the card.' : 'Say your answer out loud.'}</span></div>
       <div className="speak-layout" key={card.id}>
         <div className="study-card speak-question"><div className="study-card-label">THE QUESTION</div><div className="study-card-body">{faceOf(sideOf(card, false))}</div><div className="study-card-bottom"><div>{card.tags.map(t => <Tag key={t}>{t}</Tag>)}</div>{card.hint && !graded && <button className="text-button" onClick={() => setHint(v => !v)}><Lightbulb size={16}/>{hint ? card.hint : 'Show hint'}</button>}{graded && card.source && <a href={card.source} target="_blank" rel="noreferrer" className="text-button">Source <ExternalLink size={14}/></a>}</div></div>
-        <SpeakAnswer card={card} graded={graded} onGraded={setGraded} answerSide={faceOf(sideOf(card, true))}/>
+        <SpeakAnswer card={card} graded={graded} onGraded={setGraded} onEcho={echo => setGraded(g => ({ ...g, echo }))} answerSide={faceOf(sideOf(card, true))}/>
       </div>
       {failure && <ErrorState message={failure}/>}
       {verdict && <div className="study-actions mode-actions">{verdict}</div>}

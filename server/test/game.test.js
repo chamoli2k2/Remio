@@ -139,6 +139,21 @@ integration('reaching the daily goal adds the bonus once', async () => {
   assert.equal(fourth.body.game.goalBonus, false);
 });
 
+integration('saying an answer back after reading it pays a little, but only if it covers the answer', async () => {
+  const add = async (q, a) => (await learner.post(`/api/folders/${folderId}/cards`).send({ front: { text: q }, back: { text: a } })).body.card;
+  const kenya = await add('Kenya?', 'Nairobi'), egypt = await add('Egypt?', 'Cairo');
+  assert.equal((await review(kenya, { mode: 'voice', rating: 'good', reply: 'Nairobi', echo: true })).status, 400, 'said back means not remembered');
+  assert.equal((await review(kenya, { mode: 'type', rating: 'again', reply: 'Nairobi', echo: true })).status, 400);
+  const before = await GameProfile.findOne({}).lean();
+  const bogus = await review(kenya, { mode: 'voice', rating: 'again', reply: 'bananas', echo: true });
+  assert.equal(bogus.status, 200); assert.equal(bogus.body.game.xp, 0, 'the server checks what was said against the card');
+  const honest = await review(egypt, { mode: 'voice', rating: 'again', reply: 'it is Cairo', echo: true });
+  assert.equal(honest.body.game.xp, XP.echoXp); assert.equal(honest.body.progress.lapses ?? 0, 0);
+  const after = await GameProfile.findOne({}).lean();
+  assert.equal(after.correct.voice || 0, before.correct.voice || 0, 'it is not a correct answer'); assert.equal(after.combo, 0);
+  assert.equal(after.reviews, before.reviews + 1);
+});
+
 integration('a match board only counts after its pairs were actually reviewed', async () => {
   const fresh = await freshCards();
   const cheat = await review(fresh[4], { mode: 'match', board: { pairs: 6, mistakes: 0 } });

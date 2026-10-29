@@ -23,6 +23,10 @@ export const XP = {
   // would make reviewing one card in a loop the fastest way up the levels.
   repeatWindowMs: 5 * 60000,
   repeatXp: 1,
+  // Saying an answer back after giving up on it and reading it: practice worth a little, if what
+  // was said actually covers the answer.
+  echoXp: 4,
+  echoMatch: 0.4,
   dailyCap: 3000,
 };
 

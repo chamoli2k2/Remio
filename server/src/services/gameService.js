@@ -1,5 +1,6 @@
 import { GameProfile, Progress } from '../models/index.js';
 import { XP, BADGES, isCorrect, isSkip, xpForReview, levelOf, metricOf } from '../../../shared/game.js';
+import { compareAnswer } from '../../../shared/answers.js';
 
 /**
  * Experience and badges, awarded inside the review's own transaction.
@@ -13,7 +14,9 @@ import { XP, BADGES, isCorrect, isSkip, xpForReview, levelOf, metricOf } from '.
  * so the defences are the ones that stop a loop from being worth running: a repeated card pays one
  * XP, a day pays at most `XP.dailyCap`, a board only counts after its pairs were reviewed, and a
  * typed or spoken answer sent blank is a skip that earns nothing and counts toward nothing. The
- * blank is judged from the reply itself, not from anything the client claims about it.
+ * blank is judged from the reply itself, not from anything the client claims about it. Likewise an
+ * answer said back after reading it (`echo`) is compared with the card here, and pays `XP.echoXp`
+ * only if it covers the answer.
  */
 
 const DAY = 86400000;
@@ -22,10 +25,10 @@ const previousDay = key => dayKey(new Date(Date.parse(`${key}T00:00:00Z`) - DAY)
 const MAX_FOLDERS = Math.max(...BADGES.filter(b => b.metric === 'folders').map(b => b.target));
 const DEEP_ROOTS_DAYS = 21;
 
-export async function awardReview({ user, card, before, after, rating, mode = 'classic', reply, localHour, board, now = new Date() }, session) {
+export async function awardReview({ user, card, before, after, rating, mode = 'classic', reply, echo = false, localHour, board, now = new Date() }, session) {
   const profile = await GameProfile.findOneAndUpdate({ user: user.id }, { $setOnInsert: { user: user.id } }, { upsert: true, new: true, session });
   const startLevel = levelOf(profile.xp).level, correct = isCorrect(rating), day = dayKey(now);
-  if (isSkip(mode, reply)) {
+  if (isSkip(mode, reply) || (echo && (compareAnswer(reply, card)?.score ?? 0) < XP.echoMatch)) {
     profile.combo = 0;
     await profile.save({ session });
     return { xp: 0, total: profile.xp, level: levelOf(profile.xp), levelUp: false, combo: 0, goalBonus: false, capped: false, badges: [], skipped: true };
@@ -59,7 +62,7 @@ export async function awardReview({ user, card, before, after, rating, mode = 'c
 
   const goal = Math.max(1, user.dailyGoal || 20);
   profile.today.reviews++;
-  let earned = xpForReview({ rating, mode, combo: profile.combo, firstSight, repeat });
+  let earned = echo ? (repeat ? XP.repeatXp : XP.echoXp) : xpForReview({ rating, mode, combo: profile.combo, firstSight, repeat });
   const goalBonus = !profile.today.goalMet && profile.today.reviews >= goal;
   if (goalBonus) { profile.today.goalMet = true; earned += XP.goalBonus; }
   if (profile.today.reviews === goal * 2) profile.doubleGoal++;

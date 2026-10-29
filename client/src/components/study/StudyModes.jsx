@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Layers, ListChecks, CircleCheckBig, Keyboard, Mic, Puzzle, Check, X, MicOff, RotateCcw, Timer } from 'lucide-react';
 import RichText from '../RichText';
-import { MODES } from '../../../../shared/game.js';
+import { MODES, XP } from '../../../../shared/game.js';
 import { partsOf, optionsFor, statementFor, gradeAnswer, compareAnswer, promptText, SpeechRecognition, VOICE_LANGS, defaultVoiceLang } from './modes';
 
 const MODE_ICONS = { classic: Layers, mcq: ListChecks, truefalse: CircleCheckBig, type: Keyboard, voice: Mic, match: Puzzle };
@@ -112,18 +112,17 @@ const SPEECH_ERRORS = {
 };
 
 /**
- * The answer side of speak mode. Speech is written into the box as it is recognised, and the box
- * stays editable, so a misheard word is fixed by hand rather than by saying it all again. Checking
- * compares the text with the card's whole written answer and shows the answer beside it.
+ * A box that speech is written into as it is recognised. It stays editable, so a misheard word is
+ * fixed by hand rather than by saying it all again. `actions` gets a function that stops listening.
  */
-export function SpeakAnswer({ card, answerSide, graded, onGraded }) {
+function SpeechField({ text, setText, placeholder, actions }) {
   const [lang, setLang] = useState(defaultVoiceLang); const [listening, setListening] = useState(false);
-  const [text, setText] = useState(''); const [interim, setInterim] = useState(''); const [problem, setProblem] = useState('');
+  const [interim, setInterim] = useState(''); const [problem, setProblem] = useState('');
   const rec = useRef(null), base = useRef('');
   useEffect(() => () => rec.current?.abort(), []);
 
   function listen() {
-    if (!SpeechRecognition || listening || graded) return;
+    if (!SpeechRecognition || listening) return;
     setProblem(''); base.current = text.trim();
     const r = new SpeechRecognition(); rec.current = r;
     r.lang = lang; r.interimResults = true; r.continuous = true;
@@ -138,31 +137,12 @@ export function SpeakAnswer({ card, answerSide, graded, onGraded }) {
     try { r.start(); setListening(true); } catch { setProblem(SPEECH_ERRORS['service-not-allowed']); }
   }
   function stop() { rec.current?.stop(); }
-  function check() {
-    rec.current?.abort();
-    const result = compareAnswer(text, card) || { score: 0, verdict: 'wrong', hit: [], missed: [] };
-    onGraded({ rating: result.verdict === 'right' ? 'good' : result.verdict === 'close' ? 'hard' : 'again', verdict: result.verdict, reply: text, overridable: result.verdict !== 'right', ...result });
-  }
   function changeLang(value) { setLang(value); try { localStorage.setItem('remio:voice-lang', value); } catch { /* private mode */ } }
+  const clear = () => { setText(''); base.current = ''; };
 
-  if (graded) {
-    const pct = Math.round((graded.score || 0) * 100);
-    return <div className={`speak-panel is-graded is-${graded.verdict}`}>
-      <div className="speak-panel-label">YOUR ANSWER<span className="speak-score">{pct}% match</span></div>
-      <p className="speak-said">{graded.reply || <em>Skipped.</em>}</p>
-      <div className="speak-meter" aria-hidden="true"><span style={{ width: `${pct}%` }}/></div>
-      {(graded.hit?.length > 0 || graded.missed?.length > 0) && <div className="speak-words">
-        {graded.hit.map(w => <span key={`h${w}`} className="speak-word is-hit"><Check size={11}/>{w}</span>)}
-        {graded.missed.map(w => <span key={`m${w}`} className="speak-word is-missed">{w}</span>)}
-      </div>}
-      <div className="speak-panel-label is-answer">THE ANSWER</div>
-      <div className="speak-answer">{answerSide}</div>
-    </div>;
-  }
-  return <div className="speak-panel">
-    <div className="speak-panel-label">YOUR ANSWER</div>
+  return <>
     <div className={`speak-input ${listening ? 'is-listening' : ''}`}>
-      <textarea value={text} onChange={e => { setText(e.target.value); base.current = e.target.value; }} placeholder="Tap the microphone and say your answer. It appears here, and you can correct it before checking." maxLength={4000} aria-label="Your answer"/>
+      <textarea value={text} onChange={e => { setText(e.target.value); base.current = e.target.value; }} placeholder={placeholder} maxLength={4000} aria-label="Your answer"/>
       {interim && <p className="speak-interim" aria-live="polite">{interim}…</p>}
     </div>
     {problem && <p className="voice-problem" role="alert"><MicOff size={14}/>{problem}</p>}
@@ -171,15 +151,63 @@ export function SpeakAnswer({ card, answerSide, graded, onGraded }) {
         {listening && <span className="mic-waves" aria-hidden="true"><i/><i/><i/></span>}<Mic size={24}/>
       </button>
       <div className="speak-controls-side">
-        <span className="voice-status">{listening ? 'Listening… tap to stop.' : text ? 'Tap to keep talking, or check it.' : 'Tap and speak.'}</span>
+        <span className="voice-status">{listening ? 'Listening… tap to stop.' : text ? 'Tap to keep talking.' : 'Tap and speak.'}</span>
         <select value={lang} onChange={e => changeLang(e.target.value)} aria-label="Language you will speak">{VOICE_LANGS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
       </div>
       <div className="speak-actions">
-        {text && <button type="button" className="text-button" onClick={() => { setText(''); base.current = ''; }}>Clear</button>}
-        <button type="button" className="text-button" onClick={() => onGraded({ rating: 'again', verdict: 'wrong', reply: '', skipped: true, score: 0, hit: [], missed: [], overridable: false })}>I don’t know</button>
-        <button type="button" className="button primary" disabled={!text.trim()} onClick={check}>Check answer</button>
+        {text && <button type="button" className="text-button" onClick={clear}>Clear</button>}
+        {actions(() => rec.current?.abort())}
       </div>
     </div>
+  </>;
+}
+
+function Comparison({ result }) {
+  const pct = Math.round((result.score || 0) * 100);
+  return <>
+    <div className="speak-meter" aria-label={`${pct}% match`}><span style={{ width: `${pct}%` }}/></div>
+    {(result.hit?.length > 0 || result.missed?.length > 0) && <div className="speak-words">
+      {result.hit.map(w => <span key={`h${w}`} className="speak-word is-hit"><Check size={11}/>{w}</span>)}
+      {result.missed.map(w => <span key={`m${w}`} className="speak-word is-missed">{w}</span>)}
+    </div>}
+  </>;
+}
+
+const compare = (text, card) => compareAnswer(text, card) || { score: 0, verdict: 'wrong', hit: [], missed: [] };
+
+/**
+ * The answer side of speak mode. Checking compares what was said with the card's whole written
+ * answer and shows the answer beside it. After "I don't know", the answer can be read and said back
+ * for a little XP; the card still counts as not remembered.
+ */
+export function SpeakAnswer({ card, answerSide, graded, onGraded, onEcho }) {
+  const [text, setText] = useState(''); const [echoText, setEchoText] = useState('');
+
+  if (graded) {
+    const echo = graded.echo;
+    return <div className={`speak-panel is-graded is-${echo?.passed ? 'echoed' : graded.verdict}`}>
+      <div className="speak-panel-label">YOUR ANSWER{!graded.skipped && <span className="speak-score">{Math.round((graded.score || 0) * 100)}% match</span>}</div>
+      <p className="speak-said">{graded.reply || <em>You didn’t know this one.</em>}</p>
+      {!graded.skipped && <Comparison result={graded}/>}
+      <div className="speak-panel-label is-answer">THE ANSWER</div>
+      <div className="speak-answer">{answerSide}</div>
+      {graded.skipped && <div className="speak-echo">
+        <div className="speak-panel-label">SAY IT BACK{echo && <span className="speak-score">{Math.round(echo.score * 100)}% match</span>}</div>
+        {echo?.passed
+          ? <><p className="speak-said">{echo.reply}</p><Comparison result={echo}/></>
+          : <>
+            <p className="speak-echo-note">{echo ? 'Not quite yet. Look at the answer again and have another go.' : `Read the answer, then say it in your own words to lock it in. Worth ${XP.echoXp} XP.`}</p>
+            <SpeechField text={echoText} setText={setEchoText} placeholder="Say the answer back while you can see it." actions={stop => <button type="button" className="button primary" disabled={!echoText.trim()} onClick={() => { stop(); const r = compare(echoText, card); onEcho({ reply: echoText, ...r, passed: r.score >= XP.echoMatch }); }}>Submit</button>}/>
+          </>}
+      </div>}
+    </div>;
+  }
+  return <div className="speak-panel">
+    <div className="speak-panel-label">YOUR ANSWER</div>
+    <SpeechField text={text} setText={setText} placeholder="Tap the microphone and say your answer. It appears here, and you can correct it before checking." actions={stop => <>
+      <button type="button" className="text-button" onClick={() => { stop(); onGraded({ rating: 'again', verdict: 'wrong', reply: '', skipped: true, score: 0, hit: [], missed: [], overridable: false }); }}>I don’t know</button>
+      <button type="button" className="button primary" disabled={!text.trim()} onClick={() => { stop(); const r = compare(text, card); onGraded({ rating: r.verdict === 'right' ? 'good' : r.verdict === 'close' ? 'hard' : 'again', verdict: r.verdict, reply: text, overridable: r.verdict !== 'right', ...r }); }}>Check answer</button>
+    </>}/>
     <small className="voice-note">Your browser’s speech service turns what you say into text.</small>
   </div>;
 }
