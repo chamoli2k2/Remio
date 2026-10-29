@@ -1,6 +1,6 @@
-import { answerParts, plainOf, gradeAnswer } from '../../../../shared/answers.js';
+import { answerParts, plainOf, gradeAnswer, compareAnswer } from '../../../../shared/answers.js';
 import { renderCloze, hasCloze } from '../../../../shared/cloze.js';
-export { gradeAnswer };
+export { gradeAnswer, compareAnswer };
 
 export const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition || null) : null;
 
@@ -19,7 +19,7 @@ export function playable(card, mode, pool) {
   if (!parts) return false;
   if (mode === 'mcq' || mode === 'truefalse') return pool.length >= 2;
   if (mode === 'type') return !!parts.target;
-  if (mode === 'voice') return !!parts.target && !!SpeechRecognition;
+  if (mode === 'voice') return !!SpeechRecognition;
   if (mode === 'match') return !!promptText(card) && pool.length >= 2;
   return false;
 }

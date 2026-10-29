@@ -7,7 +7,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { createApp } from '../src/app.js';
 import { allModels, GameProfile, Review, User } from '../src/models/index.js';
 import { BRAND } from '../../shared/brand.js';
-import { answerParts, gradeAnswer, plainOf } from '../../shared/answers.js';
+import { answerParts, gradeAnswer, plainOf, compareAnswer } from '../../shared/answers.js';
 import { xpForReview, levelOf, levelFloor, BADGES, XP } from '../../shared/game.js';
 
 const card = (back, front = 'Q') => ({ front: { text: front }, back: { text: back } });
@@ -41,6 +41,19 @@ test('typed and spoken answers forgive case, accents, articles, small typos and 
   assert.equal(gradeAnswer('17', '7'), 'wrong', 'a number inside another is not the number');
   assert.equal(gradeAnswer('cat', 'car'), 'wrong', 'no typo allowance on three letters');
   assert.equal(gradeAnswer('', 'Paris'), 'wrong');
+});
+
+test('a spoken answer is compared with the whole written answer, weighting its opening', () => {
+  const photo = card('Photosynthesis is how plants turn light into sugar. It happens in the chloroplasts and needs water and carbon dioxide.', 'What is photosynthesis?');
+  assert.equal(compareAnswer('plants use light to make sugar in the chloroplasts with water and carbon dioxide', photo).verdict, 'right');
+  assert.equal(compareAnswer('plants make sugar from light', photo).verdict, 'close');
+  assert.equal(compareAnswer('it is about animals eating', photo).verdict, 'wrong');
+  const mito = card('**Mitochondria** are where the cell makes ATP.\n\nFor example, muscle cells have thousands of them.', 'Where does the cell make ATP?');
+  assert.equal(compareAnswer('the mitochondria', mito).score, 1, 'the key term alone is enough');
+  assert.equal(compareAnswer('ribosomes', mito).verdict, 'wrong');
+  const result = compareAnswer('plants make sugar from light', photo);
+  assert.ok(result.hit.includes('sugar') && result.missed.includes('chloroplasts'), 'reports which key words were said and missed');
+  assert.ok(!result.missed.includes('photosynthesis'), 'words the question already says are not expected back');
 });
 
 test('XP rewards effort and streaks, pays almost nothing for a repeat, and levels follow the curve', () => {

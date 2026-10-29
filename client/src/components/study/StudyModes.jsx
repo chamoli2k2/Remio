@@ -2,22 +2,42 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Layers, ListChecks, CircleCheckBig, Keyboard, Mic, Puzzle, Check, X, MicOff, RotateCcw, Timer } from 'lucide-react';
 import RichText from '../RichText';
 import { MODES } from '../../../../shared/game.js';
-import { partsOf, optionsFor, statementFor, gradeAnswer, promptText, SpeechRecognition, VOICE_LANGS, defaultVoiceLang } from './modes';
+import { partsOf, optionsFor, statementFor, gradeAnswer, compareAnswer, promptText, SpeechRecognition, VOICE_LANGS, defaultVoiceLang } from './modes';
 
 const MODE_ICONS = { classic: Layers, mcq: ListChecks, truefalse: CircleCheckBig, type: Keyboard, voice: Mic, match: Puzzle };
 const SHORT_LABELS = { classic: 'Flip', mcq: 'Choices', truefalse: 'True / false', type: 'Type', voice: 'Speak', match: 'Match' };
 const LETTERS = ['A', 'B', 'C', 'D'];
 
-/** The six ways to study, as one scrollable row of chips. A mode the deck cannot support says why. */
-export function ModeBar({ mode, onChange, unavailable = {} }) {
-  return <div className="mode-bar" role="radiogroup" aria-label="How to study">
-    {Object.keys(MODES).map(id => {
-      const Icon = MODE_ICONS[id]; const reason = unavailable[id];
-      return <button key={id} type="button" role="radio" aria-checked={mode === id} className={`mode-chip ${mode === id ? 'is-active' : ''}`} disabled={!!reason} title={reason || MODES[id].label} onClick={() => onChange(id)}>
-        <Icon size={15}/><span>{SHORT_LABELS[id]}</span>{MODES[id].xp > 1 && <small>×{MODES[id].xp}</small>}
-      </button>;
-    })}
+const BLURBS = {
+  classic: 'See the question, think, flip the card and rate how well you remembered.',
+  mcq: 'Pick the right answer from four. Quick, and good for new material.',
+  truefalse: 'Is the answer shown the right one? Decide fast.',
+  type: 'Type the answer from memory. Small typos are forgiven.',
+  voice: 'Say your answer out loud. It is written down as you speak, then checked against the card.',
+  match: 'Pair six questions with their answers against the clock.',
+};
+
+/** Chosen once, before the first card. A mode the deck cannot support is shown with the reason. */
+export function ModePicker({ unavailable = {}, count, onPick }) {
+  return <div className="mode-picker">
+    <div className="mode-picker-head"><span className="eyebrow">CHOOSE HOW TO STUDY</span><h1>How do you want to practise?</h1><p>{count} {count === 1 ? 'card' : 'cards'} in this session. The whole session stays in the mode you pick.</p></div>
+    <div className="mode-options">
+      {Object.keys(MODES).map(id => {
+        const Icon = MODE_ICONS[id]; const reason = unavailable[id];
+        return <button key={id} type="button" className={`mode-option mode-${id}`} disabled={!!reason} onClick={() => onPick(id)}>
+          <span className="mode-option-icon"><Icon size={22}/></span>
+          <span className="mode-option-text"><strong>{MODES[id].label}</strong><span>{reason || BLURBS[id]}</span></span>
+          {MODES[id].xp !== 1 && !reason && <small className={MODES[id].xp > 1 ? 'is-bonus' : ''}>×{MODES[id].xp} XP</small>}
+        </button>;
+      })}
+    </div>
   </div>;
+}
+
+/** The mode of a session that has started, as a label rather than a control. */
+export function ModeTag({ mode }) {
+  const Icon = MODE_ICONS[mode];
+  return <span className="mode-tag"><Icon size={14}/>{SHORT_LABELS[mode]}</span>;
 }
 
 const secondsSince = t => (Date.now() - t) / 1000;
@@ -91,55 +111,75 @@ const SPEECH_ERRORS = {
   network: 'Speech recognition needs an internet connection.',
 };
 
-/** Say the answer out loud. Up to three tries; a right answer on a later try counts as "hard". */
-export function VoiceQuestion({ card, graded, onGraded, onTypeInstead }) {
-  const target = partsOf(card).target;
+/**
+ * The answer side of speak mode. Speech is written into the box as it is recognised, and the box
+ * stays editable, so a misheard word is fixed by hand rather than by saying it all again. Checking
+ * compares the text with the card's whole written answer and shows the answer beside it.
+ */
+export function SpeakAnswer({ card, answerSide, graded, onGraded }) {
   const [lang, setLang] = useState(defaultVoiceLang); const [listening, setListening] = useState(false);
-  const [heard, setHeard] = useState(''); const [tries, setTries] = useState(0); const [problem, setProblem] = useState('');
-  const rec = useRef(null), triesRef = useRef(0);
+  const [text, setText] = useState(''); const [interim, setInterim] = useState(''); const [problem, setProblem] = useState('');
+  const rec = useRef(null), base = useRef('');
   useEffect(() => () => rec.current?.abort(), []);
-  useEffect(() => { rec.current?.abort(); setHeard(''); setTries(0); triesRef.current = 0; setProblem(''); }, [card]);
 
-  function finish(alternatives) {
-    const attempt = ++triesRef.current; setTries(attempt);
-    const verdict = alternatives.map(a => gradeAnswer(a, target)).sort((a, b) => ['exact', 'close', 'wrong'].indexOf(a) - ['exact', 'close', 'wrong'].indexOf(b))[0] || 'wrong';
-    if (verdict !== 'wrong') onGraded({ rating: attempt === 1 ? 'good' : 'hard', verdict: 'right', reply: alternatives[0] });
-    else if (attempt >= 3) onGraded({ rating: 'again', verdict: 'wrong', reply: alternatives[0] || '', overridable: true });
-  }
   function listen() {
     if (!SpeechRecognition || listening || graded) return;
-    setProblem(''); setHeard('');
+    setProblem(''); base.current = text.trim();
     const r = new SpeechRecognition(); rec.current = r;
-    r.lang = lang; r.interimResults = true; r.maxAlternatives = 5; r.continuous = false;
-    let done = false;
+    r.lang = lang; r.interimResults = true; r.continuous = true;
     r.onresult = e => {
-      const result = e.results[e.results.length - 1];
-      setHeard([...e.results].map(x => x[0].transcript).join(' '));
-      if (result.isFinal && !done) { done = true; finish([...result].map(a => a.transcript)); }
+      let finals = '', pending = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) (e.results[i].isFinal ? (finals += e.results[i][0].transcript) : (pending += e.results[i][0].transcript));
+      if (finals) { base.current = `${base.current} ${finals}`.replace(/\s+/g, ' ').trim(); setText(base.current); }
+      setInterim(pending.trim());
     };
-    r.onerror = e => { if (e.error !== 'aborted') setProblem(SPEECH_ERRORS[e.error] || 'Something went wrong with speech recognition. Try again, or type instead.'); };
-    r.onend = () => setListening(false);
+    r.onerror = e => { if (e.error !== 'aborted') setProblem(SPEECH_ERRORS[e.error] || 'Something went wrong with speech recognition. Try again, or type your answer.'); };
+    r.onend = () => { setListening(false); setInterim(''); };
     try { r.start(); setListening(true); } catch { setProblem(SPEECH_ERRORS['service-not-allowed']); }
+  }
+  function stop() { rec.current?.stop(); }
+  function check() {
+    rec.current?.abort();
+    const result = compareAnswer(text, card) || { score: 0, verdict: 'wrong', hit: [], missed: [] };
+    onGraded({ rating: result.verdict === 'right' ? 'good' : result.verdict === 'close' ? 'hard' : 'again', verdict: result.verdict, reply: text, overridable: result.verdict !== 'right', ...result });
   }
   function changeLang(value) { setLang(value); try { localStorage.setItem('remio:voice-lang', value); } catch { /* private mode */ } }
 
-  return <div className="voice-box">
-    <button type="button" className={`mic-button ${listening ? 'is-listening' : ''}`} onClick={listening ? () => rec.current?.stop() : listen} disabled={!!graded} aria-label={listening ? 'Stop listening' : 'Speak your answer'}>
-      {listening ? <span className="mic-waves" aria-hidden="true"><i/><i/><i/></span> : null}<Mic size={28}/>
-    </button>
-    <p className="voice-status" aria-live="polite">
-      {graded ? (graded.reply ? <>Heard “{graded.reply}”</> : null)
-        : listening ? (heard ? <>“{heard}”</> : 'Listening…')
-          : tries > 0 ? <>Heard “{heard}”. Not quite. {3 - tries} {3 - tries === 1 ? 'try' : 'tries'} left.</>
-            : 'Tap the microphone and say the answer.'}
-    </p>
+  if (graded) {
+    const pct = Math.round((graded.score || 0) * 100);
+    return <div className={`speak-panel is-graded is-${graded.verdict}`}>
+      <div className="speak-panel-label">YOUR ANSWER<span className="speak-score">{pct}% match</span></div>
+      <p className="speak-said">{graded.reply || <em>Nothing was said.</em>}</p>
+      <div className="speak-meter" aria-hidden="true"><span style={{ width: `${pct}%` }}/></div>
+      {(graded.hit?.length > 0 || graded.missed?.length > 0) && <div className="speak-words">
+        {graded.hit.map(w => <span key={`h${w}`} className="speak-word is-hit"><Check size={11}/>{w}</span>)}
+        {graded.missed.map(w => <span key={`m${w}`} className="speak-word is-missed">{w}</span>)}
+      </div>}
+      <div className="speak-panel-label is-answer">THE ANSWER</div>
+      <div className="speak-answer">{answerSide}</div>
+    </div>;
+  }
+  return <div className="speak-panel">
+    <div className="speak-panel-label">YOUR ANSWER</div>
+    <div className={`speak-input ${listening ? 'is-listening' : ''}`}>
+      <textarea value={text} onChange={e => { setText(e.target.value); base.current = e.target.value; }} placeholder="Tap the microphone and say your answer. It appears here, and you can correct it before checking." maxLength={4000} aria-label="Your answer"/>
+      {interim && <p className="speak-interim" aria-live="polite">{interim}…</p>}
+    </div>
     {problem && <p className="voice-problem" role="alert"><MicOff size={14}/>{problem}</p>}
-    {!graded && <div className="voice-tools">
-      <select value={lang} onChange={e => changeLang(e.target.value)} aria-label="Language you will speak">{VOICE_LANGS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
-      {tries > 0 && <button type="button" className="text-button" onClick={() => onGraded({ rating: 'again', verdict: 'wrong', reply: heard, overridable: true })}>Show the answer</button>}
-      <button type="button" className="text-button" onClick={onTypeInstead}><Keyboard size={14}/> Type instead</button>
-    </div>}
-    {graded && graded.verdict !== 'right' && <p className="type-diff">Answer: <strong>{target}</strong></p>}
+    <div className="speak-controls">
+      <button type="button" className={`mic-button ${listening ? 'is-listening' : ''}`} onClick={listening ? stop : listen} aria-label={listening ? 'Stop listening' : 'Speak your answer'}>
+        {listening && <span className="mic-waves" aria-hidden="true"><i/><i/><i/></span>}<Mic size={24}/>
+      </button>
+      <div className="speak-controls-side">
+        <span className="voice-status">{listening ? 'Listening… tap to stop.' : text ? 'Tap to keep talking, or check it.' : 'Tap and speak.'}</span>
+        <select value={lang} onChange={e => changeLang(e.target.value)} aria-label="Language you will speak">{VOICE_LANGS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+      </div>
+      <div className="speak-actions">
+        {text && <button type="button" className="text-button" onClick={() => { setText(''); base.current = ''; }}>Clear</button>}
+        <button type="button" className="text-button" onClick={() => onGraded({ rating: 'again', verdict: 'wrong', reply: '', score: 0, hit: [], missed: [], overridable: false })}>I don’t know</button>
+        <button type="button" className="button primary" disabled={!text.trim()} onClick={check}>Check answer</button>
+      </div>
+    </div>
     <small className="voice-note">Your browser’s speech service turns what you say into text.</small>
   </div>;
 }

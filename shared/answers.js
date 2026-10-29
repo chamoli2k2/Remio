@@ -82,6 +82,53 @@ export function editDistance(a, b) {
   return prev[b.length];
 }
 
+const STOP = new Set('a an the and or but of to in on at for by with from as is are was were be been being it its this that these those which who whom what when where why how not no do does did has have had can could will would should may might must also than then so such into over under about between because there their they them he she his her we you your our me my very just only more most some any each other example instance like lot lots thing things way often usually called known get gets got make makes made take takes many much well one happen happens need needs through'.split(' '));
+// "makes", "making" and "cells" are reduced to a stem, so a paraphrase is not marked down for grammar.
+const stem = w => (w.length > 4 ? w.replace(/(ing|ed)$/, '').replace(/(?<!s)s$/, '') : w);
+/** The words that carry meaning, once each, keyed by stem but keeping the word as written for display. */
+function keywordsOf(text) {
+  const seen = new Map();
+  for (const w of normalizeAnswer(text).split(' ')) if (w && (w.length > 2 || /\d/.test(w)) && !STOP.has(w) && !seen.has(stem(w))) seen.set(stem(w), w);
+  return [...seen].map(([s, word]) => ({ s, word }));
+}
+const sameWord = (a, b) => a === b
+  || (Math.min(a.length, b.length) >= 3 && (a.startsWith(b) || b.startsWith(a)) && Math.abs(a.length - b.length) <= 2)
+  || (a.length >= 5 && Math.abs(a.length - b.length) <= 1 && editDistance(a, b) <= 1);
+
+/**
+ * How much of a card's written answer a free reply covers, for answers too long to match exactly.
+ *
+ * The opening of the answer — its bold term or first sentence — is what the card is asking for, so
+ * it carries most of the score. The explanation after it counts too, but covering half of its key
+ * words is already full marks there: nobody recites a paragraph word for word.
+ */
+export function compareAnswer(reply, card) {
+  const parts = answerParts(card);
+  if (!parts) return null;
+  // Words the question already says are not something the answer has to repeat.
+  const asked = new Set(keywordsOf(plainOf(card?.front?.text || '')).map(k => k.s));
+  const key = keywordsOf(plainOf(parts.display)).filter(k => !asked.has(k.s));
+  const full = String(card?.back?.text || '').trim() ? plainOf(card.back.text) : plainOf(parts.display);
+  const rest = keywordsOf(full).filter(k => !asked.has(k.s) && !key.some(x => x.s === k.s));
+  const said = keywordsOf(reply).map(k => k.s);
+  const words = list => list.map(k => k.word);
+  if (parts.target) {
+    const verdict = gradeAnswer(reply, parts.target);
+    if (verdict !== 'wrong') return { score: verdict === 'exact' ? 1 : 0.9, verdict: verdict === 'exact' ? 'right' : 'close', hit: words(key), missed: [] };
+  }
+  const covered = k => said.some(s => sameWord(s, k.s));
+  const hitKey = key.filter(covered), hitRest = rest.filter(covered);
+  const keyShare = key.length ? hitKey.length / key.length : 0;
+  const restShare = rest.length ? Math.min(1, (2 * hitRest.length) / rest.length) : keyShare;
+  const score = key.length ? 0.6 * keyShare + 0.4 * restShare : restShare;
+  return {
+    score: Math.round(score * 100) / 100,
+    verdict: score >= 0.7 ? 'right' : score >= 0.4 ? 'close' : 'wrong',
+    hit: words([...hitKey, ...hitRest]).slice(0, 12),
+    missed: words([...key.filter(k => !hitKey.includes(k)), ...rest.filter(k => !hitRest.includes(k))]).slice(0, 8),
+  };
+}
+
 const allowance = n => (n <= 3 ? 0 : n <= 6 ? 1 : n <= 12 ? 2 : Math.floor(n / 6));
 
 /**

@@ -12,11 +12,9 @@ import { Button, Loading, ErrorState, Tag, FolderIcon, Empty } from '../componen
 import RichText, { sideOf, plainText } from '../components/RichText';
 import { MODES, MODE_IDS } from '../../../shared/game.js';
 import { answerPool, playable, boardFrom, pointsFor, recordBest, partsOf, SpeechRecognition } from '../components/study/modes';
-import { ModeBar, ChoiceQuestion, TrueFalseQuestion, TypeQuestion, VoiceQuestion, MatchBoard } from '../components/study/StudyModes';
+import { ModePicker, ModeTag, ChoiceQuestion, TrueFalseQuestion, TypeQuestion, SpeakAnswer, MatchBoard } from '../components/study/StudyModes';
 import { BadgeMedal, LevelBar, badgeById } from '../components/study/GameBits';
 
-const MODE_KEY = 'remio:study-mode';
-const savedMode = () => { try { const m = localStorage.getItem(MODE_KEY); return MODE_IDS.includes(m) ? m : 'classic'; } catch { return 'classic'; } };
 const PRAISE = ['Spot on.', 'Nailed it.', 'Exactly right.', 'You knew that.', 'Sharp.'];
 const FALLBACK = { mcq: 'choose from', truefalse: 'judge', type: 'type', voice: 'say', match: 'match' };
 
@@ -25,7 +23,8 @@ export default function StudyPage() {
   const { data, loading, error } = useQuery(`study:${id}:${dueOnly ? 'due' : 'all'}`, () => Promise.all([api(`/folders/${id}`), api(`/folders/${id}/cards`)]).then(([f, c]) => ({ ...f, cards: c.cards.filter(card => !dueOnly || !card.progress?.dueAt || new Date(card.progress.dueAt) <= new Date()) })));
   const [queue, setQueue] = useState(null), [index, setIndex] = useState(0), [flipped, setFlipped] = useState(false), [hint, setHint] = useState(false);
   const [busy, setBusy] = useState(false), [failure, setFailure] = useState(''), [ratings, setRatings] = useState([]);
-  const [mode, setMode] = useState(() => { const p = params.get('play'); return MODE_IDS.includes(p) ? p : savedMode(); });
+  // Picked once on the screen before the first card, then fixed: it is in the URL so a reload keeps it.
+  const mode = MODE_IDS.includes(params.get('play')) ? params.get('play') : null;
   const [graded, setGraded] = useState(null);
   const [session, setSession] = useState({ points: 0, xp: 0, combo: 0, level: null, badges: [], best: null });
   const [pop, setPop] = useState(null);
@@ -37,21 +36,17 @@ export default function StudyPage() {
     const cards = data?.cards || [], out = {};
     for (const m of ['mcq', 'truefalse', 'match']) if (pool.length < 2) out[m] = 'Needs at least two cards with different answers.';
     if (!cards.some(c => partsOf(c)?.target)) out.type = 'No answer here is short enough to type.';
-    out.voice = !SpeechRecognition ? 'This browser cannot listen. Try Chrome, Edge or Safari.' : out.type ? 'No answer here is short enough to say.' : undefined;
-    if (!out.voice) delete out.voice;
+    if (!SpeechRecognition) out.voice = 'This browser cannot listen. Try Chrome, Edge or Safari.';
+    else if (!cards.some(c => partsOf(c))) out.voice = 'No card here has a written answer to compare with.';
     return out;
   }, [data, pool]);
-  const activeMode = unavailable[mode] ? 'classic' : mode;
+  const activeMode = !mode || unavailable[mode] ? 'classic' : mode;
   const card = queue?.[index];
   const board = useMemo(() => (activeMode === 'match' && queue ? boardFrom(queue, index, pool) : []), [activeMode, queue, index, pool]);
   const style = !card ? null : activeMode === 'match' ? (board.length ? 'match' : 'classic') : playable(card, activeMode, pool) ? activeMode : 'classic';
   const side = card && sideOf(card, flipped);
 
-  function chooseMode(next) {
-    setMode(next); setGraded(null); setFlipped(false); setHint(false);
-    try { localStorage.setItem(MODE_KEY, next); } catch { /* private mode */ }
-    setParams(p => { const n = new URLSearchParams(p); n.set('play', next); return n; }, { replace: true });
-  }
+  const startIn = next => setParams(p => { const n = new URLSearchParams(p); n.set('play', next); return n; });
 
   /** Award feedback for one answered card: points, the floating XP, and any badge or level it earned. */
   function celebrate(game, item, extraPoints = 0) {
@@ -116,6 +111,13 @@ export default function StudyPage() {
 
   const header = <><div className="study-header"><div className={`small-folder-icon ${data.folder.color}`}><FolderIcon name={data.folder.icon} size={21}/></div><div><span>STUDY SESSION</span><strong>{data.folder.title}</strong></div><Link to={`/folders/${id}`} className="icon-button" aria-label="Exit study session"><X size={22}/></Link></div><div className="session-progress"><span style={{ width: `${Math.min(1, index / queue.length) * 100}%` }}/></div></>;
 
+  if (!mode || unavailable[mode]) return <div className="study-page">{header}<ModePicker unavailable={unavailable} count={queue.length} onPick={startIn}/></div>;
+  function anotherMode() {
+    setQueue(null); setIndex(0); setRatings([]); setGraded(null); setFlipped(false);
+    setSession({ points: 0, xp: 0, combo: 0, level: session.level, badges: [], best: null });
+    setParams({ mode: 'all' });
+  }
+
   if (finished) {
     const remembered = ratings.filter(r => r !== 'again').length;
     return <div className="study-page">{header}<div className="study-complete">
@@ -129,13 +131,13 @@ export default function StudyPage() {
       {session.best?.isNew && <p className="best-note"><Trophy size={15}/> New personal best for this collection in {MODES[activeMode].label.toLowerCase()}.</p>}
       {session.level && <div className="complete-level"><LevelBar level={session.level}/></div>}
       {session.badges.length > 0 && <div className="complete-badges"><span className="eyebrow">BADGES UNLOCKED</span><div>{session.badges.map(b => <div key={b} className="complete-badge"><BadgeMedal id={b} size={56}/><strong>{badgeById[b]?.name}</strong></div>)}</div></div>}
-      <div className="complete-actions"><Link to={`/folders/${id}`} className="button primary">Back to collection <ArrowRight size={17}/></Link><Link to="/progress" className="button secondary">See your badges</Link></div>
+      <div className="complete-actions"><Link to={`/folders/${id}`} className="button primary">Back to collection <ArrowRight size={17}/></Link><Button className="secondary" onClick={anotherMode}>Practise again in a mode</Button><Link to="/progress" className="button secondary">See your badges</Link></div>
       <AdSlot placement="afterStudy"/>
     </div></div>;
   }
 
   const hud = <div className="study-hud">
-    <ModeBar mode={activeMode} onChange={chooseMode} unavailable={unavailable}/>
+    <ModeTag mode={activeMode}/>
     <div className="hud-stats" aria-live="polite">
       <span className="hud-points"><Zap size={14}/><strong>{session.points.toLocaleString()}</strong> pts</span>
       {session.combo > 1 && <span className="hud-combo" key={session.combo}><Flame size={14}/>×{session.combo}</span>}
@@ -153,14 +155,28 @@ export default function StudyPage() {
 
   const verdict = graded && <div className={`verdict-bar is-${graded.verdict}`} role="status">
     <span className="verdict-icon">{graded.verdict === 'wrong' ? <X size={18}/> : <Check size={18}/>}</span>
-    <div><strong>{graded.verdict === 'right' ? PRAISE[index % PRAISE.length] : graded.verdict === 'close' ? 'Almost. Check the spelling.' : 'Not this time.'}</strong><small>{graded.verdict === 'wrong' ? 'It will come back sooner, so you can try again.' : 'Read the explanation while it’s fresh.'}</small></div>
+    <div><strong>{graded.verdict === 'right' ? PRAISE[index % PRAISE.length] : graded.verdict === 'close' ? (style === 'voice' ? 'Partly there. Compare with the card.' : 'Almost. Check the spelling.') : 'Not this time.'}</strong><small>{graded.verdict === 'wrong' ? 'It will come back sooner, so you can try again.' : 'Read the explanation while it’s fresh.'}</small></div>
     <div className="verdict-actions">{graded.overridable && <button type="button" className="text-button" disabled={busy} onClick={() => proceed('good')}>I was right</button>}<Button className="primary" disabled={busy} onClick={() => proceed()}>{busy ? 'Saving…' : 'Continue'} <ArrowRight size={16}/></Button></div>
   </div>;
 
   const question = { card, pool, graded, onGraded };
+  const faceOf = s => <>{s.image && <Img id={s.image} alt={plainText(s.text) || 'Study image'} sizes="(max-width: 640px) 90vw, 520px" eager/>}{s.drawing && <DrawingView folderId={data.folder.id} id={s.drawing} label={plainText(s.text) || 'Study drawing'}/>}<RichText text={s.text} cloze={s.cloze}/></>;
+
+  if (style === 'voice') {
+    return <div className="study-page is-playing is-speaking">{header}{hud}
+      <div className="study-counter"><span>Card {index + 1} of {queue.length}</span><span>{graded ? 'Compare your answer with the card.' : 'Say your answer out loud.'}</span></div>
+      <div className="speak-layout" key={card.id}>
+        <div className="study-card speak-question"><div className="study-card-label">THE QUESTION</div><div className="study-card-body">{faceOf(sideOf(card, false))}</div><div className="study-card-bottom"><div>{card.tags.map(t => <Tag key={t}>{t}</Tag>)}</div>{card.hint && !graded && <button className="text-button" onClick={() => setHint(v => !v)}><Lightbulb size={16}/>{hint ? card.hint : 'Show hint'}</button>}{graded && card.source && <a href={card.source} target="_blank" rel="noreferrer" className="text-button">Source <ExternalLink size={14}/></a>}</div></div>
+        <SpeakAnswer card={card} graded={graded} onGraded={setGraded} answerSide={faceOf(sideOf(card, true))}/>
+      </div>
+      {failure && <ErrorState message={failure}/>}
+      {verdict && <div className="study-actions mode-actions">{verdict}</div>}
+    </div>;
+  }
+
   return <div className={`study-page ${style !== 'classic' ? 'is-playing' : ''}`}>{header}{hud}
     <div className="study-counter"><span>Card {index + 1} of {queue.length}</span><span>{style === 'classic' ? (flipped ? 'How well did you remember?' : 'Take a moment. You know more than you think.') : graded ? 'Here’s the full answer.' : MODES[style].label}</span></div>
-    {style === 'classic' && activeMode !== 'classic' && <p className="mode-fallback">This answer is too long to {FALLBACK[activeMode]}, so flip it and rate yourself.</p>}
+    {style === 'classic' && activeMode !== 'classic' && <p className="mode-fallback">{activeMode === 'voice' ? 'This card has no written answer to compare with' : `This answer is too long to ${FALLBACK[activeMode]}`}, so flip it and rate yourself.</p>}
     <div className={`study-card ${flipped ? 'answer-visible' : ''} ${graded ? `is-graded is-${graded.verdict}` : ''}`}><div className="study-card-label">{flipped ? 'THE ANSWER' : 'THE QUESTION'}</div><div className="study-card-body" data-face={flipped ? 'back' : 'front'}>{side.image && <Img id={side.image} alt={plainText(side.text) || 'Study image'} sizes="(max-width: 640px) 90vw, 520px" eager/>}{side.drawing && <DrawingView folderId={data.folder.id} id={side.drawing} label={plainText(side.text) || 'Study drawing'}/>}<RichText text={side.text} cloze={side.cloze}/></div><div className="study-card-bottom"><div>{card.tags.map(t => <Tag key={t}>{t}</Tag>)}</div>{!flipped && card.hint && <button className="text-button" onClick={() => setHint(v => !v)}><Lightbulb size={16}/>{hint ? card.hint : 'Show hint'}</button>}{flipped && card.source && <a href={card.source} target="_blank" rel="noreferrer" className="text-button">Source <ExternalLink size={14}/></a>}</div></div>
     {failure && <ErrorState message={failure}/>}
     {style === 'classic' ? <div className="study-actions">{!flipped ? <><Button className="primary reveal-button" onClick={() => setFlipped(true)}>Reveal answer <RotateCcw size={18}/></Button><span className="keyboard-hint">or press <kbd>space</kbd></span></> : <><div className="rating-buttons">{[['again', 'Again', 'Review in 10 min'], ['hard', 'Hard', 'Needs practice'], ['good', 'Good', 'Got it right'], ['easy', 'Easy', 'Knew it instantly']].map(([value, label, sub], i) => <button key={value} className={`rating ${value}`} disabled={busy || pending.current && pending.current.items[0]?.rating !== value} onClick={() => rate(value)}><span>{label}<kbd>{i + 1}</kbd></span><small>{card.progress?.preview?.[value] ? <>Next in <strong>{card.progress.preview[value]}</strong></> : sub}</small></button>)}</div><span className="keyboard-hint">{busy ? 'Saving your progress…' : card.progress?.retrievability != null ? <>Predicted recall right now: <strong>{Math.round(card.progress.retrievability * 100)}%</strong> · Be honest with yourself.</> : 'Be honest with yourself. Every review helps.'}</span></>}</div>
@@ -168,7 +184,6 @@ export default function StudyPage() {
         {style === 'mcq' && <ChoiceQuestion {...question}/>}
         {style === 'truefalse' && <TrueFalseQuestion {...question}/>}
         {style === 'type' && <TypeQuestion {...question}/>}
-        {style === 'voice' && <VoiceQuestion {...question} onTypeInstead={() => chooseMode('type')}/>}
         {verdict}
       </div>}
   </div>;
