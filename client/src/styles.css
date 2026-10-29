@@ -1837,3 +1837,11 @@ html[data-theme=dark] .badge-medal.is-locked .badge-medal-face{background:linear
 html[data-theme=dark] .badge-medal-lock{background:var(--surface-3);color:var(--text-3)}
 html[data-theme=dark] .level-bar-track,html[data-theme=dark] .badge-progress{background:var(--surface-3)}
 html[data-theme=dark] .pg-level-stats span{background:var(--surface-2);color:var(--text-3)}
+
+/* Long questions and answers scroll inside the card instead of stretching it. `safe center` keeps
+   short text centred but starts tall text at the top, so its first line is never cut off. */
+.study-card-body{max-height:min(62vh,600px);overflow-y:auto;justify-content:safe center;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#d9c8e6 transparent}
+.card-content{max-height:300px;overflow-y:auto;justify-content:safe center;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#d9c8e6 transparent}
+.study-card-body>*,.card-content>*{flex-shrink:0}
+html[data-theme=dark] .study-card-body,html[data-theme=dark] .card-content{scrollbar-color:#5a5080 transparent}
+@media(max-width:760px){.study-card-body{max-height:55vh}.card-content{max-height:260px}}
