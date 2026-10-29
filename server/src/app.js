@@ -17,6 +17,7 @@ export { trustedOrigins } from './utils/origin.js';
 import { trustedOrigins } from './utils/origin.js';
 import { readOnlyGuard } from './middleware/config.js';
 import { throttle } from './middleware/throttle.js';
+import { configureProxy } from './utils/proxy.js';
 import { setting } from './services/settingsService.js';
 import { themeScriptHash } from '../../shared/themeScript.js';
 import { jsonLdHash, site } from '../../shared/seo.js';
@@ -25,7 +26,7 @@ import { isConfigured as storageConfigured } from './services/storage.js';
 import { metaFor, applyMeta, sitemap } from './services/pageMeta.js';
 import { renderPage, applyRender } from './services/ssr.js';
 export function createApp() {
-  const app = express(); app.disable('x-powered-by'); if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
+  const app = express(); app.disable('x-powered-by'); configureProxy(app);
   app.use(requestContext);
   /**
    * The hosting provider's own hostname answers with the whole site, which is a second copy of

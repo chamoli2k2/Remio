@@ -174,7 +174,7 @@ Or `docker compose up --build` and open `http://localhost:4000`.
 | `MONGODB_URI` | Replica-set connection string |
 | `CLIENT_ORIGIN` | Extra allowed frontend origins when the UI is hosted separately. Same-origin is always allowed |
 | `NODE_ENV` | `production` enables secure cookies |
-| `TRUST_PROXY` | `1` behind exactly one reverse proxy |
+| `TRUST_PROXY` | `1` behind exactly one reverse proxy; `cloudflare` when your own Cloudflare zone proxies the domain in front of the host |
 | `READINESS_TIMEOUT_MS` | Mongo ping budget for `/api/ready` (default 2000) |
 
 ```bash
