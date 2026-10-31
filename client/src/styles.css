@@ -2038,3 +2038,18 @@ body.is-resizing .main-content{pointer-events:none}
 .notes-crumbs{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);margin-bottom:2px;min-width:0}
 .notes-crumbs a{color:var(--muted);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .notes-crumbs a:hover{color:var(--accent)}
+.draw-hint{font-size:12.5px;color:var(--muted);line-height:1.35;max-width:260px}
+.draw-page.tool-select canvas:last-of-type{cursor:default}
+.draw-page.tool-text canvas:last-of-type{cursor:text}
+.draw-sel{position:absolute;border:1.5px solid var(--accent);border-radius:2px;pointer-events:none;box-sizing:border-box}
+.draw-handle{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border:1.5px solid var(--accent);border-radius:50%;background:#fff;touch-action:none;z-index:2;box-sizing:border-box}
+.draw-handle::after{content:'';position:absolute;inset:-9px}
+.draw-handle.is-nw,.draw-handle.is-se{cursor:nwse-resize}
+.draw-handle.is-ne,.draw-handle.is-sw{cursor:nesw-resize}
+.draw-handle.is-n,.draw-handle.is-s{cursor:ns-resize}
+.draw-handle.is-e,.draw-handle.is-w{cursor:ew-resize}
+.draw-handle.is-start,.draw-handle.is-end{cursor:move}
+.draw-text-edit{position:absolute;z-index:3;margin:0;padding:0;border:1.5px dashed var(--accent);border-radius:2px;background:transparent;resize:none;overflow:hidden;outline:none;box-sizing:border-box;white-space:pre-wrap;overflow-wrap:anywhere;caret-color:var(--accent)}
+.draw-icon.is-danger:hover:not(:disabled){background:#fdecee;color:#b23b45}
+[data-theme=dark] .draw-handle{background:var(--surface)}
+[data-theme=dark] .draw-icon.is-danger:hover:not(:disabled){background:rgba(255,122,140,.14);color:#ff8c9b}

@@ -7,7 +7,7 @@ import { COUNTRY_NAMES, PHONE_PATTERN } from '../../../shared/countries.js';
 import { SCOPE_IDS } from '../../../shared/agent.js';
 import { DETAIL, FORMAT, EXTRAS, AUDIENCE, CUSTOM_GUIDANCE_MAX, cleanGuidance } from '../../../shared/answerStyle.js';
 import { MODE_IDS } from '../../../shared/game.js';
-import { DRAWING_ID, DRAWING_VERSION, PAGE, MAX_HEIGHT, PAPERS, THEMES, TOOLS, SIZE, LIMITS, HEX } from '../../../shared/drawing.js';
+import { DRAWING_ID, DRAWING_VERSION, PAGE, MAX_HEIGHT, PAPERS, THEMES, TOOLS, SIZE, LIMITS, HEX, SHAPES, OBJECT_ID, STROKE_WIDTH, FONT_SIZE, MIN_BOX } from '../../../shared/drawing.js';
 import { NOTE_LIMITS } from '../../../shared/notes.js';
 export const idSchema = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid identifier');
 export const usernameSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/, 'Use 3–24 letters, numbers, or underscores');
@@ -63,9 +63,10 @@ const side = z.object({ text: z.string().max(10000).default(''), image: idSchema
 const filled = v => v.text.trim() || v.image || v.drawing;
 
 /**
- * A drawing as the editor saves it. Numbers and a closed set of words only: there is no free
- * text anywhere in the document, so nothing in it can be markup, and every colour is a hex code
- * rather than any CSS a browser would accept.
+ * A drawing as the editor saves it. Numbers, hex colours, a closed set of words, and the text of
+ * labels. That text is the one free-form string in the document: it is only ever drawn onto a
+ * canvas by the editor and the viewer and never inserted into a page as markup, it is capped in
+ * length, and control characters other than a line break are refused.
  */
 const coordinate = z.number().finite().min(-50).max(Math.max(PAGE.width, MAX_HEIGHT) + 50).transform(Math.round);
 const strokeSchema = z.object({
@@ -74,6 +75,24 @@ const strokeSchema = z.object({
   s: z.number().finite().min(SIZE.min).max(SIZE.max),
   p: z.array(coordinate).min(2).max(LIMITS.pointsPerStroke * 2).refine(p => p.length % 2 === 0, 'Points come in pairs'),
 }).strict();
+const extent = z.number().finite().min(-Math.max(PAGE.width, MAX_HEIGHT)).max(Math.max(PAGE.width, MAX_HEIGHT)).transform(Math.round);
+const size = z.number().finite().min(0).max(Math.max(PAGE.width, MAX_HEIGHT)).transform(Math.round);
+const objectBase = { id: z.string().regex(OBJECT_ID, 'Invalid object id'), x: coordinate, y: coordinate, c: z.string().regex(HEX, 'Invalid colour') };
+const shapeSchema = z.object({
+  ...objectBase,
+  t: z.enum(SHAPES),
+  w: extent, h: extent,
+  s: z.number().finite().min(STROKE_WIDTH.min).max(STROKE_WIDTH.max).transform(Math.round),
+  f: z.boolean().optional(),
+}).strict();
+const textSchema = z.object({
+  ...objectBase,
+  t: z.literal('text'),
+  w: size.refine(v => v >= MIN_BOX && v <= PAGE.width, 'Text box width out of range'), h: size,
+  fs: z.number().finite().min(FONT_SIZE.min).max(FONT_SIZE.max).transform(Math.round),
+  text: z.string().min(1).max(LIMITS.textLength).refine(v => !/[\u0000-\u0008\u000b-\u001f\u007f]/.test(v), 'Text contains control characters'),
+}).strict();
+const objectSchema = z.discriminatedUnion('t', [...SHAPES.map(t => shapeSchema.extend({ t: z.literal(t) })), textSchema]);
 export const drawingSchema = z.object({
   v: z.literal(DRAWING_VERSION),
   w: z.literal(PAGE.width),
@@ -81,8 +100,11 @@ export const drawingSchema = z.object({
   paper: z.enum(PAPERS),
   theme: z.enum(THEMES),
   strokes: z.array(strokeSchema).max(LIMITS.strokes),
+  objects: z.array(objectSchema).max(LIMITS.objects, `A drawing can hold up to ${LIMITS.objects} shapes and text boxes.`).default([]),
 }).strict().refine(d => d.strokes.reduce((n, s) => n + s.p.length / 2, 0) <= LIMITS.points, 'This drawing is too detailed to save. Try clearing part of it.')
-  .refine(d => d.strokes.some(s => s.t !== 'eraser'), 'Draw something before saving.');
+  .refine(d => d.objects.reduce((n, o) => n + (o.text?.length || 0), 0) <= LIMITS.textTotal, 'There is too much text in this drawing. Move some of it to the page.')
+  .refine(d => new Set(d.objects.map(o => o.id)).size === d.objects.length, 'Objects must have different ids')
+  .refine(d => d.strokes.some(s => s.t !== 'eraser') || d.objects.length > 0, 'Draw something before saving.');
 // A cloze card ({{c1::…}} on the front) needs no back: the hidden text is the answer.
 // Shared with the assistant's card schema below, which no longer pipes through this one and so
 // would otherwise quietly stop deduplicating tags.
