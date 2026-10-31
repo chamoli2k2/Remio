@@ -25,12 +25,24 @@ function useSidebarWidth() {
     document.documentElement.style.setProperty('--sidebar-w', `${width}px`);
     localStorage.setItem(SIDEBAR.key, String(width));
   }, [width]);
+  // While dragging, the variable is written straight to the page once per frame; React state and
+  // storage are only updated on release, so a drag never re-renders the app under the pointer.
   const drag = useCallback(event => {
     event.preventDefault();
-    const move = e => setWidth(clampWidth(e.clientX));
-    const stop = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', stop); document.body.classList.remove('is-resizing'); };
+    const root = document.documentElement.style;
+    let frame = 0, next = 0;
+    const move = e => {
+      next = clampWidth(e.clientX);
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; root.setProperty('--sidebar-w', `${next}px`); });
+    };
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', stop); document.removeEventListener('pointercancel', stop);
+      document.body.classList.remove('is-resizing');
+      if (next) { root.setProperty('--sidebar-w', `${next}px`); setWidth(next); }
+    };
     document.body.classList.add('is-resizing');
-    document.addEventListener('pointermove', move); document.addEventListener('pointerup', stop);
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', stop); document.addEventListener('pointercancel', stop);
   }, []);
   const nudge = useCallback(event => {
     const step = event.shiftKey ? 32 : 8;

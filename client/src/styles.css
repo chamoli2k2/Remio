@@ -2029,3 +2029,5 @@ html[data-theme=dark] .study-card-body,html[data-theme=dark] .card-content{scrol
 .note-toolbar{padding:4px 0}
 .note-toolbar .upload-button{border:0;background:transparent;color:var(--muted);font-weight:600;cursor:pointer}
 .note-toolbar .upload-button:hover{color:var(--accent)}
+body.is-resizing .sidebar,body.is-resizing .workspace{transition:none}
+body.is-resizing .main-content{pointer-events:none}
