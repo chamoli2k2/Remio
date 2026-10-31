@@ -195,8 +195,16 @@ media.index({ notebook: 1, sha256: 1 }, { sparse: true });
  * or counts collections can pick a notebook up by accident, because it is not one. Sharing works
  * the same way — an owner and members with viewer or editor roles — and is free.
  */
-const notebook = new Schema({ title: { type: String, required: true }, description: { type: String, default: '' }, color: { type: String, default: 'violet' }, icon: { type: String, default: 'book' }, owner: ref('User'), members: [{ user: ref('User'), role: { type: String, enum: ['viewer', 'editor'], required: true }, _id: false }], version: { type: Number, default: 0 }, archived: { type: Boolean, default: false } }, options);
-notebook.index({ owner: 1, updatedAt: -1 }); notebook.index({ 'members.user': 1 });
+const members = () => [{ user: ref('User'), role: { type: String, enum: ['viewer', 'editor'], required: true }, _id: false }];
+/**
+ * A collection of notebooks, shown as "Collection" on the Notes tab. Sharing one shares every
+ * notebook in it; a notebook inside is always owned by the collection's owner, so deleting either
+ * the collection or that account takes everything inside with it.
+ */
+const noteCollection = new Schema({ title: { type: String, required: true }, description: { type: String, default: '' }, color: { type: String, default: 'violet' }, icon: { type: String, default: 'layers' }, owner: ref('User'), members: members(), version: { type: Number, default: 0 } }, options);
+noteCollection.index({ owner: 1, updatedAt: -1 }); noteCollection.index({ 'members.user': 1 });
+const notebook = new Schema({ title: { type: String, required: true }, description: { type: String, default: '' }, color: { type: String, default: 'violet' }, icon: { type: String, default: 'book' }, owner: ref('User'), noteCollection: ref('NoteCollection', false), members: members(), version: { type: Number, default: 0 }, archived: { type: Boolean, default: false } }, options);
+notebook.index({ owner: 1, updatedAt: -1 }); notebook.index({ 'members.user': 1 }); notebook.index({ noteCollection: 1, updatedAt: -1 });
 const note = new Schema({ notebook: ref('Notebook'), title: { type: String, default: '' }, body: { type: String, default: '' }, tags: [String], pinned: { type: Boolean, default: false }, version: { type: Number, default: 0 }, createdBy: ref('User'), updatedBy: ref('User') }, options);
 note.index({ notebook: 1, pinned: -1, updatedAt: -1 });
 // FSRS memory state (stability, difficulty, state) plus the legacy SM-2 fields (interval, repetitions, ease) kept for compatibility.
@@ -308,5 +316,5 @@ export const Blob = model('Blob', blob);
 
 export const AgentToken = model('AgentToken', agentToken), AgentBatch = model('AgentBatch', agentBatch), OAuthClient = model('OAuthClient', oauthClient), OAuthGrant = model('OAuthGrant', oauthGrant);
 export const User = model('User', user), RefreshToken = model('RefreshToken', refreshToken), AuthToken = model('AuthToken', authToken), Folder = model('Folder', folder), Card = model('Card', card), Media = model('Media', media), Progress = model('Progress', progress), Review = model('Review', review), GameProfile = model('GameProfile', gameProfile), Activity = model('Activity', activity), Revision = model('Revision', revision), DomainEvent = model('DomainEvent', event), CardDoc = model('CardDoc', cardDoc), Relationship = model('Relationship', relationship), Project = model('Project', project), PremiumOrder = model('PremiumOrder', premiumOrder), Notification = model('Notification', notification), Team = model('Team', team), TeamMember = model('TeamMember', teamMember), TeamInvite = model('TeamInvite', teamInvite), Assignment = model('Assignment', assignment), Setting = model('Setting', setting), AuditEntry = model('AuditEntry', auditEntry), ContentReport = model('ContentReport', contentReport);
-export const Notebook = model('Notebook', notebook), Note = model('Note', note);
-export const allModels = [Notebook, Note, User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];
+export const NoteCollection = model('NoteCollection', noteCollection), Notebook = model('Notebook', notebook), Note = model('Note', note);
+export const allModels = [NoteCollection, Notebook, Note, User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];

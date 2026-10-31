@@ -2031,3 +2031,10 @@ html[data-theme=dark] .study-card-body,html[data-theme=dark] .card-content{scrol
 .note-toolbar .upload-button:hover{color:var(--accent)}
 body.is-resizing .sidebar,body.is-resizing .workspace{transition:none}
 body.is-resizing .main-content{pointer-events:none}
+.notebook-tile.is-collection{padding-left:18px;box-shadow:4px 4px 0 -1px var(--surface,#fff),4px 4px 0 0 var(--border),8px 8px 0 -1px var(--surface,#fff),8px 8px 0 0 var(--border);margin:0 8px 8px 0}
+.notebook-tile.is-collection:hover{box-shadow:4px 4px 0 -1px var(--surface,#fff),4px 4px 0 0 var(--tone),8px 8px 0 -1px var(--surface,#fff),8px 8px 0 0 var(--tone)}
+.collection-stack{position:absolute;inset:0 0 auto 0;height:5px;background:var(--tone)}
+.collection-description{margin:-4px 0 4px;color:var(--muted);font-size:14px;max-width:70ch}
+.notes-crumbs{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);margin-bottom:2px;min-width:0}
+.notes-crumbs a{color:var(--muted);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notes-crumbs a:hover{color:var(--accent)}

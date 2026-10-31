@@ -14,6 +14,8 @@ export const NOTE_LIMITS = {
   tags: 10,
   notesPerNotebook: 1000,
   notebooksPerUser: 200,
+  collectionsPerUser: 50,
+  membersPer: 50,
   imagesPerNote: 30,
   drawingsPerNote: 20,
   // Across the whole notebook, so uploads that never make it into a page cannot pile up forever.

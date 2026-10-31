@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
-import { Notebook, Note, Media, User } from '../models/index.js';
+import { NoteCollection, Notebook, Note, Media, User } from '../models/index.js';
 import { roleOf } from './accessService.js';
 import * as mediaService from './mediaService.js';
 import * as storage from './storage.js';
@@ -10,60 +10,205 @@ import { DRAWING_ID, LIMITS as DRAWING_LIMITS } from '../../../shared/drawing.js
 import { NOTE_LIMITS, embedsIn, snippetOf } from '../../../shared/notes.js';
 
 /**
- * Notebooks and the pages in them.
+ * The Notes tab: collections, the notebooks in them, and the pages in those.
  *
- * Permission works exactly as it does for a collection — owner, then members as viewer or editor,
- * and nobody else — through the same `roleOf`, so there is one definition of who may do what.
- * A notebook is never public, so a stranger gets the same 404 as for something that does not exist.
+ * Permission works exactly as it does for a flashcard collection — owner, then members as viewer
+ * or editor, and nobody else — through the same `roleOf`. A notebook can be reached two ways, by
+ * being shared itself or by sitting in a shared collection, and the stronger of the two wins.
+ * Nothing here is ever public, so a stranger gets the same 404 as for something that does not exist.
  */
 
 const NOT_FOUND = 'Notebook not found or access has been removed.';
+const COLLECTION_NOT_FOUND = 'Collection not found or access has been removed.';
+const RANK = { viewer: 1, editor: 2, owner: 3 };
+const stronger = (a, b) => ((RANK[b] || 0) > (RANK[a] || 0) ? b : a) || null;
+const allows = (role, level) => level === 'viewer' || role === 'owner' || (level === 'editor' && role === 'editor');
+const person = u => (u && typeof u === 'object' && u.username ? { id: String(u._id ?? u.id), name: u.name, username: u.username } : null);
+const presentMembers = doc => doc.members.filter(m => m.user?.username).map(m => ({ user: person(m.user), role: m.role }));
+
+/* Collections */
+
+export async function accessCollection(id, user, level = 'viewer', session = null) {
+  assert(user && mongoose.isValidObjectId(id), 404, COLLECTION_NOT_FOUND);
+  const collection = await NoteCollection.findById(id).session(session);
+  assert(collection, 404, COLLECTION_NOT_FOUND);
+  const role = roleOf(collection, user);
+  assert(role, 404, COLLECTION_NOT_FOUND);
+  assert(allows(role, level), 403, 'You do not have permission to make this change.');
+  collection.$locals.role = role;
+  return collection;
+}
+
+export async function presentCollection(collection, user, notebookCount) {
+  await collection.populate([{ path: 'owner', select: 'name username' }, { path: 'members.user', select: 'name username' }]);
+  return {
+    id: collection.id, title: collection.title, description: collection.description, color: collection.color, icon: collection.icon,
+    version: collection.version, updatedAt: collection.updatedAt, role: roleOf(collection, user), owner: person(collection.owner),
+    members: presentMembers(collection), ...(notebookCount != null ? { notebookCount } : {}),
+  };
+}
+
+const collectionsOf = user => NoteCollection.find({ $or: [{ owner: user.id }, { 'members.user': user.id }] });
+
+/**
+ * Notebooks made before collections existed have none. The first time their owner opens the
+ * Notes tab they are gathered into one, so every notebook of theirs has a place in the tree.
+ */
+async function adoptLoose(user) {
+  const loose = await Notebook.countDocuments({ owner: user.id, noteCollection: null });
+  if (!loose) return;
+  const home = await NoteCollection.create({ title: 'My notebooks', owner: user.id });
+  await Notebook.updateMany({ owner: user.id, noteCollection: null }, { $set: { noteCollection: home._id } }, { timestamps: false });
+}
+
+const countBy = async (field, ids, extra = {}) => new Map((await Notebook.aggregate([{ $match: { [field]: { $in: ids }, ...extra } }, { $group: { _id: `$${field}`, n: { $sum: 1 } } }])).map(c => [String(c._id), c.n]));
+
+/** The Notes tab: every collection this person can open, and notebooks shared with them on their own. */
+export async function listCollections(user) {
+  await adoptLoose(user);
+  const rows = await collectionsOf(user).sort({ updatedAt: -1 }).limit(NOTE_LIMITS.collectionsPerUser * 4);
+  const counts = await countBy('noteCollection', rows.map(r => r._id), { archived: false });
+  const reachable = rows.map(r => r._id);
+  const sharedRows = await Notebook.find({ 'members.user': user.id, owner: { $ne: user.id }, noteCollection: { $nin: reachable }, archived: false }).sort({ updatedAt: -1 }).limit(NOTE_LIMITS.notebooksPerUser);
+  return {
+    collections: await Promise.all(rows.map(r => presentCollection(r, user, counts.get(r.id) || 0))),
+    sharedNotebooks: await presentNotebooks(sharedRows, user),
+  };
+}
+
+export async function createCollection(user, body) {
+  const owned = await NoteCollection.countDocuments({ owner: user.id });
+  assert(owned < NOTE_LIMITS.collectionsPerUser, 409, `You can have up to ${NOTE_LIMITS.collectionsPerUser} collections of notes. Delete one you no longer need first.`, 'COLLECTION_LIMIT');
+  return NoteCollection.create({ ...body, owner: user.id });
+}
+
+export async function getCollection(id, user, { archived = false } = {}) {
+  const collection = await accessCollection(id, user);
+  const rows = await Notebook.find({ noteCollection: collection._id, archived }).sort({ updatedAt: -1 }).limit(NOTE_LIMITS.notebooksPerUser);
+  const count = archived ? await Notebook.countDocuments({ noteCollection: collection._id, archived: false }) : rows.length;
+  return { collection: await presentCollection(collection, user, count), notebooks: await presentNotebooks(rows, user, new Map([[collection.id, collection]])) };
+}
+
+export async function updateCollection(id, user, { version, ...body }) {
+  const collection = await accessCollection(id, user, 'owner');
+  assert(collection.version === version, 409, 'This collection was changed somewhere else. Reopen it and try again.', 'VERSION_CONFLICT');
+  Object.assign(collection, body); collection.version += 1;
+  return collection.save();
+}
+
+async function memberChange(doc, owner, username, role, what) {
+  const target = await User.findOne({ username }).select('_id');
+  assert(target, 404, 'No user with that username. Ask them to create an account first.');
+  assert(String(target._id) !== String(owner), 400, 'The owner already has full access.');
+  doc.members = doc.members.filter(m => String(m.user) !== String(target._id));
+  if (role !== 'remove') {
+    assert(doc.members.length < NOTE_LIMITS.membersPer, 409, `A ${what} can be shared with up to ${NOTE_LIMITS.membersPer} people.`, 'MEMBER_LIMIT');
+    doc.members.push({ user: target._id, role });
+  }
+  doc.version += 1;
+  return doc.save();
+}
+
+export async function setCollectionMember(id, user, username, role) {
+  const collection = await accessCollection(id, user, 'owner');
+  return memberChange(collection, collection.owner, username, role, 'collection');
+}
+
+/** Deleting a collection deletes every notebook in it, so it asks for the name like a notebook does. */
+export async function deleteCollection(id, user, confirm) {
+  const collection = await accessCollection(id, user, 'owner');
+  assert(confirm === collection.title, 400, 'Type the collection name exactly to delete it.', 'CONFIRMATION_MISMATCH');
+  const inside = await Notebook.find({ noteCollection: collection._id }).select('_id').lean();
+  const ids = inside.map(n => n._id);
+  let keys = [];
+  await mongoose.connection.transaction(async session => {
+    const images = await Media.find({ notebook: { $in: ids } }).select('_id').session(session).lean();
+    ({ keys } = await mediaService.purge(images.map(i => i._id), { session }));
+    await Note.deleteMany({ notebook: { $in: ids } }, { session });
+    await Notebook.deleteMany({ _id: { $in: ids } }, { session });
+    await NoteCollection.deleteOne({ _id: collection._id }, { session });
+  });
+  await storage.remove(keys);
+  for (const nb of ids) await removeNotebookDrawings(String(nb));
+  return { deleted: true, notebooks: ids.length };
+}
+
+/* Notebooks */
+
+async function roleIn(notebook, user, collections) {
+  let role = roleOf(notebook, user);
+  if (role !== 'owner' && notebook.noteCollection) {
+    const key = String(notebook.noteCollection._id ?? notebook.noteCollection);
+    let collection = collections?.get(key);
+    if (collection === undefined) { collection = await NoteCollection.findById(key).select('owner members'); collections?.set(key, collection); }
+    if (collection) role = stronger(role, roleOf(collection, user));
+  }
+  return role;
+}
 
 export async function accessNotebook(id, user, level = 'viewer', session = null) {
   assert(user && mongoose.isValidObjectId(id), 404, NOT_FOUND);
   const notebook = await Notebook.findById(id).session(session);
   assert(notebook, 404, NOT_FOUND);
-  const role = roleOf(notebook, user);
+  const role = await roleIn(notebook, user);
   assert(role, 404, NOT_FOUND);
-  assert(level === 'viewer' || role === 'owner' || (level === 'editor' && role === 'editor'), 403, 'You do not have permission to make this change.');
+  assert(allows(role, level), 403, 'You do not have permission to make this change.');
   notebook.$locals.role = role;
   return notebook;
 }
 
-// A page saved moves its notebook to the top of the list.
-const touch = id => Notebook.updateOne({ _id: id }, { $set: { updatedAt: new Date() } }, { timestamps: false });
 const writable = notebook => assert(!notebook.archived, 409, 'Restore this notebook before changing it.', 'NOTEBOOK_ARCHIVED');
-const person = u => (u && typeof u === 'object' && u.username ? { id: String(u._id ?? u.id), name: u.name, username: u.username } : null);
 
-export async function presentNotebook(notebook, user, noteCount) {
-  await notebook.populate([{ path: 'owner', select: 'name username' }, { path: 'members.user', select: 'name username' }]);
+export async function presentNotebook(notebook, user, noteCount, collections = new Map()) {
+  await notebook.populate([{ path: 'owner', select: 'name username' }, { path: 'members.user', select: 'name username' }, { path: 'noteCollection', select: 'title color owner members' }]);
+  const c = notebook.noteCollection;
+  if (c?._id) collections.set(String(c._id), c);
   return {
     id: notebook.id, title: notebook.title, description: notebook.description, color: notebook.color, icon: notebook.icon,
     archived: notebook.archived, version: notebook.version, updatedAt: notebook.updatedAt,
-    role: roleOf(notebook, user), owner: person(notebook.owner),
-    members: notebook.members.filter(m => m.user?.username).map(m => ({ user: person(m.user), role: m.role })),
+    role: notebook.$locals.role || await roleIn(notebook, user, collections), owner: person(notebook.owner),
+    collection: c?._id ? { id: String(c._id), title: c.title, color: c.color, role: roleOf(c, user) } : null,
+    members: presentMembers(notebook),
     ...(noteCount != null ? { noteCount } : {}),
   };
 }
 
-/** Everything this person can open: their own and the ones shared with them. */
-const visibleTo = user => ({ $or: [{ owner: user.id }, { 'members.user': user.id }] });
+async function presentNotebooks(rows, user, collections = new Map()) {
+  const counts = new Map((await Note.aggregate([{ $match: { notebook: { $in: rows.map(r => r._id) } } }, { $group: { _id: '$notebook', n: { $sum: 1 } } }])).map(c => [String(c._id), c.n]));
+  const out = [];
+  for (const r of rows) out.push(await presentNotebook(r, user, counts.get(r.id) || 0, collections));
+  return out;
+}
+
+/** Everything this person can open: their own, the ones shared with them, and those in collections shared with them. */
+async function visibleTo(user) {
+  const shared = await NoteCollection.find({ 'members.user': user.id }).distinct('_id');
+  return { $or: [{ owner: user.id }, { 'members.user': user.id }, ...(shared.length ? [{ noteCollection: { $in: shared } }] : [])] };
+}
 
 export async function listNotebooks(user, { archived = false } = {}) {
-  const rows = await Notebook.find({ ...visibleTo(user), archived }).sort({ updatedAt: -1 }).limit(NOTE_LIMITS.notebooksPerUser * 2);
-  const counts = new Map((await Note.aggregate([{ $match: { notebook: { $in: rows.map(r => r._id) } } }, { $group: { _id: '$notebook', n: { $sum: 1 } } }])).map(c => [String(c._id), c.n]));
-  return Promise.all(rows.map(r => presentNotebook(r, user, counts.get(r.id) || 0)));
+  const rows = await Notebook.find({ ...(await visibleTo(user)), archived }).sort({ updatedAt: -1 }).limit(NOTE_LIMITS.notebooksPerUser * 2);
+  return presentNotebooks(rows, user);
 }
 
-export async function createNotebook(user, body) {
-  const owned = await Notebook.countDocuments({ owner: user.id });
-  assert(owned < NOTE_LIMITS.notebooksPerUser, 409, `You can have up to ${NOTE_LIMITS.notebooksPerUser} notebooks. Delete one you no longer need first.`, 'NOTEBOOK_LIMIT');
-  return Notebook.create({ ...body, owner: user.id });
+/** A notebook always lives in a collection and belongs to its owner, whoever in it created it. */
+export async function createNotebook(user, { collection: collectionId, ...body }) {
+  const collection = await accessCollection(collectionId, user, 'editor');
+  const owned = await Notebook.countDocuments({ owner: collection.owner });
+  assert(owned < NOTE_LIMITS.notebooksPerUser, 409, `A person can have up to ${NOTE_LIMITS.notebooksPerUser} notebooks. Delete one that is no longer needed first.`, 'NOTEBOOK_LIMIT');
+  const notebook = await Notebook.create({ ...body, owner: collection.owner, noteCollection: collection._id });
+  await NoteCollection.updateOne({ _id: collection._id }, { $set: { updatedAt: new Date() } }, { timestamps: false });
+  return notebook;
 }
 
-export async function updateNotebook(id, user, { version, ...body }) {
+export async function updateNotebook(id, user, { version, collection: moveTo, ...body }) {
   const notebook = await accessNotebook(id, user, 'owner');
   assert(notebook.version === version, 409, 'This notebook was changed somewhere else. Reopen it and try again.', 'VERSION_CONFLICT');
+  if (moveTo && moveTo !== String(notebook.noteCollection)) {
+    const target = await accessCollection(moveTo, user, 'owner');
+    assert(String(target.owner) === String(notebook.owner), 403, 'A notebook can only move into a collection its owner owns.');
+    notebook.noteCollection = target._id;
+  }
   Object.assign(notebook, body); notebook.version += 1;
   return notebook.save();
 }
@@ -76,16 +221,7 @@ export async function archiveNotebook(id, user, archived) {
 
 export async function setMember(id, user, username, role) {
   const notebook = await accessNotebook(id, user, 'owner');
-  const target = await User.findOne({ username }).select('_id');
-  assert(target, 404, 'No user with that username. Ask them to create an account first.');
-  assert(String(target._id) !== String(notebook.owner), 400, 'The owner already has full access.');
-  notebook.members = notebook.members.filter(m => String(m.user) !== String(target._id));
-  if (role !== 'remove') {
-    assert(notebook.members.length < 50, 409, 'A notebook can be shared with up to 50 people.', 'MEMBER_LIMIT');
-    notebook.members.push({ user: target._id, role });
-  }
-  notebook.version += 1;
-  return notebook.save();
+  return memberChange(notebook, notebook.owner, username, role, 'notebook');
 }
 
 /** Storage keys and rows for a notebook's images and drawings, removed after the rows are gone. */
@@ -104,7 +240,7 @@ export async function deleteNotebook(id, user, confirm) {
   });
   await storage.remove(keys);
   await removeNotebookDrawings(notebook.id);
-  return { deleted: true };
+  return { deleted: true, collection: notebook.noteCollection ? String(notebook.noteCollection) : null };
 }
 
 export async function removeNotebookDrawings(notebookId) {
@@ -218,7 +354,7 @@ const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export async function searchNotes(user, q) {
   const query = String(q || '').trim().slice(0, NOTE_LIMITS.searchQuery);
   if (query.length < 2) return [];
-  const notebooks = await Notebook.find({ ...visibleTo(user), archived: false }).select('_id title color');
+  const notebooks = await Notebook.find({ ...(await visibleTo(user)), archived: false }).select('_id title color');
   const byId = new Map(notebooks.map(n => [n.id, n]));
   const match = new RegExp(escape(query), 'i');
   const rows = await Note.find({ notebook: { $in: notebooks.map(n => n._id) }, $or: [{ title: match }, { body: match }, { tags: query.toLowerCase() }] })
@@ -268,5 +404,7 @@ export async function erasureFor(userId, session) {
   await Note.deleteMany({ notebook: { $in: ids } }, { session });
   await Notebook.deleteMany({ owner: userId }, { session });
   await Notebook.updateMany({ 'members.user': userId }, { $pull: { members: { user: userId } } }, { session });
+  await NoteCollection.deleteMany({ owner: userId }, { session });
+  await NoteCollection.updateMany({ 'members.user': userId }, { $pull: { members: { user: userId } } }, { session });
   return { keys, notebookIds: ids.map(String) };
 }

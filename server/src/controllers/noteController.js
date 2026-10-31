@@ -1,5 +1,11 @@
 import * as notes from '../services/noteService.js';
 
+export const listCollections = async (req, res) => res.json(await notes.listCollections(req.user));
+export const createCollection = async (req, res) => res.status(201).json({ collection: await notes.presentCollection(await notes.createCollection(req.user, req.body), req.user, 0) });
+export const getCollection = async (req, res) => res.json(await notes.getCollection(req.params.id, req.user, { archived: req.query.archived === '1' }));
+export const updateCollection = async (req, res) => res.json({ collection: await notes.presentCollection(await notes.updateCollection(req.params.id, req.user, req.body), req.user) });
+export const collectionMember = async (req, res) => res.json({ collection: await notes.presentCollection(await notes.setCollectionMember(req.params.id, req.user, req.body.username, req.body.role), req.user) });
+export const deleteCollection = async (req, res) => res.json(await notes.deleteCollection(req.params.id, req.user, req.body.confirm));
 export const listNotebooks = async (req, res) => res.json({ notebooks: await notes.listNotebooks(req.user, { archived: req.query.archived === '1' }) });
 export const createNotebook = async (req, res) => res.status(201).json({ notebook: await notes.presentNotebook(await notes.createNotebook(req.user, req.body), req.user, 0) });
 export const getNotebook = async (req, res) => res.json(await notes.listNotes(req.params.id, req.user));

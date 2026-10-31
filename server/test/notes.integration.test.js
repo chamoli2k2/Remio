@@ -6,7 +6,7 @@ import request from 'supertest';
 import sharp from 'sharp';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { createApp } from '../src/app.js';
-import { allModels, Blob, Media, Note, Notebook, User } from '../src/models/index.js';
+import { allModels, Blob, Media, Note, Notebook, NoteCollection, User } from '../src/models/index.js';
 import { BRAND } from '../../shared/brand.js';
 import { emptyDrawing } from '../../shared/drawing.js';
 import { NOTE_LIMITS, embedLine } from '../../shared/notes.js';
@@ -46,8 +46,15 @@ const integration = (name, fn) => test(name, { skip: !enabled }, fn);
 const sketch = () => ({ ...emptyDrawing(), strokes: [{ t: 'pen', c: '#1f1d28', s: 4, p: [100, 100, 140, 120, 180, 160] }] });
 const png = (color = '#6545d1') => sharp({ create: { width: 8, height: 8, channels: 3, background: color } }).png().toBuffer();
 
-async function notebook(agent = owner, title = `Notebook ${crypto.randomBytes(3).toString('hex')}`) {
-  const r = await agent.post('/api/notebooks').send({ title });
+const homes = new Map();
+async function collection(agent = owner, title = `Collection ${crypto.randomBytes(3).toString('hex')}`) {
+  const r = await agent.post('/api/note-collections').send({ title });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  return r.body.collection;
+}
+async function notebook(agent = owner, title = `Notebook ${crypto.randomBytes(3).toString('hex')}`, inside) {
+  if (!inside) { if (!homes.has(agent)) homes.set(agent, (await collection(agent)).id); inside = homes.get(agent); }
+  const r = await agent.post('/api/notebooks').send({ title, collection: inside });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   return r.body.notebook;
 }
@@ -228,11 +235,102 @@ integration('deleting an account erases its notebooks and its place in other peo
   await page(theirs.id, {}, leaving);
   const ownersNotebook = await notebook();
   await share(ownersNotebook.id, 'noteleaver', 'editor');
+  const ownersShelf = await collection();
+  await shareCollection(ownersShelf.id, 'noteleaver', 'viewer');
 
+  const leaverId = (await User.findOne({ username: 'noteleaver' }))._id;
+  assert.equal(await NoteCollection.countDocuments({ owner: leaverId }), 1);
   const gone = await leaving.delete('/api/auth/account').send({ password, confirm: 'delete my account' });
   assert.equal(gone.status, 200, JSON.stringify(gone.body));
   assert.equal(await Notebook.countDocuments({ _id: theirs.id }), 0);
   assert.equal(await Note.countDocuments({ notebook: theirs.id }), 0);
   assert.equal(await Blob.countDocuments({ _id: { $regex: `^notebook-drawings/${theirs.id}/` } }), 0);
   assert.equal((await Notebook.findById(ownersNotebook.id)).members.length, 0);
+  assert.equal(await NoteCollection.countDocuments({ owner: leaverId }), 0);
+  assert.equal((await NoteCollection.findById(ownersShelf.id)).members.length, 0);
+});
+
+async function shareCollection(id, username, role, agent = owner) {
+  const r = await agent.post(`/api/note-collections/${id}/members`).send({ username, role });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  return r.body.collection;
+}
+
+integration('sharing a collection shares every notebook in it, and taking it back takes them all', async () => {
+  const shelf = await collection(owner, 'Semester 3');
+  const bio = await notebook(owner, 'Biology', shelf.id), phy = await notebook(owner, 'Physics', shelf.id);
+  const page1 = await page(bio.id);
+  assert.equal(bio.collection.id, shelf.id);
+  assert.equal((await stranger.get(`/api/note-collections/${shelf.id}`)).status, 404);
+
+  await shareCollection(shelf.id, 'noteviewer', 'viewer');
+  const seen = (await viewer.get(`/api/note-collections/${shelf.id}`)).body;
+  assert.deepEqual(seen.notebooks.map(n => n.title).sort(), ['Biology', 'Physics']);
+  assert.ok(seen.notebooks.every(n => n.role === 'viewer'));
+  assert.equal((await viewer.get(`/api/notes/${page1.id}`)).status, 200);
+  assert.equal((await viewer.patch(`/api/notes/${page1.id}`).send({ body: 'x', version: 0 })).status, 403);
+  assert.ok((await viewer.get('/api/note-collections')).body.collections.some(c => c.id === shelf.id));
+  assert.ok((await viewer.get('/api/notes/search?q=hello')).body.notes.some(n => n.id === page1.id), 'search reaches notebooks through a shared collection');
+
+  // The stronger of the two grants wins: viewer through the collection, editor on the notebook itself.
+  await share(phy.id, 'noteviewer', 'editor');
+  assert.equal((await viewer.get(`/api/notebooks/${phy.id}`)).body.notebook.role, 'editor');
+
+  await shareCollection(shelf.id, 'noteviewer', 'remove');
+  assert.equal((await viewer.get(`/api/notes/${page1.id}`)).status, 404);
+  assert.equal((await viewer.get(`/api/notebooks/${phy.id}`)).status, 200, 'a notebook shared on its own stays shared');
+  const tab = (await viewer.get('/api/note-collections')).body;
+  assert.ok(!tab.collections.some(c => c.id === shelf.id));
+  assert.ok(tab.sharedNotebooks.some(n => n.id === phy.id), 'and shows up on its own on the Notes tab');
+});
+
+integration('a collection editor adds notebooks for the owner but cannot manage or delete them', async () => {
+  const shelf = await collection();
+  await shareCollection(shelf.id, 'noteeditor', 'editor');
+  const r = await editor.post('/api/notebooks').send({ title: 'Added by editor', collection: shelf.id });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal(r.body.notebook.owner.username, 'noteowner', 'the collection owner owns everything in it');
+  assert.equal(r.body.notebook.role, 'editor');
+  assert.equal((await editor.post(`/api/notebooks/${r.body.notebook.id}/notes`).send({ title: 'p' })).status, 201);
+  assert.equal((await editor.delete(`/api/notebooks/${r.body.notebook.id}`).send({ confirm: 'Added by editor' })).status, 403);
+  assert.equal((await editor.post(`/api/note-collections/${shelf.id}/members`).send({ username: 'notestranger', role: 'viewer' })).status, 403);
+  assert.equal((await editor.delete(`/api/note-collections/${shelf.id}`).send({ confirm: shelf.title })).status, 403);
+  // A viewer of a collection cannot add to it, and nobody can add to a stranger's.
+  await shareCollection(shelf.id, 'noteviewer', 'viewer');
+  assert.equal((await viewer.post('/api/notebooks').send({ title: 'nope', collection: shelf.id })).status, 403);
+  assert.equal((await stranger.post('/api/notebooks').send({ title: 'nope', collection: shelf.id })).status, 404);
+  assert.equal((await owner.post('/api/notebooks').send({ title: 'no home' })).status, 400, 'a notebook needs a collection');
+});
+
+integration('a notebook moves only between collections its owner owns', async () => {
+  const a = await collection(), b = await collection(), theirs = await collection(stranger);
+  const nb = await notebook(owner, 'Mover', a.id);
+  const moved = await owner.patch(`/api/notebooks/${nb.id}`).send({ title: nb.title, version: nb.version, collection: b.id });
+  assert.equal(moved.status, 200, JSON.stringify(moved.body)); assert.equal(moved.body.notebook.collection.id, b.id);
+  assert.equal((await owner.patch(`/api/notebooks/${nb.id}`).send({ title: nb.title, version: moved.body.notebook.version, collection: theirs.id })).status, 404);
+});
+
+integration('notebooks made before collections are gathered into one on first visit', async () => {
+  const legacy = await Notebook.create({ title: 'Old notebook', owner: (await User.findOne({ username: 'noteowner' }))._id });
+  const tab = (await owner.get('/api/note-collections')).body;
+  const home = tab.collections.find(c => c.title === 'My notebooks');
+  assert.ok(home, 'a home collection was made');
+  assert.equal(String((await Notebook.findById(legacy._id)).noteCollection), home.id);
+  assert.equal((await owner.get('/api/note-collections')).body.collections.filter(c => c.title === 'My notebooks').length, 1, 'only once');
+});
+
+integration('deleting a collection needs its name and takes every notebook, page and file inside', async () => {
+  const shelf = await collection(owner, 'Throwaway shelf');
+  const nb = await notebook(owner, 'Inside', shelf.id);
+  await owner.post(`/api/notebooks/${nb.id}/drawings`).send(sketch());
+  await owner.post(`/api/notebooks/${nb.id}/images`).attach('image', await png('#778899'), 'x.png');
+  await page(nb.id);
+  assert.equal((await owner.delete(`/api/note-collections/${shelf.id}`).send({ confirm: 'wrong' })).status, 400);
+  const gone = await owner.delete(`/api/note-collections/${shelf.id}`).send({ confirm: 'Throwaway shelf' });
+  assert.equal(gone.status, 200); assert.equal(gone.body.notebooks, 1);
+  assert.equal(await NoteCollection.countDocuments({ _id: shelf.id }), 0);
+  assert.equal(await Notebook.countDocuments({ _id: nb.id }), 0);
+  assert.equal(await Note.countDocuments({ notebook: nb.id }), 0);
+  assert.equal(await Media.countDocuments({ notebook: nb.id }), 0);
+  assert.equal(await Blob.countDocuments({ _id: { $regex: `^notebook-drawings/${nb.id}/` } }), 0);
 });
