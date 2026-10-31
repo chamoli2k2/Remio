@@ -5,6 +5,7 @@ import { Card, Media, Revision, Progress } from '../models/index.js';
 import * as cards from '../services/cardService.js';
 import * as drawings from '../services/drawingService.js';
 import { accessFolder, mutateFolder } from '../services/accessService.js';
+import { accessNotebook } from '../services/noteService.js';
 import { requireFolderPremium } from '../services/teamAccess.js';
 import { assert } from '../utils/errors.js';
 import { parseFile, toCsv, MAX_CARDS } from '../services/importService.js';
@@ -83,7 +84,8 @@ async function variantFor(media, width) {
 export const image = async (req, res) => {
   const media = await Media.findById(req.params.id).select('+data');
   assert(media, 404, 'Image not found.');
-  const folder = await accessFolder(media.folder, req.user);
+  // A notebook is never public, so its pictures take the private branch below.
+  const folder = media.notebook ? await accessNotebook(media.notebook, req.user) : await accessFolder(media.folder, req.user);
   /**
    * A published collection's images are cached quite differently from a private one's.
    *

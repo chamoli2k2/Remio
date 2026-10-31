@@ -164,7 +164,9 @@ card.index({ folder: 1, createdAt: 1 }); card.index({ folder: 1, tags: 1 });
 // `width` is the original's own width, so no resized copy wider than the picture is ever offered.
 // `variants` records which widths have been generated, which is cheaper than asking the bucket: the
 // row is already loaded to check permission, and a listing would be a second network call per image.
-const media = new Schema({ folder: ref('Folder'), uploadedBy: ref('User'), data: { type: Buffer, select: false }, key: { type: String, default: '' }, contentType: { type: String, default: 'image/webp' }, name: String, width: { type: Number, default: 0 }, height: { type: Number, default: 0 }, variants: { type: [Number], default: [] },
+// Exactly one of `folder` and `notebook` is set: an image belongs to a collection or to a notebook,
+// and permission to see it is read from whichever that is.
+const media = new Schema({ folder: ref('Folder', false), notebook: ref('Notebook', false), uploadedBy: ref('User'), data: { type: Buffer, select: false }, key: { type: String, default: '' }, contentType: { type: String, default: 'image/webp' }, name: String, width: { type: Number, default: 0 }, height: { type: Number, default: 0 }, variants: { type: [Number], default: [] },
   // A fingerprint of the stored bytes, so the same picture arriving twice is recognised and
   // stored once. See `mediaService.store`.
   sha256: { type: String, default: '' },
@@ -187,6 +189,16 @@ const media = new Schema({ folder: ref('Folder'), uploadedBy: ref('User'), data:
  * benefit — the lookup always searches for a real hash, which an empty string never matches.
  */
 media.index({ folder: 1, sha256: 1 });
+media.index({ notebook: 1, sha256: 1 }, { sparse: true });
+/**
+ * Notes live apart from flashcard collections on purpose: nothing that lists, studies, publishes
+ * or counts collections can pick a notebook up by accident, because it is not one. Sharing works
+ * the same way — an owner and members with viewer or editor roles — and is free.
+ */
+const notebook = new Schema({ title: { type: String, required: true }, description: { type: String, default: '' }, color: { type: String, default: 'violet' }, icon: { type: String, default: 'book' }, owner: ref('User'), members: [{ user: ref('User'), role: { type: String, enum: ['viewer', 'editor'], required: true }, _id: false }], version: { type: Number, default: 0 }, archived: { type: Boolean, default: false } }, options);
+notebook.index({ owner: 1, updatedAt: -1 }); notebook.index({ 'members.user': 1 });
+const note = new Schema({ notebook: ref('Notebook'), title: { type: String, default: '' }, body: { type: String, default: '' }, tags: [String], pinned: { type: Boolean, default: false }, version: { type: Number, default: 0 }, createdBy: ref('User'), updatedBy: ref('User') }, options);
+note.index({ notebook: 1, pinned: -1, updatedAt: -1 });
 // FSRS memory state (stability, difficulty, state) plus the legacy SM-2 fields (interval, repetitions, ease) kept for compatibility.
 const progress = new Schema({ user: ref('User'), card: ref('Card'), repetitions: { type: Number, default: 0 }, interval: { type: Number, default: 0 }, ease: { type: Number, default: 2.5 }, stability: { type: Number, default: 0 }, difficulty: { type: Number, default: 0 }, state: { type: String, enum: ['new', 'learning', 'review', 'relearning'], default: 'new' }, reps: { type: Number, default: 0 }, lapses: { type: Number, default: 0 }, elapsedDays: { type: Number, default: 0 }, scheduledDays: { type: Number, default: 0 }, dueAt: { type: Date, default: Date.now }, lastReviewedAt: Date, version: { type: Number, default: 0 }, bookmarked: { type: Boolean, default: false } }, options);
 progress.index({ user: 1, card: 1 }, { unique: true }); progress.index({ user: 1, dueAt: 1 });
@@ -296,4 +308,5 @@ export const Blob = model('Blob', blob);
 
 export const AgentToken = model('AgentToken', agentToken), AgentBatch = model('AgentBatch', agentBatch), OAuthClient = model('OAuthClient', oauthClient), OAuthGrant = model('OAuthGrant', oauthGrant);
 export const User = model('User', user), RefreshToken = model('RefreshToken', refreshToken), AuthToken = model('AuthToken', authToken), Folder = model('Folder', folder), Card = model('Card', card), Media = model('Media', media), Progress = model('Progress', progress), Review = model('Review', review), GameProfile = model('GameProfile', gameProfile), Activity = model('Activity', activity), Revision = model('Revision', revision), DomainEvent = model('DomainEvent', event), CardDoc = model('CardDoc', cardDoc), Relationship = model('Relationship', relationship), Project = model('Project', project), PremiumOrder = model('PremiumOrder', premiumOrder), Notification = model('Notification', notification), Team = model('Team', team), TeamMember = model('TeamMember', teamMember), TeamInvite = model('TeamInvite', teamInvite), Assignment = model('Assignment', assignment), Setting = model('Setting', setting), AuditEntry = model('AuditEntry', auditEntry), ContentReport = model('ContentReport', contentReport);
-export const allModels = [User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];
+export const Notebook = model('Notebook', notebook), Note = model('Note', note);
+export const allModels = [Notebook, Note, User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];

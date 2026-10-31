@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import * as drawings from './drawingService.js';
+import * as notes from './noteService.js';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import {
@@ -224,7 +225,7 @@ async function eraseAccount(withHash) {
 
   const { email, name } = withHash;
   const id = withHash.id;
-  let storedKeys = [], ownedFolders = [];
+  let storedKeys = [], ownedFolders = [], ownedNotebooks = [];
 
   await mongoose.connection.transaction(async session => {
     const opts = { session };
@@ -240,6 +241,9 @@ async function eraseAccount(withHash) {
     // its pictures in the bucket — the same content, at a smaller size, still there.
     storedKeys = (await Media.find({ $or: [{ folder: { $in: folderIds } }, { uploadedBy: id }] }).select('key variants').session(session).lean())
       .filter(m => m.key).flatMap(m => storage.allKeysFor(m.key, m.variants));
+    // Their notebooks, with every page and picture in them, and their seat in other people's.
+    const erasedNotes = await notes.erasureFor(id, session);
+    storedKeys.push(...erasedNotes.keys); ownedNotebooks = erasedNotes.notebookIds;
 
     // Everything hanging off the folders this account owned.
     await CardDoc.deleteMany({ card: { $in: cardIds } }, opts);
@@ -294,6 +298,7 @@ async function eraseAccount(withHash) {
   // way, and a slow bucket should not hold up the response to somebody who just deleted it.
   await storage.remove(storedKeys);
   for (const folderId of ownedFolders) await drawings.removeFolder(folderId);
+  for (const notebookId of ownedNotebooks) await notes.removeNotebookDrawings(notebookId);
 
   await send({ to: email, ...accountDeletedEmail({ name }) });
   return { deleted: true };

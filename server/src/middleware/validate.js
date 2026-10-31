@@ -8,6 +8,7 @@ import { SCOPE_IDS } from '../../../shared/agent.js';
 import { DETAIL, FORMAT, EXTRAS, AUDIENCE, CUSTOM_GUIDANCE_MAX, cleanGuidance } from '../../../shared/answerStyle.js';
 import { MODE_IDS } from '../../../shared/game.js';
 import { DRAWING_ID, DRAWING_VERSION, PAGE, MAX_HEIGHT, PAPERS, THEMES, TOOLS, SIZE, LIMITS, HEX } from '../../../shared/drawing.js';
+import { NOTE_LIMITS } from '../../../shared/notes.js';
 export const idSchema = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid identifier');
 export const usernameSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/, 'Use 3–24 letters, numbers, or underscores');
 /**
@@ -86,6 +87,10 @@ export const drawingSchema = z.object({
 // Shared with the assistant's card schema below, which no longer pipes through this one and so
 // would otherwise quietly stop deduplicating tags.
 const tagList = z.array(z.string().trim().toLowerCase().min(1).max(30)).max(10).default([]).transform(v => [...new Set(v)]);
+export const notebookSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), color: z.enum(['violet', 'blue', 'orange', 'green', 'pink', 'slate']).default('violet'), icon: z.enum(['layers', 'code', 'globe', 'brain', 'book', 'flask', 'terminal', 'palette']).default('book') });
+export const noteSchema = z.object({ title: z.string().trim().max(NOTE_LIMITS.title).default(''), body: z.string().max(NOTE_LIMITS.body, `A page can hold up to ${NOTE_LIMITS.body.toLocaleString('en')} characters. Split it into two pages.`).default(''), tags: z.array(z.string().trim().toLowerCase().min(1).max(30)).max(NOTE_LIMITS.tags).default([]).transform(v => [...new Set(v)]), pinned: z.boolean().default(false) }).strict();
+// A save sends only what changed, so nothing here has a default that would quietly overwrite a field.
+export const notePatchSchema = z.object({ title: z.string().trim().max(NOTE_LIMITS.title).optional(), body: z.string().max(NOTE_LIMITS.body, `A page can hold up to ${NOTE_LIMITS.body.toLocaleString('en')} characters. Split it into two pages.`).optional(), tags: z.array(z.string().trim().toLowerCase().min(1).max(30)).max(NOTE_LIMITS.tags).transform(v => [...new Set(v)]).optional(), pinned: z.boolean().optional(), version: z.number().int().min(0) }).strict();
 export const cardSchema = z.object({ front: side.refine(filled, 'Add text, an image or a drawing to the front'), back: side, tags: tagList, hint: z.string().max(1000).default(''), source: z.union([z.literal(''), z.url().refine(v => /^https?:\/\//.test(v), 'Use an http or https URL')]).default('') })
   .refine(v => filled(v.back) || hasCloze(v.front.text), { path: ['back'], message: 'Add text, an image or a drawing to the back, or use a cloze deletion like {{c1::answer}} on the front' });
 /**

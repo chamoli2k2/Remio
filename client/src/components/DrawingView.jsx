@@ -36,10 +36,10 @@ export function useDrawingCanvas(canvasRef, doc) {
   }, [canvasRef, doc]);
 }
 
-export default function DrawingView({ folderId, id, doc: given, label = 'Drawing', className = '' }) {
+export default function DrawingView({ folderId, basePath = folderId ? `/folders/${folderId}` : null, id, doc: given, label = 'Drawing', className = '' }) {
   const ref = useRef(null);
   // A saved drawing never changes, so a cached copy is never stale.
-  const { data, error } = useQuery(given || !id || !folderId ? null : `/folders/${folderId}/drawings/${id}`, null, { staleAfter: 0 });
+  const { data, error } = useQuery(given || !id || !basePath ? null : `${basePath}/drawings/${id}`, null, { staleAfter: 0 });
   const doc = given || data;
   useDrawingCanvas(ref, doc);
   if (error) return <div className={`drawing-view is-missing ${className}`} role="img" aria-label={`${label} could not be loaded`}><PenLine size={18}/> Drawing unavailable</div>;

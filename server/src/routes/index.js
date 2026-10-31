@@ -14,9 +14,10 @@ import * as premium from '../controllers/premiumController.js';
 import * as notifications from '../controllers/notificationController.js';
 import * as teams from '../controllers/teamController.js';
 import * as agent from '../controllers/agentController.js';
+import * as notes from '../controllers/noteController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePremium, requireDashboard, requireSuperadmin, requireVerifiedEmail } from '../middleware/account.js';
-import { validate, refreshSchema, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, folderDeleteSchema, cardSchema, drawingSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema, reviewSchema, reviewBatchSchema } from '../middleware/validate.js';
+import { validate, refreshSchema, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, folderDeleteSchema, cardSchema, drawingSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema, reviewSchema, reviewBatchSchema, notebookSchema, noteSchema, notePatchSchema } from '../middleware/validate.js';
 import { requireImports, requireSignupOpen } from '../middleware/config.js';
 import { throttle as rateLimit } from '../middleware/throttle.js';
 import { megabytes, setting } from '../services/settingsService.js';
@@ -179,6 +180,28 @@ r.post('/agent/batches/:id/undo', requireAuth, rateLimit({ windowMs: 60000, limi
 r.get('/oauth/consent', requireAuth, a(agent.consentInfo));
 r.post('/oauth/consent', requireAuth, authLimit, validate(agentConsentSchema), a(agent.consent));
 r.get('/media/:id', a(cards.image));
+/**
+ * Notes. Free and signed-in only: a notebook is never public, so there is nothing to show a visitor.
+ * Autosave calls the page update every couple of seconds while someone types, so it has its own
+ * allowance on top of the app-wide one rather than sharing the upload limit.
+ */
+const noteSaves = rateLimit({ windowMs: 60000, limit: 120 });
+const uploadLimit = rateLimit({ windowMs: 60000, limit: () => setting('throttle.uploadsPerMinute') });
+r.get('/notebooks', requireAuth, a(notes.listNotebooks));
+r.post('/notebooks', requireAuth, validate(notebookSchema), a(notes.createNotebook));
+r.get('/notebooks/:id', requireAuth, a(notes.getNotebook));
+r.patch('/notebooks/:id', requireAuth, validate(notebookSchema.extend({ version: z.number().int().min(0) })), a(notes.updateNotebook));
+r.patch('/notebooks/:id/archive', requireAuth, validate(z.object({ archived: z.boolean() })), a(notes.archiveNotebook));
+r.delete('/notebooks/:id', requireAuth, validate(z.object({ confirm: z.string().max(80) })), a(notes.deleteNotebook));
+r.post('/notebooks/:id/members', requireAuth, validate(z.object({ username: usernameSchema, role: z.enum(['viewer', 'editor', 'remove']) })), a(notes.member));
+r.post('/notebooks/:id/notes', requireAuth, noteSaves, validate(noteSchema), a(notes.createNote));
+r.post('/notebooks/:id/images', requireAuth, uploadLimit, uploadImage, a(notes.upload));
+r.post('/notebooks/:id/drawings', requireAuth, uploadLimit, validate(drawingSchema), a(notes.saveDrawing));
+r.get('/notebooks/:id/drawings/:drawingId', requireAuth, a(notes.drawing));
+r.get('/notes/search', requireAuth, a(notes.search));
+r.get('/notes/:id', requireAuth, a(notes.getNote));
+r.patch('/notes/:id', requireAuth, noteSaves, validate(notePatchSchema), a(notes.updateNote));
+r.delete('/notes/:id', requireAuth, a(notes.deleteNote));
 r.post('/reviews', requireAuth, validate(reviewSchema), a(study.review));
 r.post('/reviews/batch', requireAuth, validate(reviewBatchSchema), a(study.reviewBatch));
 r.get('/stats', requireAuth, a(study.stats));

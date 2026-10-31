@@ -45,7 +45,7 @@ function swapInk(color, from, to) {
   return i >= 0 ? INK[to][i] : color;
 }
 
-export default function DrawingEditor({ folderId, drawingId, initial, title = 'Drawing', onSave, onClose }) {
+export default function DrawingEditor({ folderId, basePath = `/folders/${folderId}`, target = 'card', drawingId, initial, title = 'Drawing', onSave, onClose }) {
   const [doc, setDoc] = useState(initial || null);
   const [loading, setLoading] = useState(!initial && !!drawingId);
   const [past, setPast] = useState([]), [future, setFuture] = useState([]);
@@ -69,9 +69,9 @@ export default function DrawingEditor({ folderId, drawingId, initial, title = 'D
   }, [doc, loading]);
   useEffect(() => {
     if (!loading) return;
-    api(`/folders/${folderId}/drawings/${drawingId}`).then(d => { setDoc(d); setLoading(false); })
+    api(`${basePath}/drawings/${drawingId}`).then(d => { setDoc(d); setLoading(false); })
       .catch(e => { setError(e.message); setDoc(emptyDrawing()); setLoading(false); });
-  }, [loading, folderId, drawingId]);
+  }, [loading, basePath, drawingId]);
   useEffect(() => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {} }, [prefs]);
 
   const theme = doc?.theme || 'light';
@@ -367,7 +367,7 @@ export default function DrawingEditor({ folderId, drawingId, initial, title = 'D
     setBusy(true); setError('');
     try {
       const saved = trimDrawing(doc);
-      const r = await api(`/folders/${folderId}/drawings`, { method: 'POST', body: saved });
+      const r = await api(`${basePath}/drawings`, { method: 'POST', body: saved });
       if (fullscreenElement()) await Promise.resolve(exitFullscreen()).catch(() => {});
       onSave(r.id, saved);
     } catch (e) { setError(e.message); setBusy(false); }
@@ -408,7 +408,7 @@ export default function DrawingEditor({ folderId, drawingId, initial, title = 'D
         }}>
         <header className="draw-head">
           <Dialog.Title>{title}</Dialog.Title>
-          <Dialog.Description className="sr-only">Draw with a mouse, finger or stylus. Save to put the drawing on the card.</Dialog.Description>
+          <Dialog.Description className="sr-only">Draw with a mouse, finger or stylus. Save to put the drawing on the {target}.</Dialog.Description>
           <div className="draw-head-actions">
             {/* On a phone, undo and redo move up here, in reach of the thumb and out of the toolbar. */}
             <span className="draw-head-history">{history('head')}</span>
@@ -416,7 +416,7 @@ export default function DrawingEditor({ folderId, drawingId, initial, title = 'D
             <button type="button" className="button secondary small draw-cancel" onClick={close} aria-label="Cancel"><X size={15}/><span>Cancel</span></button>
             <button type="button" className="button primary small draw-save" onClick={save} disabled={busy || loading}>
               {busy ? <Loader2 className="spin" size={15}/> : <Check size={15}/>}
-              <span className="draw-save-long">{full ? 'Save & back to card' : 'Save drawing'}</span><span className="draw-save-short">Save</span>
+              <span className="draw-save-long">{full ? `Save & back to ${target}` : 'Save drawing'}</span><span className="draw-save-short">Save</span>
             </button>
           </div>
         </header>

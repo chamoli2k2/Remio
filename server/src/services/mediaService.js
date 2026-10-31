@@ -32,14 +32,18 @@ export { ingest };
  * and the alternative — writing the row first and the bytes after — risks a row pointing at
  * nothing, which is a broken image on somebody's card.
  */
-export async function persist(image, { folder, user, name = '', sourceUrl = '', session = null }) {
-  const found = await Media.findOne({ folder, sha256: image.sha256 }).select('_id').session(session).lean();
+export async function persist(image, { folder, notebook, user, name = '', sourceUrl = '', session = null }) {
+  // Named outright rather than `{ folder }` with one of them undefined: an undefined filter value
+  // is sent as null, which would match every image in every notebook.
+  const scope = notebook ? { notebook } : { folder };
+  if (!Object.values(scope)[0]) throw new Error('persist needs a folder or a notebook');
+  const found = await Media.findOne({ ...scope, sha256: image.sha256 }).select('_id').session(session).lean();
   if (found) return { media: found, reused: true };
 
-  const key = storage.isConfigured() ? storage.newKey(folder) : '';
+  const key = storage.isConfigured() ? storage.newKey(notebook || folder, 'image/webp', notebook ? 'n' : 'f') : '';
   if (key) await storage.put(key, image.data, 'image/webp');
   const [media] = await Media.create([{
-    folder,
+    ...scope,
     uploadedBy: user,
     name: String(name || '').slice(0, 150),
     width: image.width,

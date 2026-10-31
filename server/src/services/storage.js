@@ -57,8 +57,8 @@ const EXTENSIONS = { 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jp
  * address bar and a guessable one would let somebody walk the bucket. The folder prefix is there
  * for the humans reading a bucket listing, not for lookups.
  */
-export const newKey = (folderId, contentType = 'image/webp') =>
-  `f/${folderId}/${crypto.randomUUID()}.${EXTENSIONS[contentType] || 'bin'}`;
+export const newKey = (folderId, contentType = 'image/webp', prefix = 'f') =>
+  `${prefix}/${folderId}/${crypto.randomUUID()}.${EXTENSIONS[contentType] || 'bin'}`;
 
 /**
  * Where a resized copy of `key` lives.

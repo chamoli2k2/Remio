@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import NoticeBanner from './NoticeBanner';
 import { NavLink, Link, Outlet, useNavigate } from 'react-router-dom';
-import { LibraryBig, Compass, Users, ChartNoAxesCombined, Plus, Settings2, Menu as MenuIcon, Search, Archive, LogOut, Swords, FolderOpen, UserPlus, LayoutDashboard, Crown, GraduationCap } from 'lucide-react';
+import { LibraryBig, Compass, Users, ChartNoAxesCombined, Plus, Settings2, Menu as MenuIcon, Search, Archive, LogOut, Swords, FolderOpen, UserPlus, LayoutDashboard, Crown, GraduationCap, NotebookPen } from 'lucide-react';
 import { Avatar, Button } from './ui';
 import { useApp, useQuery } from '../hooks/useApp';
 import { api } from '../services/api';
@@ -58,7 +58,7 @@ export default function Layout() {
    * list, where it is out of the way of everything reached daily.
    */
   const groups = [
-    ['WORKSPACE', [['/', LibraryBig, 'My library'], ['/projects', FolderOpen, 'Projects', true], ['/archive', Archive, 'Archived folders']]],
+    ['WORKSPACE', [['/', LibraryBig, 'My library'], ...(isDemo ? [] : [['/notes', NotebookPen, 'Notes']]), ['/projects', FolderOpen, 'Projects', true], ['/archive', Archive, 'Archived folders']]],
     ['STUDY', [['/progress', ChartNoAxesCombined, 'My progress'], ...(isDemo ? [] : [['/rooms', Swords, 'Live quiz', true]])]],
     ['PEOPLE', [['/teams', GraduationCap, 'Classrooms'], ['/shared', Users, 'Shared with me'], ['/friends', UserPlus, 'Friends'], ['/explore', Compass, 'Explore']]],
   ];
@@ -81,7 +81,7 @@ export default function Layout() {
       <div className="sidebar-scroll">
         {groups.map(([caption, items]) => <div className="nav-group" key={caption}>
           <div className="nav-caption">{caption}</div>
-          <nav>{items.map(([to, Icon, title, premium]) => <NavLink key={to} to={to} end onClick={() => setMobile(false)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={18}/><span>{title}</span>{premium && <PremiumMark/>}{to === '/' && <span className="nav-count">{data?.folders?.length || 0}</span>}</NavLink>)}</nav>
+          <nav>{items.map(([to, Icon, title, premium]) => <NavLink key={to} to={to} end={to !== '/notes'} onClick={() => setMobile(false)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={18}/><span>{title}</span>{premium && <PremiumMark/>}{to === '/' && <span className="nav-count">{data?.folders?.length || 0}</span>}</NavLink>)}</nav>
         </div>)}
         <div className="nav-group">
           <div className="nav-caption folder-caption">YOUR FOLDERS <button className="icon-button" aria-label="Create another folder" onClick={() => setCreate(true)}><Plus size={15}/></button></div>
