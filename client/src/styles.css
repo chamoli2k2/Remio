@@ -1939,3 +1939,5 @@ html[data-theme=dark] .study-card-body,html[data-theme=dark] .card-content{scrol
    page scrolls as usual, wherever the pointer is. */
 .card-content{overscroll-behavior:auto}
 .study-card-bottom>.study-card-tools{margin-left:auto;gap:14px;align-items:center;justify-content:flex-end}
+/* The col-resize cursor already says what the sidebar edge does; the accent line is kept only for keyboard focus. */
+.sidebar-resizer:hover:not(:focus-visible)::after{background:transparent}
