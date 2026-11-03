@@ -1,0 +1,43 @@
+# Production stack for a single VM: Caddy terminates HTTPS, the app is reachable only through it.
+# Lives in /opt/remio next to a `.env` file (secrets, SITE_ADDRESS) that is never committed.
+# The deploy workflow sets IMAGE to the exact commit it just built.
+services:
+  app:
+    image: ${IMAGE:?IMAGE is set by deploy.sh}
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      # One reverse proxy (Caddy) sits in front, and nothing else: the domain is DNS-only in Cloudflare.
+      TRUST_PROXY: "1"
+      # Keeps the heap inside the memory limit: the VM has only about 500 MB of RAM.
+      NODE_OPTIONS: --max-old-space-size=224
+    restart: unless-stopped
+    mem_limit: 340m
+    expose: ["4000"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
+    logging: &logs
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?SITE_ADDRESS is required, e.g. example.com, www.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
+      - caddy_data:/data
+      - caddy_config:/config
+    logging: *logs
+
+volumes:
+  caddy_data:
+  caddy_config:

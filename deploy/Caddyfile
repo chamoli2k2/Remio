@@ -1,0 +1,10 @@
+# SITE_ADDRESS comes from /opt/remio/.env, e.g. "example.com, www.example.com".
+# Caddy obtains and renews the certificates itself, so ports 80 and 443 must reach this machine.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	reverse_proxy app:4000 {
+		# Fail over quickly to a clear error while the app restarts, rather than hanging.
+		fail_duration 10s
+		lb_try_duration 5s
+	}
+}
