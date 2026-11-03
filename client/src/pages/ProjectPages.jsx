@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { api } from '../services/api';
 import { reportError } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { Button, Loading, ErrorState, Empty, Modal, Field } from '../components/ui';
 import FolderTile from '../components/FolderTile';
 import { hasPremium } from '../../../shared/account.js';
@@ -43,6 +44,7 @@ export function ProjectsPage() {
 export function ProjectPage() {
   const { id } = useParams(); const { refresh } = useApp();
   const { data, loading, error } = useQuery(`/projects/${id}`);
+  usePageTitle(data?.project?.title);
   const { data: lib } = useQuery('/folders');
   const [add, setAdd] = useState(false), [edit, setEdit] = useState(false);
   const project = data?.project;

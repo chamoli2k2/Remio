@@ -7,6 +7,7 @@ import Img from '../components/Img';
 import DrawingView from '../components/DrawingView';
 import { reportError } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { useFolderRealtime } from '../hooks/useRealtime';
 import { Button, Loading, ErrorState, Empty, FolderIcon, Avatar, Tag, Menu, Modal, Field } from '../components/ui';
 import ShareModal from '../components/ShareModal';
@@ -54,6 +55,7 @@ export default function FolderPage() {
   useEffect(() => { if (connected) return; const timer = setInterval(() => { if (!document.hidden && !editor) reload(); }, 15000); return () => clearInterval(timer); }, [editor, connected, reload]);
   // Read before the early return below, because a hook cannot live after one.
   const role = data?.folder?.role;
+  usePageTitle(data?.folder?.title);
   useEffect(() => (role === 'owner' || role === 'editor' ? whenIdle(loadEditor) : undefined), [role]);
   if (!data) return error ? <ErrorState message={error}/> : <Loading/>;
   const { folder, cards } = data; const canEdit = ['owner', 'editor'].includes(folder.role);

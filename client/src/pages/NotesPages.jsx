@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { api } from '../services/api';
 import { messageFor, reportError } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { Avatar, Button, Empty, ErrorState, Field, FolderIcon, icons, Loading, Menu, Modal } from '../components/ui';
 import Select from '../components/Select';
 import NoteEditor from '../components/NoteEditor';
@@ -189,6 +190,7 @@ export function NotesPage() {
 export function CollectionPage() {
   const { id } = useParams(); const navigate = useNavigate();
   const { data, loading, error, setData } = useQuery(`/note-collections/${id}`, null, { staleAfter: 5_000 });
+  usePageTitle(data?.collection?.title);
   const [modal, setModal] = useState('');
   if (loading) return <Loading/>;
   if (error) return <Empty title="This collection isn’t available" text={error} action={<Link to="/notes" className="button primary">Back to notes</Link>}/>;
@@ -224,6 +226,7 @@ export function CollectionPage() {
 export function NotebookPage() {
   const { id, noteId } = useParams(); const navigate = useNavigate(); const { refresh } = useApp();
   const { data, loading, error, refetch, setData } = useQuery(`/notebooks/${id}`, null, { staleAfter: 5_000 });
+  usePageTitle(data?.notebook && (noteId ? `${data.notes?.find(n => n.id === noteId)?.title || 'Untitled page'} · ${data.notebook.title}` : data.notebook.title));
   const [modal, setModal] = useState(''), [filter, setFilter] = useState(''), [creating, setCreating] = useState(false);
   const tree = useQuery('/note-collections', null, { enabled: modal === 'edit' });
   // Saves land after the render that started them, so they patch whatever the list is by then.

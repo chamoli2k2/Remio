@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import NoticeBanner from './NoticeBanner';
-import { NavLink, Link, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useSectionTitle } from '../hooks/usePageTitle';
 import { LibraryBig, Compass, Users, ChartNoAxesCombined, Plus, Settings2, Menu as MenuIcon, Search, Archive, LogOut, Swords, FolderOpen, UserPlus, LayoutDashboard, Crown, GraduationCap, NotebookPen } from 'lucide-react';
 import { Avatar, Button } from './ui';
 import { useApp, useQuery } from '../hooks/useApp';
@@ -56,6 +57,7 @@ function useSidebarWidth() {
 }
 export default function Layout() {
   const { user, isDemo, setUser } = useApp(); const navigate = useNavigate();
+  useSectionTitle(useLocation().pathname);
   const [create, setCreate] = useState(false), [mobile, setMobile] = useState(false), [query, setQuery] = useState(''), [people, setPeople] = useState([]);
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('remio:sidebar-hidden') === '1'; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem('remio:sidebar-hidden', collapsed ? '1' : '0'); } catch { /* private mode */ } }, [collapsed]);

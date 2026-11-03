@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { api } from '../services/api';
 import { reportError, messageFor } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { useMoney } from '../hooks/useMoney';
 import { Button, Field, Modal, Loading, Empty, ErrorState, Avatar, FolderIcon, Menu } from '../components/ui';
 import FolderModal from '../components/FolderModal';
@@ -136,6 +137,7 @@ export function TeamPage() {
   const navigate = useNavigate();
   const { user, refresh } = useApp();
   const { data, loading, error } = useQuery(`/teams/${id}`);
+  usePageTitle(data?.team?.name);
   const [inviting, setInviting] = useState(false), [buying, setBuying] = useState(false);
   const [addingFolder, setAddingFolder] = useState(false), [assigning, setAssigning] = useState(false);
   if (loading) return <Loading/>;

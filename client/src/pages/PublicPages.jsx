@@ -7,6 +7,7 @@ import Img from '../components/Img';
 import { folderQuery } from '../services/queries';
 import { reportError } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { Avatar, FolderIcon, Loading, ErrorState, Tag, Empty, Button } from '../components/ui';
 import RichText, { sideOf, plainText } from '../components/RichText';
 import CardFaces from '../components/CardFaces';
@@ -30,6 +31,7 @@ export function PublicFolderPage() {
 export function ProfilePage() {
   const { username } = useParams(); const { user, refresh } = useApp();
   const { data, loading, error } = useQuery(`/users/${username}`);
+  usePageTitle(data?.profile && (data.profile.name || data.profile.username));
   if (loading) return <Loading/>; if (error) return <ErrorState message={error}/>;
   const p = data.profile; const rel = p.relation || { following: false, friendship: user?.username === p.username ? 'self' : 'none' };
   async function act(path, method = 'POST') { try { await api(`/users/${p.username}/${path}`, { method }); refresh(); } catch (e) { reportError(e); } }

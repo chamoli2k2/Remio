@@ -6,6 +6,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { X, ArrowRight, RotateCcw, Lightbulb, Check, ExternalLink, Flame, Trophy, Zap, Sparkles, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useApp } from '../hooks/useApp';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { api, imageUrl } from '../services/api';
 import { enqueue, flush, flushSoon, subscribe, versionFor, pendingCards, pendingCount } from '../services/reviewSync';
 import Img from '../components/Img';
@@ -38,6 +39,7 @@ async function loadSession(id, dueOnly) {
 export default function StudyPage() {
   const { id } = useParams(); const [params, setParams] = useSearchParams(); const dueOnly = params.get('mode') === 'due'; const { refresh } = useApp();
   const { data, loading, error } = useQuery(`study:${id}:${dueOnly ? 'due' : 'all'}`, () => loadSession(id, dueOnly));
+  usePageTitle(data?.folder?.title && `Studying ${data.folder.title}`);
   const [queue, setQueue] = useState(null), [index, setIndex] = useState(0), [flipped, setFlipped] = useState(false), [hint, setHint] = useState(false);
   const [ratings, setRatings] = useState([]), [sync, setSync] = useState(() => ({ pending: pendingCount(), offline: false }));
   // Picked once on the screen before the first card, then fixed: it is in the URL so a reload keeps it.
