@@ -2053,3 +2053,40 @@ body.is-resizing .main-content{pointer-events:none}
 .draw-icon.is-danger:hover:not(:disabled){background:#fdecee;color:#b23b45}
 [data-theme=dark] .draw-handle{background:var(--surface)}
 [data-theme=dark] .draw-icon.is-danger:hover:not(:disabled){background:rgba(255,122,140,.14);color:#ff8c9b}
+/* Notes editor, second pass. The dark theme fills every input and textarea (html[data-theme=dark] input),
+   which out-ranked the transparent title and tag fields and stacked grey boxes inside the card. */
+.note-editor{gap:16px;padding:26px 30px 22px;border-radius:16px;box-shadow:0 1px 2px rgba(40,24,90,.05),0 14px 34px -22px rgba(40,24,90,.28)}
+.note-editor .note-head{align-items:center;gap:18px}
+.note-editor input.note-title{flex:1;min-width:0;padding:4px 0;border:0;border-radius:0;background:transparent;box-shadow:none;font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.2;outline:none}
+.note-editor input.note-title:focus{outline:none;box-shadow:none}
+.note-editor .note-head-actions{gap:2px;padding:3px 4px 3px 10px;border:1px solid var(--border);border-radius:999px;background:var(--surface-2,#f4f2f9)}
+.note-editor .note-status{margin:0 4px 0 0;font-size:12px;font-weight:600}
+.note-editor .note-head-actions .icon-button{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:var(--muted)}
+.note-editor .note-head-actions .icon-button:hover{background:var(--surface-3,#ebe7f5);color:var(--accent)}
+.note-editor .note-head-actions .icon-button[aria-pressed=true]{color:var(--accent)}
+.note-editor .note-tags{gap:6px;min-height:28px}
+.note-editor .note-tags .tag{font-size:12px;padding:3px 9px;border-radius:999px}
+.note-editor .note-tags input{width:74px;padding:3px 11px;border:1px dashed var(--border);border-radius:999px;background:transparent;font-size:12px;transition:width .15s,border-color .15s}
+.note-editor .note-tags input:focus{width:130px;border-style:solid;border-color:var(--accent);outline:none}
+.note-editor .note-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2,#f4f2f9)}
+.note-editor .note-mode{margin:0;padding:2px;border:1px solid var(--border);border-radius:9px;background:var(--surface,#fff)}
+.note-editor .note-mode button{height:28px;padding:0 12px;border-radius:7px}
+.note-editor .note-mode button.is-active{background:var(--accent);color:#fff;box-shadow:none}
+.note-editor .note-format{display:inline-flex;align-items:center;gap:2px;margin-left:4px;padding-left:10px;border-left:1px solid var(--border)}
+.note-editor .note-format button{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+.note-editor .note-format button:hover{background:var(--surface-3,#ebe7f5);color:var(--accent)}
+.note-editor .note-toolbar .upload-button{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface,#fff);color:var(--ink);font-size:13px;font-weight:600}
+.note-editor .note-toolbar .upload-button:hover{border-color:var(--accent);color:var(--accent)}
+.note-editor .note-write{gap:8px}
+.note-editor .note-write textarea{min-height:54vh;padding:20px 22px;border:1px solid var(--border);border-radius:12px;background:transparent;font-size:15.5px;line-height:1.8;transition:border-color .15s,box-shadow .15s}
+.note-editor .note-write textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent);outline:none}
+.note-editor .note-count{padding-right:4px}
+.note-editor .note-preview{padding:6px 4px}
+[data-theme=dark] .note-editor{box-shadow:0 1px 2px rgba(0,0,0,.3),0 14px 34px -22px rgba(0,0,0,.6)}
+[data-theme=dark] .note-editor .note-status.is-saved{color:#5fd39b}
+@media (max-width:760px){.note-editor{padding:16px 14px}.note-editor input.note-title{font-size:22px}.note-editor .note-format{margin-left:0;padding-left:0;border-left:0}.note-editor .note-toolbar-gap{display:none}.note-editor .note-write textarea{padding:14px 15px}}
+@media (max-width:480px){.note-editor .note-head{align-items:stretch}.note-editor .note-head-actions{align-self:flex-end}}
+.note-editor .note-insert{display:inline-flex;gap:6px;margin-left:auto}
+.note-editor .note-toolbar-gap{display:none}
+.note-editor .note-tags .tag button{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;opacity:.65;cursor:pointer}
+.note-editor .note-tags .tag button:hover{opacity:1;background:rgba(127,127,127,.22)}

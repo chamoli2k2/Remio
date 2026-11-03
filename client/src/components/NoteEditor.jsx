@@ -188,7 +188,7 @@ export default function NoteEditor({ notebook, noteId, onSaved, onDeleted }) {
         <button type="button" role="tab" aria-selected={mode === 'write'} className={mode === 'write' ? 'is-active' : ''} onClick={() => setMode('write')}><PenSquare size={14}/> Write</button>
         <button type="button" role="tab" aria-selected={mode === 'preview'} className={mode === 'preview' ? 'is-active' : ''} onClick={() => setMode('preview')}><Eye size={14}/> Preview</button>
       </div>
-      {mode === 'write' && <>
+      {mode === 'write' && <div className="note-format" role="group" aria-label="Text formatting">
         <button type="button" title="Bold (⌘B)" aria-label="Bold" onClick={() => wrap('**', '**', 'bold')}><Bold size={14}/></button>
         <button type="button" title="Italic (⌘I)" aria-label="Italic" onClick={() => wrap('_', '_', 'italic')}><Italic size={14}/></button>
         <button type="button" title="Heading" aria-label="Heading" onClick={() => wrap('\n## ', '', 'Heading')}><Heading2 size={14}/></button>
@@ -196,10 +196,10 @@ export default function NoteEditor({ notebook, noteId, onSaved, onDeleted }) {
         <button type="button" title="Checklist" aria-label="Checklist" onClick={() => wrap('\n- [ ] ', '', 'To do')}><ListChecks size={14}/></button>
         <button type="button" title="Code" aria-label="Code" onClick={() => wrap('`', '`', 'code')}><Code size={14}/></button>
         <button type="button" title="Math · LaTeX between $…$" aria-label="Math" onClick={() => wrap('$', '$', '\\frac{a}{b}')}><Sigma size={14}/></button>
-      </>}
+      </div>}
       <span className="note-toolbar-gap"/>
-      <label className="upload-button"><ImagePlus size={15}/>{uploading ? 'Uploading…' : 'Image'}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={e => { upload(e.target.files[0]); e.target.value = ''; }}/></label>
-      <button type="button" className="upload-button" onClick={() => setDrawing({ id: null })}><PenLine size={15}/> Draw</button>
+      <div className="note-insert"><label className="upload-button"><ImagePlus size={15}/>{uploading ? 'Uploading…' : 'Image'}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={e => { upload(e.target.files[0]); e.target.value = ''; }}/></label>
+      <button type="button" className="upload-button" onClick={() => setDrawing({ id: null })}><PenLine size={15}/> Draw</button></div>
     </div>}
     {mode === 'write' && canEdit
       ? <div className="note-write" onKeyDown={onKeyDown}>
