@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-IMAGE="${1:?usage: deploy.sh <image>}"
+export IMAGE="${1:?usage: deploy.sh <image>}"   # exported: every compose call below needs it
 FILE=compose.prod.yaml
 PREVIOUS="$(cat current_image 2>/dev/null || true)"
 
@@ -28,7 +28,7 @@ healthy() {
 }
 
 echo "Deploying $IMAGE (previous: ${PREVIOUS:-none})"
-IMAGE="$IMAGE" docker compose -f "$FILE" pull app
+docker compose -f "$FILE" pull app
 up "$IMAGE"
 
 if healthy; then
