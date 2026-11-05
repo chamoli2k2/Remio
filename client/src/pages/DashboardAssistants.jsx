@@ -117,7 +117,7 @@ export default function DashboardAssistants({ onOpenSettings }) {
       ? <p className="dash-an-note">Nothing written by an assistant yet.</p>
       : <ul className="assistant-batches">{recent.map(b => <li key={b.id}>
         <div>
-          <strong>{b.cards ? `${b.cards} card${b.cards === 1 ? '' : 's'}` : b.images ? `${b.images} image${b.images === 1 ? '' : 's'}` : 'A change'} in {b.collection}</strong>
+          <strong>{b.cards ? `${b.cards} card${b.cards === 1 ? '' : 's'}` : b.pages ? `${b.pages} page${b.pages === 1 ? '' : 's'}` : b.images ? `${b.images} image${b.images === 1 ? '' : 's'}` : 'A change'} in {b.collection}</strong>
           <small>@{b.user} · {b.assistant} · {when(b.at)}</small>
         </div>
         {b.undone && <span className="assistant-undone">Undone by them</span>}

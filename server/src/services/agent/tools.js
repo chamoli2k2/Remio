@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
-import { Folder, Card, AgentBatch, Progress, Revision, Media, User } from '../../models/index.js';
+import { Folder, Card, AgentBatch, Progress, Revision, Media, User, Notebook } from '../../models/index.js';
 import { accessFolder, mutateFolder, recordEvent, roleOf } from '../accessService.js';
 import { teamIdsFor, teamFolderRole } from '../teamAccess.js';
 import { insertCards, updateCard } from '../cardService.js';
@@ -13,6 +13,7 @@ import { allows, requireQuota, requireImageQuota, requireScope, usageToday } fro
 import { fetchImage } from '../fetchImage.js';
 import * as media from '../mediaService.js';
 import * as storage from '../storage.js';
+import { undoNotesBatch } from './noteTools.js';
 
 /**
  * What a connected assistant can actually do.
@@ -886,13 +887,16 @@ export async function setAnswerStyle(user, { collectionId = null, style = {}, re
  */
 export async function listBatches(user, { limit = 30 } = {}) {
   // Edits are reviewed and restored from the card's own history, so they are not listed as batches.
-  const batches = await AgentBatch.find({ user: user.id, kind: { $ne: 'edit' } }).sort({ createdAt: -1 }).limit(Math.min(limit, 100)).lean();
-  const live = batches.filter(b => !b.undoneAt).map(b => b.folder);
-  const exists = new Set((await Folder.find({ _id: { $in: live } }).select('_id').lean()).map(f => String(f._id)));
+  const batches = await AgentBatch.find({ user: user.id, kind: { $nin: ['edit', 'noteedit'] } }).sort({ createdAt: -1 }).limit(Math.min(limit, 100)).lean();
+  const live = batches.filter(b => !b.undoneAt);
+  const exists = new Set((await Folder.find({ _id: { $in: live.map(b => b.folder).filter(Boolean) } }).select('_id').lean()).map(f => String(f._id)));
+  const books = new Set((await Notebook.find({ _id: { $in: live.map(b => b.notebook).filter(Boolean) } }).select('_id').lean()).map(n => String(n._id)));
   return batches.map(b => ({
     id: String(b._id),
-    collectionId: exists.has(String(b.folder)) ? String(b.folder) : null,
-    collection: b.folderTitle,
+    kind: b.kind === 'notes' ? 'notes' : 'cards',
+    collectionId: b.folder && exists.has(String(b.folder)) ? String(b.folder) : null,
+    collection: b.kind === 'notes' ? b.notebookTitle : b.folderTitle,
+    ...(b.kind === 'notes' ? { notebookId: b.notebook && books.has(String(b.notebook)) ? String(b.notebook) : null, pageCount: b.pageCount || 0, createdNotebook: !!b.createdNotebook } : {}),
     by: b.tokenName || 'An assistant',
     cardCount: b.cardCount,
     imageCount: b.imageCount || 0,
@@ -918,7 +922,9 @@ export async function undoBatch(user, id) {
   const batch = await AgentBatch.findOne({ _id: id, user: user.id });
   assert(batch, 404, 'That batch was not found.');
   assert(batch.kind !== 'edit', 409, 'That was an edit to an existing card. Restore the earlier version from the card’s history instead.', 'EDIT_NOT_UNDOABLE');
+  assert(batch.kind !== 'noteedit', 409, 'That was a change to an existing page. Restore the earlier version from the page’s history instead.', 'EDIT_NOT_UNDOABLE');
   assert(!batch.undoneAt, 409, 'That batch has already been undone.');
+  if (batch.kind === 'notes') return undoNotesBatch(user, batch);
 
   const folder = await Folder.findById(batch.folder);
   // The collection may have been deleted in the meantime, which undoes the batch more thoroughly

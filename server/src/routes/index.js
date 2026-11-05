@@ -201,6 +201,7 @@ r.patch('/notebooks/:id', requireAuth, validate(notebookSchema.extend({ version:
 r.patch('/notebooks/:id/archive', requireAuth, validate(z.object({ archived: z.boolean() })), a(notes.archiveNotebook));
 r.delete('/notebooks/:id', requireAuth, validate(z.object({ confirm: z.string().max(80) })), a(notes.deleteNotebook));
 r.post('/notebooks/:id/members', requireAuth, validate(memberSchema), a(notes.member));
+r.get('/notebooks/:id/export', requireAuth, noteSaves, a(notes.exportNotebook));
 r.post('/notebooks/:id/notes', requireAuth, noteSaves, validate(noteSchema), a(notes.createNote));
 r.post('/notebooks/:id/images', requireAuth, uploadLimit, uploadImage, a(notes.upload));
 r.post('/notebooks/:id/drawings', requireAuth, uploadLimit, validate(drawingSchema), a(notes.saveDrawing));
@@ -209,6 +210,8 @@ r.get('/notes/search', requireAuth, a(notes.search));
 r.get('/notes/:id', requireAuth, a(notes.getNote));
 r.patch('/notes/:id', requireAuth, noteSaves, validate(notePatchSchema), a(notes.updateNote));
 r.delete('/notes/:id', requireAuth, a(notes.deleteNote));
+r.get('/notes/:id/revisions', requireAuth, a(notes.listRevisions));
+r.get('/notes/:id/revisions/:rid', requireAuth, a(notes.getRevision));
 r.post('/reviews', requireAuth, validate(reviewSchema), a(study.review));
 r.post('/reviews/batch', requireAuth, validate(reviewBatchSchema), a(study.reviewBatch));
 r.get('/stats', requireAuth, a(study.stats));

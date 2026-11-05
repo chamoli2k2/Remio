@@ -69,14 +69,14 @@ export default function AuthorizePage() {
   const options = state.data.available || scopes.map(s => ({ ...s, requested: true }));
   const chosen = picked ?? options.filter(s => s.requested).map(s => s.id);
   const toggle = id => setPicked(chosen.includes(id) ? chosen.filter(x => x !== id) : options.map(o => o.id).filter(x => x === id || chosen.includes(x)));
-  const canEdit = chosen.includes('cards:edit');
+  const canEdit = chosen.includes('cards:edit') || chosen.includes('notes:edit');
 
   return <div className="consent-page"><div className="consent-card">
     <div className="consent-head">
       <Bot size={26}/>
       <h1>Connect to {BRAND.name}?</h1>
       {/* "calling itself" is doing real work here: the name is self-declared at registration. */}
-      <p>An application calling itself <strong>{client.name || 'an assistant'}</strong> wants access to your collections.</p>
+      <p>An application calling itself <strong>{client.name || 'an assistant'}</strong> wants access to your collections and notes.</p>
     </div>
 
     <dl className="consent-facts">
@@ -103,8 +103,8 @@ export default function AuthorizePage() {
         <div className="consent-note">
           <ShieldCheck size={17}/>
           <p>{canEdit
-            ? 'It can add cards and edit them one at a time in private collections. Every edit is kept in the card’s history. It can never delete anything, publish, or see your email or payment details.'
-            : 'It can only add. It cannot delete a card, change one you already have, see your email or payment details, or publish anything.'}
+            ? 'It can add cards and notes, and rewrite existing cards and pages one at a time. Every change is kept in the card’s or page’s history. It can never delete anything, publish, or see your email or payment details.'
+            : 'It can only add. It cannot delete anything, rewrite a card or page you already have, see your email or payment details, or publish anything.'}
           {' '}<Undo2 size={13} className="consent-inline-icon"/> Everything it adds is listed in your settings and can be undone in one click, and you can disconnect it at any time.</p>
         </div>
 

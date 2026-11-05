@@ -60,7 +60,7 @@ export async function overview({ page = 1, pageSize = 15, q = '' } = {}) {
     AgentToken.find(filter).sort({ lastUsedAt: -1, createdAt: -1 }).skip((current - 1) * size).limit(size)
       .populate('user', 'username name'),
     AgentBatch.find({}).sort({ createdAt: -1 }).limit(10)
-      .select('user tokenName folderTitle cardCount imageCount createdAt undoneAt').populate('user', 'username').lean(),
+      .select('user tokenName folderTitle notebookTitle kind cardCount pageCount imageCount createdAt undoneAt').populate('user', 'username').lean(),
     totals(),
   ]);
 
@@ -78,7 +78,7 @@ export async function overview({ page = 1, pageSize = 15, q = '' } = {}) {
     page: current, pages, total,
     recent: recent.map(b => ({
       id: String(b._id), user: b.user?.username || 'deleted user', assistant: b.tokenName || 'Assistant',
-      collection: b.folderTitle || 'a collection', cards: b.cardCount || 0, images: b.imageCount || 0,
+      collection: b.folderTitle || b.notebookTitle || 'a collection', cards: b.cardCount || 0, pages: b.pageCount || 0, notebook: !!b.notebookTitle, images: b.imageCount || 0,
       at: b.createdAt, undone: !!b.undoneAt,
     })),
   };

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
-import { NoteCollection, Notebook, Note, Media, User } from '../models/index.js';
+import { NoteCollection, Notebook, Note, NoteRevision, Media, User } from '../models/index.js';
 import { roleOf } from './accessService.js';
 import * as mediaService from './mediaService.js';
 import * as storage from './storage.js';
@@ -125,6 +125,7 @@ export async function deleteCollection(id, user, confirm) {
     const images = await Media.find({ notebook: { $in: ids } }).select('_id').session(session).lean();
     ({ keys } = await mediaService.purge(images.map(i => i._id), { session }));
     await Note.deleteMany({ notebook: { $in: ids } }, { session });
+    await NoteRevision.deleteMany({ notebook: { $in: ids } }, { session });
     await Notebook.deleteMany({ _id: { $in: ids } }, { session });
     await NoteCollection.deleteOne({ _id: collection._id }, { session });
   });
@@ -157,7 +158,7 @@ export async function accessNotebook(id, user, level = 'viewer', session = null)
   return notebook;
 }
 
-const writable = notebook => assert(!notebook.archived, 409, 'Restore this notebook before changing it.', 'NOTEBOOK_ARCHIVED');
+export const writable = notebook => assert(!notebook.archived, 409, 'Restore this notebook before changing it.', 'NOTEBOOK_ARCHIVED');
 
 export async function presentNotebook(notebook, user, noteCount, collections = new Map()) {
   await notebook.populate([{ path: 'owner', select: 'name username' }, { path: 'members.user', select: 'name username' }, { path: 'noteCollection', select: 'title color owner members' }]);
@@ -173,7 +174,7 @@ export async function presentNotebook(notebook, user, noteCount, collections = n
   };
 }
 
-async function presentNotebooks(rows, user, collections = new Map()) {
+export async function presentNotebooks(rows, user, collections = new Map()) {
   const counts = new Map((await Note.aggregate([{ $match: { notebook: { $in: rows.map(r => r._id) } } }, { $group: { _id: '$notebook', n: { $sum: 1 } } }])).map(c => [String(c._id), c.n]));
   const out = [];
   for (const r of rows) out.push(await presentNotebook(r, user, counts.get(r.id) || 0, collections));
@@ -181,7 +182,7 @@ async function presentNotebooks(rows, user, collections = new Map()) {
 }
 
 /** Everything this person can open: their own, the ones shared with them, and those in collections shared with them. */
-async function visibleTo(user) {
+export async function visibleTo(user) {
   const shared = await NoteCollection.find({ 'members.user': user.id }).distinct('_id');
   return { $or: [{ owner: user.id }, { 'members.user': user.id }, ...(shared.length ? [{ noteCollection: { $in: shared } }] : [])] };
 }
@@ -236,6 +237,7 @@ export async function deleteNotebook(id, user, confirm) {
   await mongoose.connection.transaction(async session => {
     ({ keys } = await mediaService.purge(images.map(i => i._id), { session }));
     await Note.deleteMany({ notebook: notebook._id }, { session });
+    await NoteRevision.deleteMany({ notebook: notebook._id }, { session });
     await Notebook.deleteOne({ _id: notebook._id }, { session });
   });
   await storage.remove(keys);
@@ -249,7 +251,7 @@ export async function removeNotebookDrawings(notebookId) {
 
 /* Pages */
 
-const presentNote = (note, { body = true } = {}) => ({
+export const presentNote = (note, { body = true } = {}) => ({
   id: note.id ?? String(note._id), notebook: String(note.notebook), title: note.title, tags: note.tags || [], pinned: !!note.pinned,
   version: note.version, updatedAt: note.updatedAt, createdAt: note.createdAt,
   updatedBy: person(note.updatedBy), createdBy: person(note.createdBy),
@@ -260,6 +262,21 @@ export async function listNotes(notebookId, user) {
   const notebook = await accessNotebook(notebookId, user);
   const rows = await Note.find({ notebook: notebook._id }).sort({ pinned: -1, updatedAt: -1 }).limit(NOTE_LIMITS.notesPerNotebook).populate('updatedBy', 'name username').lean();
   return { notebook: await presentNotebook(notebook, user, rows.length), notes: rows.map(n => presentNote(n, { body: false })) };
+}
+
+/**
+ * Every page of a notebook with its full text, in the order the list shows them, for printing.
+ *
+ * One request rather than one per page, because a notebook of a hundred pages fetched one by one
+ * is a hundred round trips before the print dialog can open. It stops at a ceiling and says so,
+ * so a very large notebook gives its first part instead of an answer too big to hold.
+ */
+export async function exportNotebook(id, user) {
+  const notebook = await accessNotebook(id, user);
+  const rows = await Note.find({ notebook: notebook._id }).sort({ pinned: -1, updatedAt: -1 }).limit(NOTE_LIMITS.exportPages + 1).lean();
+  const truncated = rows.length > NOTE_LIMITS.exportPages;
+  const pages = rows.slice(0, NOTE_LIMITS.exportPages).map(n => ({ id: String(n._id), title: n.title, tags: n.tags || [], body: n.body, updatedAt: n.updatedAt }));
+  return { notebook: { id: notebook.id, title: notebook.title }, pages, truncated };
 }
 
 async function noteFor(id, user, level) {
@@ -281,7 +298,7 @@ export async function getNote(id, user) {
  * ceiling on how many. Only embeds the page did not already have are looked up, so an autosave of
  * a long page costs nothing extra.
  */
-async function verifyEmbeds(notebookId, body, previous = '') {
+export async function verifyEmbeds(notebookId, body, previous = '', session = null) {
   const embeds = embedsIn(body);
   const media = [...new Set(embeds.filter(e => e.kind === 'media').map(e => e.id))];
   const drawings = [...new Set(embeds.filter(e => e.kind === 'drawing').map(e => e.id))];
@@ -291,7 +308,7 @@ async function verifyEmbeds(notebookId, body, previous = '') {
   const freshMedia = media.filter(id => !known.has(`media:${id}`));
   if (freshMedia.length) {
     assert(freshMedia.every(id => mongoose.isValidObjectId(id)), 400, 'That image does not belong to this notebook.', 'IMAGE_NOT_FOUND');
-    const found = await Media.countDocuments({ _id: { $in: freshMedia }, notebook: notebookId });
+    const found = await Media.countDocuments({ _id: { $in: freshMedia }, notebook: notebookId }).session(session);
     assert(found === freshMedia.length, 400, 'That image does not belong to this notebook.', 'IMAGE_NOT_FOUND');
   }
   for (const id of drawings.filter(d => !known.has(`drawing:${d}`))) {
@@ -323,11 +340,56 @@ export async function updateNote(id, user, { version, ...body }) {
     assert(false, 409, `${note.updatedBy?.name || 'Someone'} changed this page while you were editing. Your draft is kept.`, 'VERSION_CONFLICT', { details: { note: presentNote(note) } });
   }
   if (body.body !== undefined) await verifyEmbeds(notebook._id, body.body, note.body);
+  const changes = (body.title !== undefined && body.title !== note.title) || (body.body !== undefined && body.body !== note.body)
+    || (body.tags !== undefined && JSON.stringify(body.tags) !== JSON.stringify(note.tags));
+  if (changes) await snapshot(note, { via: 'app', user });
   const saved = await Note.findOneAndUpdate({ _id: note._id, version }, { $set: { ...body, updatedBy: user.id }, $inc: { version: 1 } }, { new: true });
   assert(saved, 409, 'Someone changed this page at the same moment. Your draft is kept; save again to keep it.', 'VERSION_CONFLICT');
   await Notebook.updateOne({ _id: notebook._id }, { $currentDate: { updatedAt: true } });
   await saved.populate('updatedBy', 'name username');
   return presentNote(saved);
+}
+
+/* History */
+
+export const REVISIONS_KEPT = 20;
+const REVISION_GAP_MS = 5 * 60_000;
+
+/**
+ * Remember what a page said before it is changed.
+ *
+ * A person's autosave fires every few seconds, so snapshotting each one would fill the history
+ * with near-identical copies and push out the one worth restoring. Saves by the app are therefore
+ * coalesced: a new snapshot is taken only when the last one is older than a few minutes, which
+ * keeps "how it looked before I started this session". An assistant's change is always kept,
+ * because that is exactly the moment a person may want to go back. A page with nothing on it has
+ * nothing worth keeping. Only the last REVISIONS_KEPT are stored, so history cannot grow without bound.
+ */
+export async function snapshot(note, { via = 'app', user, byName = '', force = false, session = null } = {}) {
+  if (!note.title && !note.body) return;
+  if (!force) {
+    const last = await NoteRevision.findOne({ note: note._id }).sort({ createdAt: -1 }).select('createdAt via').session(session).lean();
+    if (last && last.via === via && Date.now() - last.createdAt.getTime() < REVISION_GAP_MS) return;
+  }
+  await NoteRevision.create([{ note: note._id, notebook: note.notebook, title: note.title, body: note.body, tags: note.tags || [], version: note.version, by: user?.id ?? null, via, byName: byName || user?.name || '' }], { session });
+  const stale = await NoteRevision.find({ note: note._id }).sort({ createdAt: -1 }).skip(REVISIONS_KEPT).select('_id').session(session).lean();
+  if (stale.length) await NoteRevision.deleteMany({ _id: { $in: stale.map(r => r._id) } }, { session });
+}
+
+export async function listRevisions(id, user) {
+  const { note } = await noteFor(id, user, 'editor');
+  const rows = await NoteRevision.find({ note: note._id }).sort({ createdAt: -1 }).limit(REVISIONS_KEPT).lean();
+  return {
+    revisions: rows.map(r => ({ id: String(r._id), title: r.title, snippet: snippetOf(r.body), chars: r.body.length, version: r.version, via: r.via, by: r.byName, createdAt: r.createdAt })),
+  };
+}
+
+export async function getRevision(id, revisionId, user) {
+  const { note } = await noteFor(id, user, 'editor');
+  assert(mongoose.isValidObjectId(revisionId), 404, 'That earlier version was not found.');
+  const row = await NoteRevision.findOne({ _id: revisionId, note: note._id }).lean();
+  assert(row, 404, 'That earlier version was not found.');
+  return { revision: { id: String(row._id), title: row.title, body: row.body, tags: row.tags || [], via: row.via, by: row.byName, createdAt: row.createdAt } };
 }
 
 /** Deleting a page takes its pictures and drawings too, unless another page still shows them. */
@@ -336,6 +398,7 @@ export async function deleteNote(id, user) {
   writable(notebook);
   const embeds = embedsIn(note.body);
   await Note.deleteOne({ _id: note._id });
+  await NoteRevision.deleteMany({ note: note._id });
   const others = (await Note.find({ notebook: notebook._id }).select('body').lean()).flatMap(n => embedsIn(n.body).map(e => `${e.kind}:${e.id}`));
   const stillUsed = new Set(others);
   const media = [...new Set(embeds.filter(e => e.kind === 'media' && !stillUsed.has(`media:${e.id}`)).map(e => e.id))].filter(i => mongoose.isValidObjectId(i));
@@ -402,6 +465,7 @@ export async function erasureFor(userId, session) {
   const keys = (await Media.find({ notebook: { $in: ids } }).select('key variants').session(session).lean()).filter(m => m.key).flatMap(m => storage.allKeysFor(m.key, m.variants));
   await Media.deleteMany({ notebook: { $in: ids } }, { session });
   await Note.deleteMany({ notebook: { $in: ids } }, { session });
+  await NoteRevision.deleteMany({ notebook: { $in: ids } }, { session });
   await Notebook.deleteMany({ owner: userId }, { session });
   await Notebook.updateMany({ 'members.user': userId }, { $pull: { members: { user: userId } } }, { session });
   await NoteCollection.deleteMany({ owner: userId }, { session });

@@ -257,7 +257,7 @@ integration('a default connection is offered only additive tools', async () => {
   const res = await mcp(access_token, 'tools/list');
   assert.equal(res.status, 200);
   const names = res.body.result.tools.map(t => t.name).sort();
-  assert.deepEqual(names, ['add_cards', 'create_cards', 'create_collection', 'get_answer_style', 'get_card', 'list_collections', 'search_cards', 'set_answer_style', 'set_collection_cover']);
+  assert.deepEqual(names, ['add_cards', 'add_image_to_page', 'append_to_page', 'create_cards', 'create_collection', 'create_notebook', 'create_page', 'get_answer_style', 'get_card', 'get_page', 'list_collections', 'list_notebooks', 'search_cards', 'search_pages', 'set_answer_style', 'set_collection_cover']);
   for (const tool of res.body.result.tools) {
     assert.notEqual(tool.annotations?.destructiveHint, true, `${tool.name} must not be destructive`);
     assert.ok(tool.description.length > 40, `${tool.name} needs a description the model can act on`);
@@ -273,7 +273,7 @@ integration('a connection that asked to edit is offered update_card, marked dest
   const edit = res.body.result.tools.find(t => t.name === 'update_card');
   assert.ok(edit, 'listed');
   assert.equal(edit.annotations.destructiveHint, true);
-  assert.deepEqual(res.body.result.tools.filter(t => t.annotations?.destructiveHint).map(t => t.name), ['update_card'], 'and nothing else is');
+  assert.deepEqual(res.body.result.tools.filter(t => t.annotations?.destructiveHint).map(t => t.name).sort(), ['update_card', 'update_page'], 'and nothing else is');
 });
 
 integration('a collection an assistant creates is private, whatever it asks for', async () => {

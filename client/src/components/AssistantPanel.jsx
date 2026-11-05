@@ -212,7 +212,11 @@ function ConnectForm({ onCreated, max, count }) {
  * Setting a cover writes no cards, so the count alone would describe it as "0 cards" — which
  * reads like a failure rather than the thing that happened.
  */
-function summarise({ cardCount, imageCount, cover }) {
+function summarise({ cardCount, imageCount, cover, kind, pageCount, createdNotebook }) {
+  if (kind === 'notes') {
+    const made = [createdNotebook && 'A notebook', pageCount && `${pageCount} ${pageCount === 1 ? 'page' : 'pages'}`].filter(Boolean);
+    return made.join(' and ') || 'Nothing';
+  }
   const parts = [];
   if (cardCount) parts.push(`${cardCount} ${cardCount === 1 ? 'card' : 'cards'}`);
   if (cover) parts.push(cardCount ? 'a cover' : 'A cover');
@@ -235,7 +239,9 @@ function Batches() {
     <div>
       <strong>{summarise(b)}</strong>
       {' in '}
-      {b.collectionId ? <Link to={`/folders/${b.collectionId}`}>{b.collection}</Link> : <span>{b.collection}</span>}
+      {b.kind === 'notes'
+        ? (b.notebookId ? <Link to={`/notes/${b.notebookId}`}>{b.collection}</Link> : <span>{b.collection}</span>)
+        : b.collectionId ? <Link to={`/folders/${b.collectionId}`}>{b.collection}</Link> : <span>{b.collection}</span>}
       <small>{b.by} · {ago(b.createdAt)}</small>
     </div>
     {b.undoneAt
@@ -244,6 +250,11 @@ function Batches() {
         setBusy(b.id);
         try {
           const d = await api(`/agent/batches/${b.id}/undo`, { method: 'POST' });
+          if (b.kind === 'notes') {
+            toast.success(d.notebookRemoved ? `Removed the notebook ${d.collection}` : `Removed ${d.removed} ${d.removed === 1 ? 'page' : 'pages'} from ${d.collection}${d.kept ? ` (${d.kept} could not be removed)` : ''}`);
+            store.invalidate('/agent', '/notebooks', '/note-collections');
+            return;
+          }
           const images = d.imagesRemoved ? ` and ${d.imagesRemoved} ${d.imagesRemoved === 1 ? 'image' : 'images'}` : '';
           toast.success(`Removed ${d.removed} ${d.removed === 1 ? 'card' : 'cards'}${images} from ${d.collection}`);
           // Prefixes, so one call each covers the list and the usage counter above it, and every
@@ -288,7 +299,7 @@ export default function AssistantPanel() {
           */}
         <div className="assistant-note">
           <ShieldCheck size={17}/>
-          <p>An assistant can only <strong>add</strong>, unless you also allow it to edit cards. It can never delete a card or publish anything, and any edit it makes is kept in the card’s history. Pictures it adds are re-made into our own file first, and only go into private collections. Everything it adds is listed below and can be undone.</p>
+          <p>An assistant can only <strong>add</strong>, unless you also allow it to edit cards or rewrite pages. It can never delete a card, page or notebook, or publish anything, and any change it makes to something that exists is kept in its history. Pictures it adds are re-made into our own file first, and only go into private collections. Everything it adds is listed below and can be undone.</p>
         </div>
 
         <h3>Connected{grants.length ? ` · ${grants.length}` : ''}</h3>

@@ -74,8 +74,16 @@ const agentBatch = new Schema({
   // Denormalised, because the point of the review screen is to say which assistant did this, and
   // the most likely reason to be reading it is that the grant has just been revoked.
   tokenName: { type: String, default: '' },
-  folder: ref('Folder'),
+  // Notes batches have a notebook instead of a collection, so this one is optional.
+  folder: ref('Folder', false),
   folderTitle: { type: String, default: '' },
+  // What a notes batch wrote: the notebook, the pages it created, and whether the notebook itself
+  // came from the batch (so undoing can take it away if nobody has added anything since).
+  notebook: ref('Notebook', false),
+  notebookTitle: { type: String, default: '' },
+  notes: [ref('Note', false)],
+  pageCount: { type: Number, default: 0 },
+  createdNotebook: { type: Boolean, default: false },
   cards: [ref('Card', false)],
   cardCount: { type: Number, default: 0 },
   /**
@@ -103,7 +111,7 @@ const agentBatch = new Schema({
    * daily allowance: an edit is undone from the card's own history, so undo refuses them and the
    * review list leaves them out. Older rows have no kind and are card or cover batches.
    */
-  kind: { type: String, enum: ['cards', 'cover', 'edit'], default: undefined },
+  kind: { type: String, enum: ['cards', 'cover', 'edit', 'notes', 'noteedit'], default: undefined },
   // A digest of the request, so a request id reused for different cards is refused rather than
   // answered with the result of the first. Older rows have none and are replayed as before.
   fingerprint: { type: String, default: undefined },
@@ -207,6 +215,13 @@ const notebook = new Schema({ title: { type: String, required: true }, descripti
 notebook.index({ owner: 1, updatedAt: -1 }); notebook.index({ 'members.user': 1 }); notebook.index({ noteCollection: 1, updatedAt: -1 });
 const note = new Schema({ notebook: ref('Notebook'), title: { type: String, default: '' }, body: { type: String, default: '' }, tags: [String], pinned: { type: Boolean, default: false }, version: { type: Number, default: 0 }, createdBy: ref('User'), updatedBy: ref('User') }, options);
 note.index({ notebook: 1, pinned: -1, updatedAt: -1 });
+/**
+ * What a page said before a change, so a bad edit, a bad autosave or an assistant's rewrite can be
+ * undone by the person. Kept to the last few per page (see noteService) so history is bounded.
+ */
+const noteRevision = new Schema({ note: ref('Note'), notebook: ref('Notebook'), title: { type: String, default: '' }, body: { type: String, default: '' }, tags: [String], version: { type: Number, default: 0 }, by: ref('User', false), via: { type: String, enum: ['app', 'assistant'], default: 'app' }, byName: { type: String, default: '' } }, options);
+noteRevision.index({ note: 1, createdAt: -1 });
+noteRevision.index({ notebook: 1 });
 // FSRS memory state (stability, difficulty, state) plus the legacy SM-2 fields (interval, repetitions, ease) kept for compatibility.
 const progress = new Schema({ user: ref('User'), card: ref('Card'), repetitions: { type: Number, default: 0 }, interval: { type: Number, default: 0 }, ease: { type: Number, default: 2.5 }, stability: { type: Number, default: 0 }, difficulty: { type: Number, default: 0 }, state: { type: String, enum: ['new', 'learning', 'review', 'relearning'], default: 'new' }, reps: { type: Number, default: 0 }, lapses: { type: Number, default: 0 }, elapsedDays: { type: Number, default: 0 }, scheduledDays: { type: Number, default: 0 }, dueAt: { type: Date, default: Date.now }, lastReviewedAt: Date, version: { type: Number, default: 0 }, bookmarked: { type: Boolean, default: false } }, options);
 progress.index({ user: 1, card: 1 }, { unique: true }); progress.index({ user: 1, dueAt: 1 });
@@ -316,5 +331,5 @@ export const Blob = model('Blob', blob);
 
 export const AgentToken = model('AgentToken', agentToken), AgentBatch = model('AgentBatch', agentBatch), OAuthClient = model('OAuthClient', oauthClient), OAuthGrant = model('OAuthGrant', oauthGrant);
 export const User = model('User', user), RefreshToken = model('RefreshToken', refreshToken), AuthToken = model('AuthToken', authToken), Folder = model('Folder', folder), Card = model('Card', card), Media = model('Media', media), Progress = model('Progress', progress), Review = model('Review', review), GameProfile = model('GameProfile', gameProfile), Activity = model('Activity', activity), Revision = model('Revision', revision), DomainEvent = model('DomainEvent', event), CardDoc = model('CardDoc', cardDoc), Relationship = model('Relationship', relationship), Project = model('Project', project), PremiumOrder = model('PremiumOrder', premiumOrder), Notification = model('Notification', notification), Team = model('Team', team), TeamMember = model('TeamMember', teamMember), TeamInvite = model('TeamInvite', teamInvite), Assignment = model('Assignment', assignment), Setting = model('Setting', setting), AuditEntry = model('AuditEntry', auditEntry), ContentReport = model('ContentReport', contentReport);
-export const NoteCollection = model('NoteCollection', noteCollection), Notebook = model('Notebook', notebook), Note = model('Note', note);
-export const allModels = [NoteCollection, Notebook, Note, User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];
+export const NoteCollection = model('NoteCollection', noteCollection), Notebook = model('Notebook', notebook), Note = model('Note', note), NoteRevision = model('NoteRevision', noteRevision);
+export const allModels = [NoteCollection, Notebook, Note, NoteRevision, User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];

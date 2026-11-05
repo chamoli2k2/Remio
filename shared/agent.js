@@ -52,6 +52,21 @@ export const SCOPES = {
     label: 'Edit cards',
     detail: 'Change the text, tags or pictures of a card in your private collections, one card at a time. Every edit is kept in the card’s history so you can restore it. It cannot delete cards or change published collections.',
   },
+  'notes:read': {
+    label: 'Read your notes',
+    detail: 'List your notebooks, search the pages in them and read a page in full, including notebooks shared with you.',
+  },
+  'notes:write': {
+    label: 'Write new notes',
+    detail: 'Start new notebooks and pages and add text to the end of a page. It cannot rewrite, replace or delete what a page already says, and every change is kept in the page’s history.',
+  },
+  /**
+   * The note equivalent of `cards:edit`: the only permission that rewrites words a person wrote.
+   */
+  'notes:edit': {
+    label: 'Rewrite note pages',
+    detail: 'Replace the title, text or tags of an existing page, one page at a time. Every change is kept in the page’s history so you can restore what was there. It cannot delete pages or notebooks.',
+  },
   /**
    * Separate from `cards:write` because it is the only permission that makes this server fetch
    * something from an address the assistant chose, and that is a different kind of trust from
@@ -70,7 +85,7 @@ export const SCOPE_IDS = Object.keys(SCOPES);
  * be asked for by name, so no connection made before it existed, and none made without thinking
  * about it, can change a card.
  */
-export const OPT_IN_SCOPES = ['cards:edit'];
+export const OPT_IN_SCOPES = ['cards:edit', 'notes:edit'];
 export const DEFAULT_SCOPES = SCOPE_IDS.filter(id => !OPT_IN_SCOPES.includes(id));
 
 export const isScope = value => Object.hasOwn(SCOPES, value);
@@ -102,6 +117,14 @@ export const TOOL_SCOPES = {
   set_answer_style: 'cards:write',
   update_card: 'cards:edit',
   set_collection_cover: 'images:write',
+  list_notebooks: 'notes:read',
+  search_pages: 'notes:read',
+  get_page: 'notes:read',
+  create_notebook: 'notes:write',
+  create_page: 'notes:write',
+  append_to_page: 'notes:write',
+  add_image_to_page: 'notes:write',
+  update_page: 'notes:edit',
 };
 
 /**
@@ -115,6 +138,9 @@ export const CONDITIONAL_SCOPES = {
   add_cards: { images: 'images:write' },
   create_cards: { images: 'images:write' },
   update_card: { images: 'images:write' },
+  // Writing the text of a page needs `notes:write`; fetching a picture for it is the same
+  // outbound request as for a card, so it needs the same separate permission.
+  add_image_to_page: { images: 'images:write' },
 };
 
 export const TOOL_NAMES = Object.keys(TOOL_SCOPES);
@@ -144,6 +170,16 @@ export const AGENT_LIMITS = {
   collectionsPerPage: 50,
   searchTags: 5,
   requestIdLength: 100,
+  /**
+   * Notes. Bounded per day from the batches, like cards, so a runaway or injected assistant cannot
+   * fill an account with thousands of pages. The numbers are well above what a person asks for in
+   * a day and well below what would matter to storage.
+   */
+  pagesPerDay: 200,
+  notebooksPerDay: 20,
+  pageEditsPerDay: 500,
+  pageChars: 100_000,
+  notebooksListed: 50,
 };
 
 /** How a token is presented. The prefix exists so a leaked one is recognisable in a log or a paste. */

@@ -14,6 +14,9 @@ export const archiveNotebook = async (req, res) => res.json({ notebook: await no
 export const deleteNotebook = async (req, res) => res.json(await notes.deleteNotebook(req.params.id, req.user, req.body.confirm));
 export const member = async (req, res) => res.json({ notebook: await notes.presentNotebook(await notes.setMember(req.params.id, req.user, req.body.username, req.body.role), req.user) });
 export const createNote = async (req, res) => res.status(201).json({ note: await notes.createNote(req.params.id, req.user, req.body) });
+export const listRevisions = async (req, res) => res.json(await notes.listRevisions(req.params.id, req.user));
+export const getRevision = async (req, res) => res.json(await notes.getRevision(req.params.id, req.params.rid, req.user));
+export const exportNotebook = async (req, res) => res.json(await notes.exportNotebook(req.params.id, req.user));
 export const getNote = async (req, res) => res.json(await notes.getNote(req.params.id, req.user));
 export const updateNote = async (req, res) => res.json({ note: await notes.updateNote(req.params.id, req.user, req.body) });
 export const deleteNote = async (req, res) => res.json(await notes.deleteNote(req.params.id, req.user));

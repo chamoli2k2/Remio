@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Plus, Search, Archive, ArchiveRestore, ArrowLeft, Pencil, Share2, Trash2, Users, LockKeyhole, Pin, FilePlus2, NotebookPen, Check, ShieldCheck, Library, ChevronRight } from 'lucide-react';
+import { Plus, Search, Archive, ArchiveRestore, ArrowLeft, Pencil, Share2, Trash2, Users, LockKeyhole, Pin, FilePlus2, NotebookPen, Check, ShieldCheck, Library, ChevronRight, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 import { messageFor, reportError } from '../services/errors';
@@ -9,6 +9,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { Avatar, Button, Empty, ErrorState, Field, FolderIcon, icons, Loading, Menu, Modal } from '../components/ui';
 import Select from '../components/Select';
 import NoteEditor from '../components/NoteEditor';
+import { useNotePrint, fileNameFor } from '../components/NotePrintSheet';
 import { snippetOf } from '../../../shared/notes.js';
 
 const COLORS = ['violet', 'blue', 'orange', 'green', 'pink', 'slate'];
@@ -228,6 +229,7 @@ export function NotebookPage() {
   const { data, loading, error, refetch, setData } = useQuery(`/notebooks/${id}`, null, { staleAfter: 5_000 });
   usePageTitle(data?.notebook && (noteId ? `${data.notes?.find(n => n.id === noteId)?.title || 'Untitled page'} · ${data.notebook.title}` : data.notebook.title));
   const [modal, setModal] = useState(''), [filter, setFilter] = useState(''), [creating, setCreating] = useState(false);
+  const [printSheet, printNow] = useNotePrint();
   const tree = useQuery('/note-collections', null, { enabled: modal === 'edit' });
   // Saves land after the render that started them, so they patch whatever the list is by then.
   const current = useRef(data); current.current = data;
@@ -250,6 +252,15 @@ export function NotebookPage() {
       navigate(`/notes/${id}/${r.note.id}`);
     } catch (e) { reportError(e); } finally { setCreating(false); }
   }
+  async function downloadPdf() {
+    const wait = toast.loading('Preparing the PDF…');
+    try {
+      const d = await api(`/notebooks/${id}/export`);
+      toast.dismiss(wait);
+      if (!d.pages.length) { toast.error('This notebook has no pages to download yet.'); return; }
+      printNow({ filename: fileNameFor(d.notebook.title), heading: d.notebook.title, basePath: `/notebooks/${id}`, pages: d.pages, truncated: d.truncated });
+    } catch (e) { toast.dismiss(wait); reportError(e); }
+  }
   async function archive(value) {
     try { const d = await api(`/notebooks/${id}/archive`, { method: 'PATCH', body: { archived: value } }); setNotebook(d.notebook); refresh('/notebooks', '/note-collections'); toast.success(value ? 'Notebook archived. It is read-only until restored.' : 'Notebook restored'); }
     catch (e) { reportError(e); }
@@ -259,6 +270,7 @@ export function NotebookPage() {
   const items = [
     owner && { label: 'Edit notebook', icon: <Pencil size={15}/>, action: () => setModal('edit') },
     { label: owner ? 'Share notebook' : 'People with access', icon: <Share2 size={15}/>, action: () => setModal('share') },
+    { label: 'Download as PDF', icon: <FileDown size={15}/>, action: downloadPdf },
     owner && { label: notebook.archived ? 'Restore notebook' : 'Archive notebook', icon: notebook.archived ? <ArchiveRestore size={15}/> : <Archive size={15}/>, action: () => archive(!notebook.archived) },
     owner && { label: 'Delete notebook', icon: <Trash2 size={15}/>, danger: true, action: () => setModal('delete') },
   ];
@@ -292,6 +304,7 @@ export function NotebookPage() {
           : <div className="note-pane-empty"><NotebookPen size={28}/><h3>{notes.length ? 'Pick a page to read or edit' : 'An empty notebook'}</h3><p>{canEdit ? 'Pages save themselves as you type.' : 'Pages added by the owner and editors appear here.'}</p>{canEdit && <Button className="primary" loading={creating} onClick={newPage}><FilePlus2 size={16}/> New page</Button>}</div>}
       </section>
     </div>
+    {printSheet}
     {modal === 'edit' && <DetailsModal kind="notebook" item={notebook} collections={tree.data?.collections} onClose={() => setModal('')} onSaved={setNotebook}/>}
     {modal === 'share' && <ShareModal kind="notebook" item={notebook} onClose={() => { setModal(''); refetch(); }} onSaved={setNotebook}/>}
     {modal === 'delete' && <DeleteModal kind="notebook" item={notebook} onClose={() => setModal('')} onDeleted={() => navigate(up)}/>}

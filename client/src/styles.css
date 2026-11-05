@@ -2090,3 +2090,47 @@ body.is-resizing .main-content{pointer-events:none}
 .note-editor .note-toolbar-gap{display:none}
 .note-editor .note-tags .tag button{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;opacity:.65;cursor:pointer}
 .note-editor .note-tags .tag button:hover{opacity:1;background:rgba(127,127,127,.22)}
+/* Resizable pictures and drawings in a page. */
+.note-figure{position:relative;max-width:100%}
+.note-figure.is-sized img{width:100%}
+.note-figure.is-sized.is-drawing .drawing-view{max-width:none}
+.note-figure-tools{position:absolute;top:8px;left:8px;display:inline-flex;gap:2px;padding:3px;border:1px solid var(--border);border-radius:9px;background:var(--surface,#fff);box-shadow:0 4px 14px -6px rgba(20,12,50,.35);opacity:0;pointer-events:none;transition:opacity .15s;z-index:2}
+.note-figure:hover .note-figure-tools,.note-figure:focus-within .note-figure-tools{opacity:1;pointer-events:auto}
+.note-figure-tools button{height:24px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer}
+.note-figure-tools button:hover{background:var(--surface-3,#ebe7f5);color:var(--accent)}
+.note-figure-tools button[aria-pressed=true]{background:var(--accent);color:#fff}
+.note-figure-handle{position:absolute;top:50%;right:6px;width:10px;height:44px;margin-top:-22px;border:1px solid var(--accent);border-radius:6px;background:var(--surface,#fff);box-shadow:0 2px 8px rgba(20,12,50,.3);cursor:ew-resize;touch-action:none;opacity:0;transition:opacity .15s;z-index:2}
+.note-figure-handle::after{content:'';position:absolute;inset:-8px -10px}
+.note-figure:hover .note-figure-handle,.note-figure:focus-within .note-figure-handle,.note-figure-handle:focus-visible{opacity:1}
+.note-figure.is-resizable img,.note-figure.is-resizable .drawing-view{outline:2px solid transparent;transition:outline-color .15s}
+.note-figure.is-resizable:hover img,.note-figure.is-resizable:hover .drawing-view{outline-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+@media (hover:none){.note-figure.is-resizable .note-figure-tools,.note-figure.is-resizable .note-figure-handle{opacity:1;pointer-events:auto}}
+.note-write{position:relative}
+/* The sheet that is printed or saved as a PDF. Laid out off-screen at the width of a printed line, hidden from everything else. */
+.note-print-root{position:fixed;left:-20000px;top:0;width:680px;background:#fff;color:#17141f;font-size:14px;line-height:1.65}
+.note-print-root .print-cover{padding:40px 0 28px;margin-bottom:20px;border-bottom:2px solid #d9d5e3}
+.note-print-root .print-cover h1{margin:0 0 6px;font-size:30px;line-height:1.2;color:#17141f}
+.note-print-root .print-cover p{margin:0;color:#5c566b;font-size:13px}
+.note-print-root .print-page{padding:0 0 28px}
+.note-print-root .print-page h1,.note-print-root .print-page h2{margin:0 0 6px;font-size:24px;line-height:1.25;color:#17141f}
+.note-print-root .print-meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;color:#5c566b;font-size:12px}
+.note-print-root .print-meta em{margin-left:auto;font-style:normal}
+.note-print-root .note-figure{break-inside:avoid}
+.note-print-root .note-figure-tools,.note-print-root .note-figure-handle,.note-print-root .note-figure-edit{display:none!important}
+.note-print-root pre,.note-print-root table,.note-print-root blockquote{break-inside:avoid}
+.note-print-root a{color:inherit}
+@media print{
+  @page{size:A4;margin:16mm 15mm}
+  body.is-printing{background:#fff!important}
+  body.is-printing>*:not(.note-print-root){display:none!important}
+  body.is-printing .note-print-root{position:static;left:auto;width:auto}
+  body.is-printing .note-print-root .print-page{break-after:page}
+  body.is-printing .note-print-root .print-page:last-child{break-after:auto}
+  body.is-printing .note-print-root .print-cover{break-after:avoid}
+}
+.note-history{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px;max-height:min(60vh,460px);overflow:auto}
+.note-history li{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--border);border-radius:12px}
+.note-history li>div{min-width:0}
+.note-history strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-history small{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px;margin-top:2px}
+.note-history p{margin:6px 0 0;color:var(--muted);font-size:13px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

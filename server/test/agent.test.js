@@ -24,7 +24,7 @@ import * as tools from '../src/services/agent/tools.js';
 test('the tool surface is additive: nothing deletes or publishes, and editing is opt-in', () => {
   // Named tools, checked by name. Crude on purpose — it is meant to catch the pull request that
   // adds `delete_collection` because it seemed useful, not to prove the handlers behave.
-  const EDITS = ['update_card'];
+  const EDITS = ['update_card', 'update_page'];
   for (const name of TOOL_NAMES.filter(n => !EDITS.includes(n))) {
     assert.doesNotMatch(name, /delete|remove|destroy|drop|purge|update|edit|publish|share|revoke/,
       `${name} is not an additive operation; an assistant must not be able to call it`);
