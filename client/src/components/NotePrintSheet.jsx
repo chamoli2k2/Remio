@@ -12,8 +12,10 @@ import { BRAND } from '../../../shared/brand.js';
  * the width of a printed line, so drawings paint at the size they will print. When everything has
  * loaded, the rest of the app is hidden by a print-only rule and the dialog opens.
  *
- * The tab's title becomes the file name for the duration, since that is what browsers suggest, and
- * the theme is forced light so nobody gets a PDF with a dark page.
+ * The tab's title becomes the file name for the duration, since that is what browsers suggest.
+ * The sheet is light whatever the app's theme is, through CSS variables scoped to the sheet. The
+ * page's own `data-theme` is deliberately left alone: the theme hook watches that attribute and
+ * rewrites it, so changing it here made the two fight and the screen flicker.
  */
 
 const WAIT = 15_000;
@@ -37,19 +39,16 @@ const stamp = value => { try { return new Date(value).toLocaleDateString(undefin
 export default function NotePrintSheet({ job, onDone }) {
   useEffect(() => {
     let cancelled = false, printing = false;
-    const html = document.documentElement;
-    const before = { title: document.title, theme: html.dataset.theme };
+    const before = { title: document.title };
     const restore = () => {
       document.body.classList.remove('is-printing');
       document.title = before.title;
-      if (before.theme === undefined) delete html.dataset.theme; else html.dataset.theme = before.theme;
     };
     const finish = () => { window.removeEventListener('afterprint', finish); restore(); onDone(); };
     (async () => {
       await settled(document.querySelector('.note-print-root'));
       if (cancelled) return;
       printing = true;
-      html.dataset.theme = 'light';
       document.title = job.filename;
       document.body.classList.add('is-printing');
       window.addEventListener('afterprint', finish);
