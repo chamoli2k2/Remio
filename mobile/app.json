@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Remio",
+    "slug": "remio",
+    "scheme": "remio",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#f5f3fa",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.remio.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "in.remio.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#5a45e0",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 140,
+          "backgroundColor": "#f5f3fa",
+          "dark": {
+            "backgroundColor": "#1f1d28"
+          }
+        }
+      ],
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
