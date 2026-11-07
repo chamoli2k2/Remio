@@ -25,7 +25,7 @@ export default function Sidebar() {
   const { c, tone } = useTheme();
   const router = useRouter(), pathname = usePathname(), insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const panelWidth = Math.min(320, width * 0.84);
+  const panelWidth = Math.min(280, width * 0.72);
   const slide = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(false), [folders, setFolders] = useState([]);
 
