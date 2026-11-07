@@ -18,7 +18,8 @@ export default function PublicShell({ children, wide }) {
   // Searches a moment after typing stops; Enter still goes at once.
   useEffect(() => {
     const term = query.trim();
-    if (!term || term === (params.get('q') || '')) return undefined;
+    if (term === (params.get('q') || '')) return undefined;
+    if (!term) { const timer = setTimeout(() => navigate('/#library', { replace: true }), 450); return () => clearTimeout(timer); }
     const timer = setTimeout(() => navigate(`/?q=${encodeURIComponent(term)}#library`, { replace: true }), 450);
     return () => clearTimeout(timer);
   }, [query]); // eslint-disable-line react-hooks/exhaustive-deps

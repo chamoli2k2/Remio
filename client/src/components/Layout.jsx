@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import NoticeBanner from './NoticeBanner';
 import { NavLink, Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useSectionTitle } from '../hooks/usePageTitle';
@@ -82,13 +82,20 @@ export default function Layout() {
   }
   // Search as the person types: a short pause after the last key looks up people and shows the matching
   // folders, so Enter is no longer needed. The pause keeps a fast typist to one request, not one per key.
+  const searched = useRef(false);
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) { setPeople([]); return undefined; }
+    // Emptying the box takes the library back to showing everything, not the last search.
+    if (!term) {
+      setPeople([]);
+      if (searched.current) { searched.current = false; navigate('/', { replace: true }); }
+      return undefined;
+    }
     let stale = false;
     const timer = setTimeout(async () => {
-      try { const d = await api(`/users?q=${encodeURIComponent(term)}`); if (!stale) setPeople(d.users || []); } catch { if (!stale) setPeople([]); }
-      if (!stale) navigate(`/?q=${encodeURIComponent(term)}`, { replace: true });
+      if (term.length < 2) setPeople([]);
+      else { try { const d = await api(`/users?q=${encodeURIComponent(term)}`); if (!stale) setPeople(d.users || []); } catch { if (!stale) setPeople([]); } }
+      if (!stale) { searched.current = true; navigate(`/?q=${encodeURIComponent(term)}`, { replace: true }); }
     }, 450);
     return () => { stale = true; clearTimeout(timer); };
   }, [query, navigate]);
