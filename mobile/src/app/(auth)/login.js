@@ -5,15 +5,45 @@ import { useAuth } from '../../auth';
 import { useTheme, FONT } from '../../theme';
 import { Button, Field, Icon, Logo, Txt, Surface } from '../../components/ui';
 import { BRAND } from '../../../../shared/brand.js';
+import { forgetGoogle, googleAvailable, googleCredential } from '../../google';
 
 const web = path => Linking.openURL(`https://${BRAND.domain}${path}`).catch(() => {});
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const { c } = useTheme();
   const [identifier, setIdentifier] = useState(''), [password, setPassword] = useState('');
   const [show, setShow] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const passwordRef = useRef(null);
+  // A Google token waiting for the person to agree to the terms, when this is their first time here.
+  const [consent, setConsent] = useState(null), [googleBusy, setGoogleBusy] = useState(false);
+
+  async function google() {
+    if (googleBusy || busy) return;
+    setGoogleBusy(true); setError('');
+    try {
+      const credential = await googleCredential();
+      if (credential) await finishGoogle(credential, false);
+    } catch (e) { setError(e.message); }
+    finally { setGoogleBusy(false); }
+  }
+
+  async function finishGoogle(credential, accepted) {
+    try { await loginWithGoogle(credential, accepted); }
+    catch (e) {
+      if (e.code === 'GOOGLE_NEEDS_SIGNUP') return setConsent(credential);
+      forgetGoogle();
+      throw e;
+    }
+  }
+
+  async function accept() {
+    if (googleBusy || !consent) return;
+    setGoogleBusy(true); setError('');
+    try { await finishGoogle(consent, true); }
+    catch (e) { setError(e.message); setConsent(null); }
+    finally { setGoogleBusy(false); }
+  }
 
   async function submit() {
     if (busy) return;
@@ -48,9 +78,23 @@ export default function Login() {
             </View>
           </View>
           {error ? <Txt variant="small" style={{ color: c.danger }} accessibilityRole="alert">{error}</Txt> : null}
-          <Button title="Sign in" onPress={submit} loading={busy} />
+          <Button title="Sign in" onPress={submit} loading={busy} disabled={googleBusy} />
+          {googleAvailable ? <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: c.border }} /><Txt variant="small">or</Txt><View style={{ flex: 1, height: 1, backgroundColor: c.border }} />
+            </View>
+            <Button title="Continue with Google" variant="secondary" icon="log-in" onPress={google} loading={googleBusy && !consent} disabled={busy} />
+          </> : null}
           <Pressable onPress={() => web('/forgot-password')} hitSlop={8}><Txt variant="small" style={{ color: c.accent, textAlign: 'center', fontFamily: FONT.medium }}>Forgot your password?</Txt></Pressable>
         </Surface>
+
+        {consent ? <Surface style={{ gap: 12, padding: 20 }}>
+          <Txt variant="title">Create your account</Txt>
+          <Txt variant="small">There is no {BRAND.name} account for this Google address yet. We will make one with it.</Txt>
+          <Txt variant="small">By continuing you accept the <Txt variant="small" style={{ color: c.accent, fontFamily: FONT.medium }} onPress={() => web('/terms')}>Terms</Txt> and the <Txt variant="small" style={{ color: c.accent, fontFamily: FONT.medium }} onPress={() => web('/privacy')}>Privacy policy</Txt>.</Txt>
+          <Button title="Accept and create account" onPress={accept} loading={googleBusy} />
+          <Button title="Cancel" variant="ghost" disabled={googleBusy} onPress={() => { setConsent(null); forgetGoogle(); }} />
+        </Surface> : null}
 
         <View style={{ alignItems: 'center', gap: 6 }}>
           <Txt variant="small">New to {BRAND.name}?</Txt>

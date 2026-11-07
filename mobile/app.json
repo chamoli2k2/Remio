@@ -67,8 +67,18 @@
               "name": "StudyWidget",
               "displayName": "Study today",
               "description": "Cards due, today's goal and your streak.",
-              "ios": { "supportedFamilies": ["systemSmall", "systemMedium"], "initialLayout": "src/widgets/StudyWidget.ios.js" },
-              "android": { "targetCellWidth": 3, "targetCellHeight": 2, "initialLayout": "src/widgets/StudyWidget.android.js" }
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium"
+                ],
+                "initialLayout": "src/widgets/StudyWidget.ios.js"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "initialLayout": "src/widgets/StudyWidget.android.js"
+              }
             }
           ]
         }

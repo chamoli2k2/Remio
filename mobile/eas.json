@@ -1,15 +1,28 @@
 {
-  "cli": { "version": ">= 13.0.0", "appVersionSource": "remote" },
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "remote"
+  },
   "build": {
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "https://remio.in" }
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://remio.in",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "591217504603-r9fqdp01fe4dgq5mfr1d5oqem2c3oml6.apps.googleusercontent.com"
+      }
     },
     "production": {
       "autoIncrement": true,
-      "env": { "EXPO_PUBLIC_API_URL": "https://remio.in" }
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://remio.in",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "591217504603-r9fqdp01fe4dgq5mfr1d5oqem2c3oml6.apps.googleusercontent.com"
+      }
     }
   },
-  "submit": { "production": {} }
+  "submit": {
+    "production": {}
+  }
 }

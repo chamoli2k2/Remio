@@ -3,6 +3,7 @@ import { api, clearTokens, hasSession, loadTokens, onSignedOut, refreshToken, se
 import { discardQueue, flushSoon, bindUser } from './reviewQueue';
 import { clear as clearReminders } from './reminders';
 import { clearWidget } from './widget';
+import { forgetGoogle } from './google';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bindUser as bindOffline, discardAll, flushSoon as flushChanges, wipeCache } from './offline';
 
@@ -42,18 +43,28 @@ export function AuthProvider({ children }) {
     return () => { live = false; };
   }, [signedOut]);
 
-  const login = useCallback(async (identifier, password) => {
-    const data = await api('/auth/login', { method: 'POST', body: { identifier: identifier.trim(), password }, auth: false });
+  const begin = useCallback(async data => {
     if (!data.tokens?.accessToken) throw new Error('The server did not return a session. Please try again.');
     await setTokens(data.tokens, data.auth);
     bindUser(data.user.id); bindOffline(data.user.id); remember(data.user);
     setState({ status: 'signedIn', user: data.user });
   }, []);
 
+  const login = useCallback(async (identifier, password) => {
+    await begin(await api('/auth/login', { method: 'POST', body: { identifier: identifier.trim(), password }, auth: false }));
+  }, [begin]);
+
+  /** Sign in with a Google ID token. A new person must have accepted the terms; the server says so with GOOGLE_NEEDS_SIGNUP. */
+  const loginWithGoogle = useCallback(async (credential, acceptedTerms = false) => {
+    const data = await api('/auth/google', { method: 'POST', body: { credential, ...(acceptedTerms ? { acceptedTerms: true } : {}) }, auth: false });
+    await begin(data);
+    return { created: !!data.created };
+  }, [begin]);
+
   const logout = useCallback(async () => {
     await Promise.all([flushSoon(2500), flushChanges(2500)]);
     try { await api('/auth/logout', { method: 'POST', body: { refreshToken: refreshToken() }, auth: false }); } catch { /* the device forgets it either way */ }
-    await clearReminders(); clearWidget(); await wipeCache(); AsyncStorage.removeItem(ME).catch(() => {});
+    await clearReminders(); clearWidget(); forgetGoogle(); await wipeCache(); AsyncStorage.removeItem(ME).catch(() => {});
     await clearTokens(); signedOut();
   }, [signedOut]);
 
@@ -62,7 +73,7 @@ export function AuthProvider({ children }) {
     if (user) setState(s => ({ ...s, user }));
   }, []);
 
-  const value = useMemo(() => ({ ...state, login, logout, refreshUser, discard: async () => { await discardQueue(); await discardAll(); } }), [state, login, logout, refreshUser]);
+  const value = useMemo(() => ({ ...state, login, loginWithGoogle, logout, refreshUser, discard: async () => { await discardQueue(); await discardAll(); } }), [state, login, loginWithGoogle, logout, refreshUser]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
