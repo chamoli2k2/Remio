@@ -16,7 +16,11 @@ import { BRAND } from '../../shared/brand.js';
  * person out.
  */
 
-const configured = process.env.EXPO_PUBLIC_API_URL || 'https://remio.in';
+const LIVE = 'https://remio.in';
+const fromEnv = process.env.EXPO_PUBLIC_API_URL || LIVE;
+// An installed build always talks to the live server: a stray local address in a `.env` file at build
+// time (or a plain http one) must not end up inside an app people install.
+const configured = __DEV__ || /^https:\/\//i.test(fromEnv) ? fromEnv : LIVE;
 // The Android emulator's `localhost` is the emulator itself; the host machine is 10.0.2.2.
 export const API_URL = (Platform.OS === 'android' ? configured.replace(/\/\/(localhost|127\.0\.0\.1)/, '//10.0.2.2') : configured).replace(/\/$/, '');
 

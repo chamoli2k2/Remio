@@ -10,6 +10,8 @@ import { Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrop
 import { ThemeProvider, useTheme } from '../theme';
 import { AuthProvider, useAuth } from '../auth';
 import { watch } from '../reminders';
+import { NavProvider } from '../nav';
+import Sidebar from '../components/Sidebar';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -36,6 +38,7 @@ function Routes() {
         <Stack.Screen name="study/[id]" options={{ gestureEnabled: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="notebook/[id]" />
         <Stack.Screen name="note/[id]" />
+        <Stack.Screen name="u/[username]" />
         <Stack.Screen name="card/[id]" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="folder/edit" options={{ animation: 'slide_from_bottom' }} />
       </Stack.Protected>
@@ -43,6 +46,7 @@ function Routes() {
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
     </Stack>
+    {signedIn ? <Sidebar /> : null}
   </View>;
 }
 
@@ -50,5 +54,5 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold, Manrope_700Bold, Manrope_800ExtraBold });
   // A font that fails to load should not leave the app on the splash screen forever.
   if (!loaded && !error) return null;
-  return <SafeAreaProvider><ThemeProvider><AuthProvider><Routes /></AuthProvider></ThemeProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><ThemeProvider><AuthProvider><NavProvider><Routes /></NavProvider></AuthProvider></ThemeProvider></SafeAreaProvider>;
 }

@@ -103,6 +103,12 @@ export default function FolderEditor() {
 
         {error ? <Txt variant="small" style={{ color: c.danger }} accessibilityRole="alert">{error}</Txt> : null}
 
+        {canDelete ? <Button title={state.folder.archived ? 'Restore from archive' : 'Archive this folder'} variant="secondary" icon="archive" loading={saving && !confirming} onPress={async () => {
+          setSaving(true); setError('');
+          try { await api(`/folders/${id}/archive`, { method: 'PATCH', body: { archived: !state.folder.archived } }); router.dismissAll(); router.replace(state.folder.archived ? '/' : '/archive'); }
+          catch (e) { setError(e.message); setSaving(false); }
+        }} /> : null}
+
         {canDelete ? <Surface style={{ gap: 12, marginTop: 8 }}>
           <Txt variant="heading">Delete folder</Txt>
           {!confirming ? <>

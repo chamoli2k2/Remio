@@ -2,6 +2,8 @@ import RemoteImage from '../../components/RemoteImage';
 import { useMemo, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { api } from '../../api';
+import { Alert } from '../../alert';
 import { useQuery } from '../../hooks/useQuery';
 import { FONT, useTheme } from '../../theme';
 import { BackButton, Button, Empty, ErrorBox, Field, FolderBadge, Icon, Loading, Screen, Txt } from '../../components/ui';
@@ -22,6 +24,14 @@ export default function FolderScreen() {
     return list.filter(x => !q || `${previewText(x)} ${(x.tags || []).join(' ')}`.toLowerCase().includes(q));
   }, [list, query]);
   const canEdit = ['owner', 'editor'].includes(f?.role);
+  const [copying, setCopying] = useState(false);
+  async function copy() {
+    if (copying) return;
+    setCopying(true);
+    try { const r = await api(`/folders/${id}/copy`, { method: 'POST' }); router.replace(`/folder/${r.folder.id}`); }
+    catch (e) { Alert.alert('Could not save a copy', e.message); }
+    finally { setCopying(false); }
+  }
   const vis = f?.visibility === 'global' ? ['globe', 'Public collection'] : f?.visibility === 'private' ? ['lock', 'Private collection'] : ['users', 'Shared collection'];
 
   return <Screen onRefresh={() => Promise.all([folder.reload(), cards.reload()])}>
@@ -42,6 +52,7 @@ export default function FolderScreen() {
           <Text style={{ fontFamily: FONT.display, fontSize: 26, letterSpacing: -0.8, color: c.ink }}>{f.title}</Text>
         </View>
       </View>
+      {!canEdit && f.role !== 'owner' ? <Button title="Save a copy to my library" icon="copy" variant="soft" loading={copying} onPress={copy} /> : null}
       {f.description ? <Txt variant="body" style={{ color: c.text2 }}>{f.description}</Txt> : null}
       <Txt variant="small">{f.cardCount} card{f.cardCount === 1 ? '' : 's'}{f.owner?.username ? `  |  Created by @${f.owner.username}` : ''}</Txt>
 

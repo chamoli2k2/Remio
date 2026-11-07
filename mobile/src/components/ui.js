@@ -6,6 +6,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FONT, RADIUS, useTheme } from '../theme';
 import { BRAND } from '../../../shared/brand.js';
 import { useAuth } from '../auth';
+import { useNav } from '../nav';
 
 /** Styles that depend on the theme, rebuilt only when it changes. */
 export function useStyles(factory) {
@@ -171,15 +172,19 @@ export function BackButton() {
   return <IconButton name="chevron-left" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />;
 }
 
-/** The bar across the top of the main screens: the wordmark on the left, the account on the right. */
+/** The bar across the top of the main screens: the menu button and wordmark on the left, your profile on the right. */
 export function TopBar() {
   const router = useRouter();
   const { user } = useAuth();
+  const { show } = useNav();
   const { c } = useTheme();
   const initials = (user?.name || user?.username || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   return <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 2 }}>
-    <Logo size={30} />
-    <Pressable onPress={() => router.push('/profile')} accessibilityRole="button" accessibilityLabel="Profile and settings" hitSlop={8}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <IconButton name="menu" label="Open menu" onPress={show} />
+      <Logo size={28} />
+    </View>
+    <Pressable onPress={() => router.push(`/u/${user?.username}`)} accessibilityRole="button" accessibilityLabel="Your profile" hitSlop={8}
       style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: c.soft2, alignItems: 'center', justifyContent: 'center' }}>
       <Text style={{ fontFamily: FONT.semibold, fontSize: 13, color: c.accentDark }}>{initials}</Text>
     </Pressable>

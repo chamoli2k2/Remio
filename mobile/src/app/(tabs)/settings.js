@@ -1,9 +1,10 @@
-import { Linking, Pressable, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Linking, Pressable, Switch, View } from 'react-native';
 import { Alert } from '../../alert';
 import { DEFAULTS, loadPrefs, permission, requestPermission, savePrefs, sendTest, supported, sync } from '../../reminders';
 import { useAuth } from '../../auth';
 import { FONT, useTheme } from '../../theme';
-import { Button, PageHeading, Screen, Surface, Txt } from '../../components/ui';
+import { Button, PageHeading, Screen, Surface, TopBar, Txt } from '../../components/ui';
 import { BRAND } from '../../../../shared/brand.js';
 
 const MODES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
@@ -59,7 +60,7 @@ function Reminders({ name }) {
   </Surface>;
 }
 
-export default function Profile() {
+export default function Settings() {
   const { user, logout } = useAuth();
   const { c, preference, setPreference } = useTheme();
   const initials = (user?.name || user?.username || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -67,7 +68,8 @@ export default function Profile() {
   const signOut = () => Alert.alert('Sign out?', 'Answers not yet synced are sent first.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: () => { logout(); } }]);
 
   return <Screen>
-    <PageHeading eyebrow="YOUR ACCOUNT" title="Profile" />
+    <TopBar />
+    <PageHeading eyebrow="YOUR ACCOUNT" title="Settings" />
     <Surface style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
       <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
         <Txt style={{ color: '#fff', fontFamily: FONT.heading, fontSize: 20 }}>{initials}</Txt>
