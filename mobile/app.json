@@ -57,6 +57,21 @@
           "color": "#5a45e0",
           "defaultChannel": "reminders"
         }
+      ],
+      [
+        "expo-widgets",
+        {
+          "enableAndroid": true,
+          "widgets": [
+            {
+              "name": "StudyWidget",
+              "displayName": "Study today",
+              "description": "Cards due, today's goal and your streak.",
+              "ios": { "supportedFamilies": ["systemSmall", "systemMedium"], "initialLayout": "src/widgets/StudyWidget.ios.js" },
+              "android": { "targetCellWidth": 3, "targetCellHeight": 2, "initialLayout": "src/widgets/StudyWidget.android.js" }
+            }
+          ]
+        }
       ]
     ],
     "experiments": {

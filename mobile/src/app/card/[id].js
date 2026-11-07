@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } fro
 import { Alert } from '../../alert';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api } from '../../api';
+import { findCard, removeCard, saveCard } from '../../offline';
 import { FONT, useTheme } from '../../theme';
 import { Button, ErrorBox, Field, Icon, Loading, Surface, Txt } from '../../components/ui';
 import ImageField from '../../components/ImageField';
@@ -30,9 +30,8 @@ export default function CardEditor() {
     if (isNew) return;
     let live = true;
     setState(s => ({ ...s, loading: true, error: '' }));
-    api(`/folders/${folder}/cards`).then(r => {
+    findCard(folder, id).then(card => {
       if (!live) return;
-      const card = r.cards.find(x => x.id === id);
       if (!card) return setState({ loading: false, error: 'This card no longer exists.', card: null });
       setState({ loading: false, error: '', card });
       setFront({ text: card.front.text || '', image: card.front.image || null, drawing: card.front.drawing || null });
@@ -63,11 +62,11 @@ export default function CardEditor() {
       hint: hint.trim(), tags: tagsOf(tags), source: state.card?.source || '',
     };
     try {
-      if (isNew) await api(`/folders/${folder}/cards`, { method: 'POST', body });
-      else await api(`/cards/${id}`, { method: 'PATCH', body: { ...body, version: state.card.version } });
+      // Written to the phone first and sent when there is a connection; a refusal (too long, not allowed, changed elsewhere) comes back here.
+      await saveCard({ folderId: folder, cardId: isNew ? null : id, body, version: state.card?.version });
       setDirty(false); router.back();
     } catch (e) {
-      if (e.code === 'VERSION_CONFLICT' || e.status === 409) setConflict(true); else setError(e.message);
+      if (e.code === 'VERSION_CONFLICT') setConflict(true); else setError(e.message);
       setSaving(false);
     }
   }
@@ -75,7 +74,7 @@ export default function CardEditor() {
   const close = () => (!dirty ? router.back() : Alert.alert('Discard your changes?', 'This card has edits that are not saved.', [{ text: 'Keep editing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: () => router.back() }]));
   const remove = () => Alert.alert('Delete this card?', 'It is removed along with its study history. This cannot be undone.', [
     { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete', style: 'destructive', onPress: async () => { try { await api(`/cards/${id}`, { method: 'DELETE' }); router.back(); } catch (e) { setError(e.message); } } },
+    { text: 'Delete', style: 'destructive', onPress: async () => { try { await removeCard({ folderId: folder, cardId: id }); router.back(); } catch (e) { setError(e.message); } } },
   ]);
 
   const section = (title, side, setSide, placeholder, isFront) => <Surface style={{ gap: 12 }}>

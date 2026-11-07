@@ -27,7 +27,7 @@ function Reminders({ name }) {
     if (!on) return change({ enabled: false });
     const result = await requestPermission();
     setPerm(result);
-    if (result !== 'granted') return setNote('Notifications are off for Remio on this phone. Allow them in Settings, then switch this on again.');
+    if (result !== 'granted') return setNote(`Notifications are off for ${BRAND.name} on this phone. Allow them in Settings, then switch this on again.`);
     await change({ enabled: true });
   }
   const step = delta => { const total = (prefs.hour * 60 + prefs.minute + delta + 1440) % 1440; change({ hour: Math.floor(total / 60), minute: total % 60 }); };

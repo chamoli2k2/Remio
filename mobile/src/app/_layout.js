@@ -10,8 +10,10 @@ import { Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrop
 import { ThemeProvider, useTheme } from '../theme';
 import { AuthProvider, useAuth } from '../auth';
 import { watch } from '../reminders';
+import { watchWidget } from '../widget';
 import { NavProvider } from '../nav';
 import Sidebar from '../components/Sidebar';
+import SyncBar from '../components/SyncBar';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -27,6 +29,7 @@ function Routes() {
   const signedIn = status === 'signedIn';
   // While someone is signed in, the study reminders are kept in step with their real numbers.
   useEffect(() => (signedIn ? watch(() => user?.name) : undefined), [signedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => (signedIn ? watchWidget() : undefined), [signedIn]);
   useEffect(() => { if (status !== 'loading') SplashScreen.hideAsync().catch(() => {}); }, [status]);
   if (status === 'loading') return null;
   return <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -41,11 +44,15 @@ function Routes() {
         <Stack.Screen name="u/[username]" />
         <Stack.Screen name="card/[id]" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="folder/edit" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="sync" />
+        <Stack.Screen name="quick-add" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="note/new" options={{ animation: 'slide_from_bottom' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
     </Stack>
+    {signedIn ? <SyncBar /> : null}
     {signedIn ? <Sidebar /> : null}
   </View>;
 }

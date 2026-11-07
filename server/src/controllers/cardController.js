@@ -12,8 +12,10 @@ import { parseFile, toCsv, MAX_CARDS } from '../services/importService.js';
 import { cardSchema } from '../middleware/validate.js';
 import { imageWidth } from '../../../shared/images.js';
 import { BRAND } from '../../../shared/brand.js';
+/** The phone's per-create key, if it sent a sane one. */
+const clientIdOf = req => { const k = req.get('Idempotency-Key'); return k && /^[A-Za-z0-9_-]{8,64}$/.test(k) ? k : undefined; };
 export const list = async (req, res) => res.json({ cards: await cards.listCards(req.params.id, req.user) });
-export const create = async (req, res) => res.status(201).json({ card: await cards.createCard(req.params.id, req.user, req.body) });
+export const create = async (req, res) => res.status(201).json({ card: await cards.createCard(req.params.id, req.user, req.body, clientIdOf(req)) });
 export const update = async (req, res) => res.json({ card: await cards.updateCard(req.params.id, req.user, req.body) });
 export const remove = async (req, res) => { await cards.deleteCard(req.params.id, req.user); res.json({ ok: true }); };
 export const revisions = async (req, res) => { const card = await Card.findById(req.params.id); assert(card, 404, 'Card not found.'); await accessFolder(card.folder, req.user, 'editor'); res.json({ revisions: await Revision.find({ card: card.id }).sort({ version: -1 }).limit(20).populate('editor', 'name username') }); };

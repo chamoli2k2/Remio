@@ -1,11 +1,11 @@
 import RemoteImage from './RemoteImage';
 import { useState } from 'react';
 import { Image, Platform, View } from 'react-native';
-import { pickImage, uploadImage } from '../upload';
+import { attachImage, isPending, pickImage } from '../upload';
 import { useTheme } from '../theme';
 import { Button, Txt } from './ui';
 
-/** One picture for one side of a card: choose, see it, remove it. It uploads as soon as it is chosen. */
+/** One picture for one side of a card: choose, see it, remove it. It uploads as soon as it is chosen, or waits on the phone with no connection. */
 export default function ImageField({ folderId, value, onChange }) {
   const { c } = useTheme();
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -17,7 +17,7 @@ export default function ImageField({ folderId, value, onChange }) {
       const asset = await pickImage(source);
       if (!asset) return;
       setBusy(true);
-      onChange(await uploadImage(folderId, asset));
+      onChange(await attachImage(`/folders/${folderId}/images`, asset));
     } catch (e) { setError(e.message || 'The picture could not be added.'); }
     finally { setBusy(false); }
   }
@@ -30,6 +30,7 @@ export default function ImageField({ folderId, value, onChange }) {
       {Platform.OS !== 'web' && !value ? <Button small variant="soft" icon="camera" title="Camera" disabled={busy} onPress={() => add('camera')} /> : null}
       {value ? <Button small variant="danger" icon="trash-2" title="Remove" disabled={busy} onPress={() => onChange(null)} /> : null}
     </View>
+    {isPending(value) ? <Txt variant="small">Saved on this phone. It uploads when you are back online.</Txt> : null}
     {error ? <Txt variant="small" style={{ color: c.danger }}>{error}</Txt> : null}
   </View>;
 }

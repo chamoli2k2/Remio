@@ -1,6 +1,7 @@
 import * as notes from '../services/noteService.js';
 
 export const listCollections = async (req, res) => res.json(await notes.listCollections(req.user));
+const clientIdOf = req => { const k = req.get('Idempotency-Key'); return k && /^[A-Za-z0-9_-]{8,64}$/.test(k) ? k : undefined; };
 export const createCollection = async (req, res) => res.status(201).json({ collection: await notes.presentCollection(await notes.createCollection(req.user, req.body), req.user, 0) });
 export const getCollection = async (req, res) => res.json(await notes.getCollection(req.params.id, req.user, { archived: req.query.archived === '1' }));
 export const updateCollection = async (req, res) => res.json({ collection: await notes.presentCollection(await notes.updateCollection(req.params.id, req.user, req.body), req.user) });
@@ -13,7 +14,7 @@ export const updateNotebook = async (req, res) => res.json({ notebook: await not
 export const archiveNotebook = async (req, res) => res.json({ notebook: await notes.presentNotebook(await notes.archiveNotebook(req.params.id, req.user, req.body.archived), req.user) });
 export const deleteNotebook = async (req, res) => res.json(await notes.deleteNotebook(req.params.id, req.user, req.body.confirm));
 export const member = async (req, res) => res.json({ notebook: await notes.presentNotebook(await notes.setMember(req.params.id, req.user, req.body.username, req.body.role), req.user) });
-export const createNote = async (req, res) => res.status(201).json({ note: await notes.createNote(req.params.id, req.user, req.body) });
+export const createNote = async (req, res) => res.status(201).json({ note: await notes.createNote(req.params.id, req.user, req.body, clientIdOf(req)) });
 export const listRevisions = async (req, res) => res.json(await notes.listRevisions(req.params.id, req.user));
 export const getRevision = async (req, res) => res.json(await notes.getRevision(req.params.id, req.params.rid, req.user));
 export const exportNotebook = async (req, res) => res.json(await notes.exportNotebook(req.params.id, req.user));

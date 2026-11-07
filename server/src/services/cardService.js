@@ -22,10 +22,12 @@ export async function listCards(folderId, user) {
 async function verifyImages(body, folder, session) {
   for (const side of ['front', 'back']) if (body[side]?.image) assert(await Media.exists({ _id: body[side].image, folder: folder.id }).session(session), 400, 'Image does not belong to this folder.');
 }
-export async function createCard(folderId, user, body) {
+export async function createCard(folderId, user, body, clientId) {
   return mutateFolder(folderId, user, 'editor', async (folder, session) => {
+    // The same offline create sent twice (a lost reply, a retry) answers with the card already made.
+    if (clientId) { const prior = await Card.findOne({ folder: folder.id, createdBy: user.id, clientId }).session(session); if (prior) return prior; }
     assert(!folder.archived, 409, 'Restore this folder before adding cards.'); await verifyImages(body, folder, session); await drawings.verify(body, folder.id);
-    const [card] = await Card.create([{ ...body, folder: folder.id, createdBy: user.id, updatedBy: user.id }], { session });
+    const [card] = await Card.create([{ ...body, folder: folder.id, createdBy: user.id, updatedBy: user.id, ...(clientId ? { clientId } : {}) }], { session });
     await recordEvent(folder, user, 'card.created', stripCloze(body.front.text).slice(0, 100) || 'Image card', session, card.id); return card;
   });
 }

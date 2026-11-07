@@ -5,6 +5,7 @@ import { Alert } from '../../alert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { api } from '../../api';
+import { cachedApi, discardLocalNote, isLocal, saveNote } from '../../offline';
 import { segmentsOf, NOTE_LIMITS } from '../../../../shared/notes.js';
 import { FONT, useTheme } from '../../theme';
 import { BackButton, Button, ErrorBox, Header, IconButton, Loading, Txt } from '../../components/ui';
@@ -25,7 +26,7 @@ export default function NoteScreen() {
   useEffect(() => {
     let live = true;
     setState(s => ({ ...s, loading: true, error: '' }));
-    api(`/notes/${id}`).then(r => live && setState({ loading: false, error: '', note: r.note, role: r.role }), e => live && setState(s => ({ ...s, loading: false, error: e.message })));
+    cachedApi(`/notes/${id}`).then(r => live && setState({ loading: false, error: '', note: r.note, role: r.role }), e => live && setState(s => ({ ...s, loading: false, error: e.message })));
     return () => { live = false; };
   }, [id, attempt]);
 
@@ -42,17 +43,17 @@ export default function NoteScreen() {
     if (saving || !dirty) return;
     setSaving(true);
     try {
-      const r = await api(`/notes/${id}`, { method: 'PATCH', body: { version: note.version, title, body } });
-      setState(s => ({ ...s, note: r.note })); setEditing(false); setConflict(false);
+      await saveNote({ noteId: id, version: note.version, title, body });
+      setEditing(false); setConflict(false); setAttempt(a => a + 1);
     } catch (e) {
-      if (e.code === 'VERSION_CONFLICT' || e.status === 409) setConflict(true);
+      if (e.code === 'VERSION_CONFLICT') setConflict(true);
       else Alert.alert('Not saved', e.message);
     } finally { setSaving(false); }
   }
 
   const removePage = () => Alert.alert('Delete this page?', 'The page and its history are removed. This cannot be undone.', [
     { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete', style: 'destructive', onPress: async () => { try { await api(`/notes/${id}`, { method: 'DELETE' }); setEditing(false); navigation.goBack(); } catch (e) { Alert.alert('Not deleted', e.message); } } },
+    { text: 'Delete', style: 'destructive', onPress: async () => { try { if (isLocal(id)) discardLocalNote(id); else await api(`/notes/${id}`, { method: 'DELETE' }); setEditing(false); navigation.goBack(); } catch (e) { Alert.alert('Not deleted', e.message); } } },
   ]);
 
   const reloadLatest = () => { setEditing(false); setConflict(false); setAttempt(a => a + 1); };
@@ -86,7 +87,10 @@ export default function NoteScreen() {
               {s.caption ? <Txt variant="small">{s.caption}</Txt> : null}
             </View>
             : <View key={i} style={{ padding: 14, borderRadius: 12, backgroundColor: c.surface2 }}><Txt variant="small" style={{ fontStyle: 'italic' }}>A drawing. Open this page on remio.in to see it.</Txt></View>)}
-          {!note.body.trim() ? <Txt variant="small">This page is empty.</Txt> : null}
+          {(note.pendingPhotos || []).map((p, i) => <RemoteImage key={`${p}${i}`} id={p} resizeMode="contain" accessibilityLabel={`Picture ${i + 1}`}
+            style={{ width: width - 40, height: (width - 40) * 0.75, borderRadius: 10, backgroundColor: c.surface2 }} />)}
+          {note.pending ? <Txt variant="small" style={{ color: c.accent }}>Saved on this phone. It syncs when you are online.</Txt> : null}
+          {!note.body.trim() && !(note.pendingPhotos || []).length ? <Txt variant="small">This page is empty.</Txt> : null}
           {canEdit ? <Button title="Delete page" variant="danger" icon="trash-2" onPress={removePage} /> : null}
         </> : null}
       </ScrollView>

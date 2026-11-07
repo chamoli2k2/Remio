@@ -316,13 +316,15 @@ export async function verifyEmbeds(notebookId, body, previous = '', session = nu
   }
 }
 
-export async function createNote(notebookId, user, body) {
+export async function createNote(notebookId, user, body, clientId) {
   const notebook = await accessNotebook(notebookId, user, 'editor');
   writable(notebook);
+  // A repeat of an offline create answers with the page already made.
+  if (clientId) { const prior = await Note.findOne({ notebook: notebook._id, createdBy: user.id, clientId }); if (prior) return presentNote(prior); }
   const count = await Note.countDocuments({ notebook: notebook._id });
   assert(count < NOTE_LIMITS.notesPerNotebook, 409, `A notebook can hold up to ${NOTE_LIMITS.notesPerNotebook} pages. Start another notebook.`, 'NOTE_LIMIT');
   await verifyEmbeds(notebook._id, body.body);
-  const note = await Note.create({ ...body, notebook: notebook._id, createdBy: user.id, updatedBy: user.id });
+  const note = await Note.create({ ...body, notebook: notebook._id, createdBy: user.id, updatedBy: user.id, ...(clientId ? { clientId } : {}) });
   await Notebook.updateOne({ _id: notebook._id }, { $currentDate: { updatedAt: true } });
   return presentNote(note);
 }

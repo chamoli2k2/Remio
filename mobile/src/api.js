@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { BRAND } from '../../shared/brand.js';
 
 /**
- * Talking to the Remio server from a phone.
+ * Talking to the server from a phone.
  *
  * A browser keeps its session in HttpOnly cookies. A native app has no such thing, so it asks for
  * the tokens in the response body (`X-Auth-Mode: token`), keeps them in the system keychain
@@ -74,8 +74,8 @@ export const getAccessToken = () => tokens.access;
 /** An image on this server, with the header private pictures need. */
 export const imageSource = id => (id ? { uri: `${API_URL}/api/media/${id}`, headers: tokens.access ? { Authorization: `Bearer ${tokens.access}` } : undefined } : null);
 
-async function send(path, { method = 'GET', body, form, auth = true, timeout = 20_000 } = {}) {
-  const headers = { 'X-Auth-Mode': 'token', Accept: 'application/json' };
+async function send(path, { method = 'GET', body, form, auth = true, timeout = 20_000, headers: extra } = {}) {
+  const headers = { 'X-Auth-Mode': 'token', Accept: 'application/json', ...extra };
   if (!form && body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && tokens.access) headers.Authorization = `Bearer ${tokens.access}`;
   const controller = new AbortController();

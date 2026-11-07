@@ -71,7 +71,7 @@ const plural = (n, word) => `${n.toLocaleString('en')} ${word}${n === 1 ? '' : '
 // Wording for the days ahead. None states a count, because none can know it.
 const FUTURE = [
   name => ({ title: `${name ? `${name}, a` : 'A'} few minutes is enough`, body: 'Your cards are ready. A short review today keeps them fresh.' }),
-  () => ({ title: 'Time to remember something', body: 'Open Remio and clear today’s due cards.' }),
+  () => ({ title: 'Time to remember something', body: `Open ${BRAND.name} and clear today’s due cards.` }),
   name => ({ title: `Keep it going${name ? `, ${name}` : ''}`, body: 'Small sessions, done often, are what make memory last.' }),
   () => ({ title: 'Your cards are waiting', body: 'A quick round now means less to catch up on later.' }),
   () => ({ title: 'One more session', body: 'A little progress today builds on yesterday.' }),

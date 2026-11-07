@@ -3,6 +3,7 @@ import { Image, Platform, View } from 'react-native';
 import { API_URL, getAccessToken } from '../api';
 import { useTheme } from '../theme';
 import { Icon } from './ui';
+import { isPending, pendingUri } from '../upload';
 
 const LIFETIME_MS = 4 * 60_000; // the server's signed links last ten minutes; renew well before that
 const cache = new Map();
@@ -31,13 +32,15 @@ async function resolve(id) {
 
 export default function RemoteImage({ id, style, resizeMode = 'contain', accessibilityLabel }) {
   const { c } = useTheme();
+  const local = isPending(id);
   const [state, setState] = useState({ source: null, failed: false });
   useEffect(() => {
     let live = true;
     setState({ source: null, failed: false });
-    if (id) resolve(id).then(source => live && setState({ source, failed: false }), () => live && setState({ source: null, failed: true }));
+    if (id && !local) resolve(id).then(source => live && setState({ source, failed: false }), () => live && setState({ source: null, failed: true }));
     return () => { live = false; };
   }, [id]);
+  if (local) return <Image source={{ uri: pendingUri(id) }} resizeMode={resizeMode} accessibilityLabel={accessibilityLabel} style={style} />;
   if (state.source) return <Image source={state.source} resizeMode={resizeMode} accessibilityLabel={accessibilityLabel} style={style} onError={() => { cache.delete(id); setState({ source: null, failed: true }); }} />;
   return <View style={[style, { backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }]}>
     {state.failed ? <Icon name="image" size={20} color={c.muted} /> : null}

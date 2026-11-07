@@ -18,7 +18,7 @@ export default function FolderScreen() {
   const [query, setQuery] = useState('');
   const f = folder.data?.folder, list = cards.data?.cards || [];
   const now = Date.now();
-  const due = list.filter(x => !x.progress?.dueAt || new Date(x.progress.dueAt).getTime() <= now).length;
+  const due = list.filter(x => !x.pending && (!x.progress?.dueAt || new Date(x.progress.dueAt).getTime() <= now)).length;
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return list.filter(x => !q || `${previewText(x)} ${(x.tags || []).join(' ')}`.toLowerCase().includes(q));
@@ -80,7 +80,7 @@ export default function FolderScreen() {
     {cards.data && !list.length ? <Empty icon="layers" title="No cards yet" text={canEdit ? 'Add your first card to start studying.' : 'This folder has no cards yet.'} action={canEdit ? <Button title="Add a card" icon="plus" onPress={() => router.push(`/card/new?folder=${id}`)} /> : null} /> : null}
     {shown.slice(0, 200).map((card, i) => <Pressable key={card.id} disabled={!canEdit} onPress={() => router.push(`/card/${card.id}?folder=${id}`)} accessibilityRole="button" accessibilityLabel={`Edit card: ${previewText(card)}`}
       style={({ pressed }) => ({ gap: 14, padding: 16, borderRadius: 16, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, opacity: pressed ? 0.85 : 1 })}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Text style={{ fontFamily: FONT.semibold, fontSize: 11.5, letterSpacing: 1, color: c.muted }}><Text style={{ color: c.accent }}>{String(list.indexOf(card) + 1).padStart(2, '0')}</Text>  /  {sideOf(card, false).cloze === 'hide' ? 'CLOZE' : 'QUESTION'}</Text>{canEdit ? <Icon name="edit-2" size={14} color={c.muted} /> : null}</View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Text style={{ fontFamily: FONT.semibold, fontSize: 11.5, letterSpacing: 1, color: c.muted }}><Text style={{ color: c.accent }}>{String(list.indexOf(card) + 1).padStart(2, '0')}</Text>  /  {sideOf(card, false).cloze === 'hide' ? 'CLOZE' : 'QUESTION'}</Text>{card.pending ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Icon name="clock" size={12} color={c.accent} /><Text style={{ fontFamily: FONT.medium, fontSize: 12, color: c.accent }}>Waiting to sync</Text></View> : canEdit ? <Icon name="edit-2" size={14} color={c.muted} /> : null}</View>
       <Text numberOfLines={3} style={{ fontFamily: FONT.heading, fontSize: 16, lineHeight: 23, color: c.ink }}>{previewText(card)}</Text>
     </Pressable>)}
     {shown.length > 200 ? <Txt variant="small" style={{ textAlign: 'center' }}>Showing the first 200 of {shown.length}. Study covers all of them.</Txt> : null}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { api } from '../api';
+import { cachedApi, subscribe } from '../offline';
 
 /**
  * Fetch a path and keep the answer, refetching when the screen comes back into view.
@@ -16,7 +16,7 @@ export function useQuery(path, { enabled = true } = {}) {
   const load = useCallback(async () => {
     if (!path || !enabled) return;
     try {
-      const data = await api(path);
+      const data = await cachedApi(path);
       if (live.current) setState({ data, error: '', loading: false });
     } catch (e) {
       if (live.current) setState(s => ({ data: s.data, error: e.message, loading: false }));
@@ -24,6 +24,8 @@ export function useQuery(path, { enabled = true } = {}) {
   }, [path, enabled]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Changes made on this phone (or sent in the background) show up without leaving the screen.
+  useEffect(() => subscribe(e => { if (e.invalidate && path && e.invalidate.some(k => k === '*' || path.includes(k))) load(); }), [load, path]);
   const reload = useCallback(async () => { await load(); }, [load]);
   return { ...state, reload, setData: data => setState(s => ({ ...s, data })) };
 }

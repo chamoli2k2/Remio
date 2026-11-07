@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { COUNTRY_NAMES, HOME_COUNTRY } from '../../../shared/countries.js';
 const { Schema, model } = mongoose;
 const ref = (name, required = true) => ({ type: Schema.Types.ObjectId, ref: name, required });
-const options = { timestamps: true, toJSON: { transform: (_doc, ret) => { ret.id = ret._id.toString(); delete ret._id; delete ret.__v; return ret; } } };
+const options = { timestamps: true, toJSON: { transform: (_doc, ret) => { ret.id = ret._id.toString(); delete ret._id; delete ret.__v; delete ret.clientId; return ret; } } };
 /**
  * How a person likes an assistant to write their answers; see shared/answerStyle.js. Every field is
  * optional, and an unset one falls through to the default. Kept on the account, with an optional
@@ -167,7 +167,10 @@ folder.index({ owner: 1, updatedAt: -1 }); folder.index({ 'members.user': 1 }); 
 // `drawing` is a plain string id, not a reference: the drawing lives in object storage, keyed by
 // folder and this id, so nothing about it depends on this database (see shared/drawing.js).
 const side = { text: { type: String, default: '' }, image: ref('Media', false), drawing: { type: String, default: null } };
-const card = new Schema({ folder: ref('Folder'), front: side, back: side, tags: [String], hint: { type: String, default: '' }, source: { type: String, default: '' }, version: { type: Number, default: 0 }, createdBy: ref('User'), updatedBy: ref('User') }, options);
+const card = new Schema({ folder: ref('Folder'), front: side, back: side, tags: [String], hint: { type: String, default: '' }, source: { type: String, default: '' }, version: { type: Number, default: 0 }, createdBy: ref('User'), updatedBy: ref('User'),
+  // Sent by the phone app when it creates offline, so a retry after a lost reply returns the card instead of making a second one.
+  clientId: { type: String, select: false } }, options);
+card.index({ folder: 1, createdBy: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: 'string' } } });
 card.index({ folder: 1, createdAt: 1 }); card.index({ folder: 1, tags: 1 });
 // `width` is the original's own width, so no resized copy wider than the picture is ever offered.
 // `variants` records which widths have been generated, which is cheaper than asking the bucket: the
@@ -213,7 +216,8 @@ const noteCollection = new Schema({ title: { type: String, required: true }, des
 noteCollection.index({ owner: 1, updatedAt: -1 }); noteCollection.index({ 'members.user': 1 });
 const notebook = new Schema({ title: { type: String, required: true }, description: { type: String, default: '' }, color: { type: String, default: 'violet' }, icon: { type: String, default: 'book' }, owner: ref('User'), noteCollection: ref('NoteCollection', false), members: members(), version: { type: Number, default: 0 }, archived: { type: Boolean, default: false } }, options);
 notebook.index({ owner: 1, updatedAt: -1 }); notebook.index({ 'members.user': 1 }); notebook.index({ noteCollection: 1, updatedAt: -1 });
-const note = new Schema({ notebook: ref('Notebook'), title: { type: String, default: '' }, body: { type: String, default: '' }, tags: [String], pinned: { type: Boolean, default: false }, version: { type: Number, default: 0 }, createdBy: ref('User'), updatedBy: ref('User') }, options);
+const note = new Schema({ notebook: ref('Notebook'), title: { type: String, default: '' }, body: { type: String, default: '' }, tags: [String], pinned: { type: Boolean, default: false }, version: { type: Number, default: 0 }, createdBy: ref('User'), updatedBy: ref('User'), clientId: { type: String, select: false } }, options);
+note.index({ notebook: 1, createdBy: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: 'string' } } });
 note.index({ notebook: 1, pinned: -1, updatedAt: -1 });
 /**
  * What a page said before a change, so a bad edit, a bad autosave or an assistant's rewrite can be

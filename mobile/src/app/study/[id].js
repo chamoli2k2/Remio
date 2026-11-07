@@ -4,10 +4,12 @@ import { Alert } from '../../alert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { api } from '../../api';
+import * as Speech from 'expo-speech';
+import { cachedApi } from '../../offline';
 import { enqueue, flush, flushSoon, pendingCards, pendingCount, subscribe, versionFor } from '../../reviewQueue';
 import { uuid } from '../../uuid';
 import { sync } from '../../reminders';
+import { refreshWidget } from '../../widget';
 import { FONT, useTheme } from '../../theme';
 import { Button, ErrorBox, FolderBadge, Loading, Txt, Icon, Empty } from '../../components/ui';
 import CardFace, { sideOf } from '../../components/CardFace';
@@ -45,10 +47,10 @@ function FlipCard({ card, flipped, onToggle, height, hint, onHint }) {
 /** Same session the website builds: waiting reviews are sent first, and a due-only session leaves out cards already answered offline. */
 async function loadSession(id, dueOnly) {
   await flushSoon(2500);
-  const [f, c] = await Promise.all([api(`/folders/${id}`), api(`/folders/${id}/cards`)]);
+  const [f, c] = await Promise.all([cachedApi(`/folders/${id}`), cachedApi(`/folders/${id}/cards`)]);
   const queued = dueOnly ? pendingCards() : new Set();
   const now = Date.now();
-  return { folder: f.folder, cards: c.cards.filter(card => !dueOnly || (!queued.has(card.id) && (!card.progress?.dueAt || new Date(card.progress.dueAt).getTime() <= now))) };
+  return { folder: f.folder, cards: c.cards.filter(card => !card.id.startsWith('local:') && (!dueOnly || (!queued.has(card.id) && (!card.progress?.dueAt || new Date(card.progress.dueAt).getTime() <= now)))) };
 }
 
 export default function Study() {
@@ -71,7 +73,7 @@ export default function Study() {
 
   useEffect(() => subscribe(e => { if ('pending' in e) setPending(e.pending); }), []);
   // Leaving the session sends whatever is still waiting.
-  useEffect(() => () => { flush().then(() => sync({ force: true })); }, []);
+  useEffect(() => () => { flush().then(() => { sync({ force: true }); refreshWidget({ force: true }); }); }, []);
 
   const cards = state.data?.cards || [];
   const card = cards[index];
@@ -83,9 +85,20 @@ export default function Study() {
     answered.current = index;
     const now = new Date();
     enqueue([{ cardId: card.id, rating, requestId: uuid(), version: versionFor(card), mode: 'classic', localHour: now.getHours(), reviewedAt: now.toISOString() }]);
-    Haptics.selectionAsync().catch(() => {});
+    Speech.stop();
+    (rating === 'again' ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning) : rating === 'hard' ? Haptics.selectionAsync() : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)).catch(() => {});
     setGiven(g => [...g, rating]); setIndex(i => i + 1); setFlipped(false); setHint(false);
   }, [card, index]);
+
+  // Read the side that is showing aloud: markdown marks dropped, a hidden cloze spoken as "blank".
+  function listen() {
+    const side = card && sideOf(card, flipped);
+    const spoken = (side?.text || '').replace(/\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g, (_m, answer) => (side.cloze === 'hide' ? 'blank' : answer)).replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/[#*_`>\[\]]/g, '').trim();
+    Speech.stop();
+    if (spoken) Speech.speak(spoken, { rate: 0.95 });
+  }
+  useEffect(() => () => { Speech.stop(); }, []);
+  useEffect(() => { Speech.stop(); }, [index, flipped]);
 
   function leave() {
     if (!done && given.length) Alert.alert('Leave this session?', 'Your answers so far are saved.', [{ text: 'Keep studying', style: 'cancel' }, { text: 'Leave', onPress: () => router.back() }]);
@@ -135,6 +148,9 @@ export default function Study() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, backgroundColor: c.accent }}>
             <Icon name="layers" size={14} color="#fff" /><Text style={{ fontFamily: FONT.semibold, fontSize: 14, color: '#fff' }}>Flip</Text>
           </View>
+          <Pressable onPress={listen} accessibilityRole="button" accessibilityLabel="Read this side aloud" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, backgroundColor: c.soft }}>
+            <Icon name="volume-2" size={14} color={c.accent} /><Text style={{ fontFamily: FONT.semibold, fontSize: 14, color: c.accentDark }}>Listen</Text>
+          </Pressable>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, backgroundColor: c.soft }}>
             <Icon name="zap" size={14} color={c.accent} /><Text style={{ fontFamily: FONT.display, fontSize: 14, color: c.ink }}>{given.length}</Text><Text style={{ fontFamily: FONT.body, fontSize: 13, color: c.muted }}>reviewed</Text>
           </View>

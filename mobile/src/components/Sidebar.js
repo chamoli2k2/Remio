@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, BackHandler, Easing, Linking, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api } from '../api';
+import { cachedApi } from '../offline';
 import { useAuth } from '../auth';
 import { useNav } from '../nav';
 import { FONT, useTheme } from '../theme';
@@ -30,7 +30,7 @@ export default function Sidebar() {
   const [mounted, setMounted] = useState(false), [folders, setFolders] = useState([]);
 
   useEffect(() => {
-    if (open) { setMounted(true); api('/folders').then(r => setFolders((r.folders || []).filter(f => f.role === 'owner').slice(0, 5)), () => {}); }
+    if (open) { setMounted(true); cachedApi('/folders').then(r => setFolders((r.folders || []).filter(f => f.role === 'owner').slice(0, 5)), () => {}); }
     Animated.timing(slide, { toValue: open ? 1 : 0, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(({ finished }) => { if (finished && !open) setMounted(false); });
   }, [open, slide]);
   useEffect(() => {
@@ -76,6 +76,8 @@ export default function Sidebar() {
           <Text numberOfLines={1} style={{ flex: 1, fontFamily: FONT.medium, fontSize: 14.5, color: c.text2 }}>{f.title}</Text>
         </Pressable>)}</View> : null}
         <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 8 }}>
+          {link('quickadd', 'plus-square', 'Quick add card', () => go('/quick-add', { top: false }))}
+          {link('sync', 'refresh-cw', 'Sync & offline', () => go('/sync', { top: false }), pathname === '/sync')}
           {link('premium', 'award', 'Premium', () => { hide(); Linking.openURL(`https://${BRAND.domain}/premium`).catch(() => {}); })}
           {link('settings', 'settings', 'Settings', () => go('/settings'), pathname === '/settings')}
         </View>
