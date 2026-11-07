@@ -20,7 +20,10 @@
       "adaptiveIcon": {
         "backgroundColor": "#5a45e0",
         "foregroundImage": "./assets/android-icon-foreground.png"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -58,6 +61,17 @@
     ],
     "experiments": {
       "typedRoutes": false
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "3e14e5e5-0a0c-45c7-8434-0d99d538ada5"
+      }
+    },
+    "owner": "chamoli2k2"
   }
 }
