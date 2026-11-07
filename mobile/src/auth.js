@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, clearTokens, hasSession, loadTokens, onSignedOut, refreshToken, setTokens } from './api';
 import { discardQueue, flushSoon, bindUser } from './reviewQueue';
+import { clear as clearReminders } from './reminders';
 
 const AuthContext = createContext(null);
 
@@ -40,6 +41,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     await flushSoon(2500);
     try { await api('/auth/logout', { method: 'POST', body: { refreshToken: refreshToken() }, auth: false }); } catch { /* the device forgets it either way */ }
+    await clearReminders();
     await clearTokens(); signedOut();
   }, [signedOut]);
 

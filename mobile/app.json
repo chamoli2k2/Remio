@@ -40,7 +40,21 @@
           }
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Remio uses your photos so you can add pictures to flashcards.",
+          "cameraPermission": "Remio uses the camera so you can photograph something for a flashcard."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#5a45e0",
+          "defaultChannel": "reminders"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

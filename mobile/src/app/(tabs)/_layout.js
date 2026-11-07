@@ -1,5 +1,4 @@
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { FONT, useTheme } from '../../theme';
@@ -13,8 +12,8 @@ export default function TabsLayout() {
     headerShown: false,
     tabBarActiveTintColor: c.accent, tabBarInactiveTintColor: c.muted,
     tabBarLabelStyle: { fontFamily: FONT.medium, fontSize: 11 },
-    tabBarStyle: { backgroundColor: c.surface, borderTopColor: c.border, height: 56 + insets.bottom, paddingTop: 6, paddingBottom: Platform.OS === 'ios' ? insets.bottom : insets.bottom + 4 },
+    tabBarStyle: { backgroundColor: c.surface, borderTopColor: c.border, height: 54 + Math.max(insets.bottom - 10, 8), paddingTop: 6, paddingBottom: Math.max(insets.bottom - 10, 8) },
   }}>
-    {[tab('index', 'Home', 'home'), tab('library', 'Library', 'layers'), tab('notes', 'Notes', 'edit-3'), tab('profile', 'Profile', 'user')].map(t => <Tabs.Screen key={t.name} {...t} />)}
+    {[tab('index', 'Library', 'layers'), tab('notes', 'Notes', 'edit-3'), tab('profile', 'Profile', 'user')].map(t => <Tabs.Screen key={t.name} {...t} />)}
   </Tabs>;
 }

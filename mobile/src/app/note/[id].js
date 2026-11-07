@@ -1,8 +1,10 @@
+import RemoteImage from '../../components/RemoteImage';
 import { useEffect, useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert } from '../../alert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { api, imageSource } from '../../api';
+import { api } from '../../api';
 import { segmentsOf, NOTE_LIMITS } from '../../../../shared/notes.js';
 import { FONT, useTheme } from '../../theme';
 import { BackButton, Button, ErrorBox, Header, IconButton, Loading, Txt } from '../../components/ui';
@@ -48,6 +50,11 @@ export default function NoteScreen() {
     } finally { setSaving(false); }
   }
 
+  const removePage = () => Alert.alert('Delete this page?', 'The page and its history are removed. This cannot be undone.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: async () => { try { await api(`/notes/${id}`, { method: 'DELETE' }); setEditing(false); navigation.goBack(); } catch (e) { Alert.alert('Not deleted', e.message); } } },
+  ]);
+
   const reloadLatest = () => { setEditing(false); setConflict(false); setAttempt(a => a + 1); };
 
   return <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
@@ -74,12 +81,13 @@ export default function NoteScreen() {
           <Txt variant="display" style={{ fontSize: 26 }}>{note.title || 'Untitled page'}</Txt>
           {segmentsOf(note.body).map((s, i) => s.kind === 'text' ? <Rich key={i} text={s.text} />
             : s.kind === 'media' ? <View key={i} style={{ gap: 6 }}>
-              <Image source={imageSource(s.id)} resizeMode="contain" accessibilityLabel={s.caption || 'Picture'}
+              <RemoteImage id={s.id} resizeMode="contain" accessibilityLabel={s.caption || 'Picture'}
                 style={{ width: ((width - 40) * (s.width || 100)) / 100, height: ((width - 40) * (s.width || 100)) / 100 * 0.75, borderRadius: 10, backgroundColor: c.surface2 }} />
               {s.caption ? <Txt variant="small">{s.caption}</Txt> : null}
             </View>
             : <View key={i} style={{ padding: 14, borderRadius: 12, backgroundColor: c.surface2 }}><Txt variant="small" style={{ fontStyle: 'italic' }}>A drawing. Open this page on remio.in to see it.</Txt></View>)}
           {!note.body.trim() ? <Txt variant="small">This page is empty.</Txt> : null}
+          {canEdit ? <Button title="Delete page" variant="danger" icon="trash-2" onPress={removePage} /> : null}
         </> : null}
       </ScrollView>
     </KeyboardAvoidingView>

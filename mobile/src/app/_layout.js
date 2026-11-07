@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -8,6 +9,7 @@ import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-googl
 import { Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
 import { ThemeProvider, useTheme } from '../theme';
 import { AuthProvider, useAuth } from '../auth';
+import { watch } from '../reminders';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -19,10 +21,13 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 function Routes() {
   const { status } = useAuth();
   const { c, dark } = useTheme();
+  const { user } = useAuth();
   const signedIn = status === 'signedIn';
+  // While someone is signed in, the study reminders are kept in step with their real numbers.
+  useEffect(() => (signedIn ? watch(() => user?.name) : undefined), [signedIn]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (status !== 'loading') SplashScreen.hideAsync().catch(() => {}); }, [status]);
   if (status === 'loading') return null;
-  return <>
+  return <View style={{ flex: 1, backgroundColor: c.bg }}>
     <StatusBar style={dark ? 'light' : 'dark'} />
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'slide_from_right' }}>
       <Stack.Protected guard={signedIn}>
@@ -31,12 +36,14 @@ function Routes() {
         <Stack.Screen name="study/[id]" options={{ gestureEnabled: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="notebook/[id]" />
         <Stack.Screen name="note/[id]" />
+        <Stack.Screen name="card/[id]" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="folder/edit" options={{ animation: 'slide_from_bottom' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
     </Stack>
-  </>;
+  </View>;
 }
 
 export default function RootLayout() {

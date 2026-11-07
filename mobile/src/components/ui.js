@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FONT, RADIUS, useTheme } from '../theme';
 import { BRAND } from '../../../shared/brand.js';
+import { useAuth } from '../auth';
 
 /** Styles that depend on the theme, rebuilt only when it changes. */
 export function useStyles(factory) {
@@ -14,15 +15,22 @@ export function useStyles(factory) {
 
 export function Screen({ children, scroll = true, onRefresh, refreshing = false, edges = ['top'], padded = true, contentStyle }) {
   const { c } = useTheme();
+  const insets = useSafeAreaInsets();
+  // Content runs the full height of the screen and is padded by the notch and home bar itself,
+  // so scrolling passes behind the status bar instead of stopping under a separate strip.
+  const top = edges.includes('top') ? insets.top : 0;
+  const pad = padded ? 20 : 0;
   const body = scroll
     ? <ScrollView
-        contentContainerStyle={[{ padding: padded ? 20 : 0, paddingBottom: 40, gap: 16 }, contentStyle]}
+        style={{ flex: 1 }}
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={[{ padding: pad, paddingTop: top ? top + 6 : pad, paddingBottom: 24 + insets.bottom, gap: 16 }, contentStyle]}
         keyboardShouldPersistTaps="handled"
-        refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} /> : undefined}>
+        refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} progressViewOffset={top} /> : undefined}>
         {children}
       </ScrollView>
-    : <View style={[{ flex: 1, padding: padded ? 20 : 0 }, contentStyle]}>{children}</View>;
-  return <SafeAreaView edges={edges} style={{ flex: 1, backgroundColor: c.bg }}>{body}</SafeAreaView>;
+    : <View style={[{ flex: 1, padding: pad, paddingTop: top ? top + 6 : pad }, contentStyle]}>{children}</View>;
+  return <View style={{ flex: 1, backgroundColor: c.bg }}>{body}</View>;
 }
 
 export function Txt({ children, style, variant = 'body', numberOfLines, ...rest }) {
@@ -62,7 +70,7 @@ export function Button({ title, onPress, variant = 'primary', loading = false, d
       backgroundColor: palette.bg, borderColor: palette.border, opacity: off ? 0.55 : pressed ? 0.85 : 1,
     }, style]}>
     {loading ? <ActivityIndicator color={palette.fg} /> : icon ? <Feather name={icon} size={small ? 16 : 18} color={palette.fg} /> : null}
-    <Text style={{ fontFamily: FONT.semibold, fontSize: small ? 14 : 16, color: palette.fg }}>{title}</Text>
+    <Text numberOfLines={1} style={{ fontFamily: FONT.semibold, fontSize: small ? 14 : 16, color: palette.fg, flexShrink: 1 }}>{title}</Text>
   </Pressable>;
 }
 
@@ -84,9 +92,10 @@ export function Icon({ name, size = 20, color, ...rest }) {
 /** The icon names a folder or notebook can have, mapped to what the phone's icon set calls them. */
 const FOLDER_ICONS = { layers: 'layers-outline', code: 'code-tags', globe: 'earth', brain: 'brain', book: 'book-open-variant', flask: 'flask-outline', terminal: 'console', palette: 'palette-outline' };
 
-export function FolderBadge({ icon = 'layers', color = 'violet', size = 44 }) {
+export function FolderBadge({ icon = 'layers', color = 'violet', size = 44, bare = false }) {
   const { tone } = useTheme();
   const t = tone(color);
+  if (bare) return <MaterialCommunityIcons name={FOLDER_ICONS[icon] || FOLDER_ICONS.layers} size={size * 0.8} color={t.tone} />;
   return <View style={{ width: size, height: size, borderRadius: size * 0.3, backgroundColor: t.light, alignItems: 'center', justifyContent: 'center' }}>
     <MaterialCommunityIcons name={FOLDER_ICONS[icon] || FOLDER_ICONS.layers} size={size * 0.5} color={t.tone} />
   </View>;
@@ -160,4 +169,29 @@ export function IconButton({ name, onPress, label, color }) {
 export function BackButton() {
   const router = useRouter();
   return <IconButton name="chevron-left" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />;
+}
+
+/** The bar across the top of the main screens: the wordmark on the left, the account on the right. */
+export function TopBar() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { c } = useTheme();
+  const initials = (user?.name || user?.username || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  return <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 2 }}>
+    <Logo size={30} />
+    <Pressable onPress={() => router.push('/profile')} accessibilityRole="button" accessibilityLabel="Profile and settings" hitSlop={8}
+      style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: c.soft2, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ fontFamily: FONT.semibold, fontSize: 13, color: c.accentDark }}>{initials}</Text>
+    </Pressable>
+  </View>;
+}
+
+/** Eyebrow, large title and a line under it: how every web page opens. */
+export function PageHeading({ eyebrow, title, subtitle }) {
+  const { c } = useTheme();
+  return <View style={{ gap: 4 }}>
+    {eyebrow ? <Text style={{ fontFamily: FONT.semibold, fontSize: 11, letterSpacing: 1.4, color: c.accent }}>{eyebrow}</Text> : null}
+    <Text style={{ fontFamily: FONT.display, fontSize: 28, letterSpacing: -0.8, color: c.ink }}>{title}</Text>
+    {subtitle ? <Txt variant="small" style={{ fontSize: 14 }}>{subtitle}</Txt> : null}
+  </View>;
 }

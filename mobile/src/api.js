@@ -65,6 +65,8 @@ export const hasSession = () => !!tokens.refresh;
 export const onSignedOut = fn => { signedOutHandler = fn; };
 export const refreshToken = () => tokens.refresh;
 
+export const getAccessToken = () => tokens.access;
+
 /** An image on this server, with the header private pictures need. */
 export const imageSource = id => (id ? { uri: `${API_URL}/api/media/${id}`, headers: tokens.access ? { Authorization: `Bearer ${tokens.access}` } : undefined } : null);
 

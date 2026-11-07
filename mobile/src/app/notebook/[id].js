@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
+import { Alert } from '../../alert';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '../../api';
 import { useQuery } from '../../hooks/useQuery';

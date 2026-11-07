@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { api } from '../../api';
 import { useQuery } from '../../hooks/useQuery';
 import { useTheme } from '../../theme';
-import { Empty, ErrorBox, Field, FolderBadge, Icon, Loading, Screen, Surface, Txt } from '../../components/ui';
+import { Empty, ErrorBox, Field, FolderBadge, Icon, Loading, PageHeading, Screen, Surface, TopBar, Txt } from '../../components/ui';
 
 export default function Notes() {
   const router = useRouter();
@@ -28,7 +28,8 @@ export default function Notes() {
   }, [data]);
 
   return <Screen onRefresh={reload}>
-    <Txt variant="display" style={{ fontSize: 28 }}>Notes</Txt>
+    <TopBar />
+    <PageHeading eyebrow="YOUR WRITING SPACE" title="Notes" subtitle="Notebooks and pages, in sync with the website." />
     <Field value={q} onChangeText={setQ} placeholder="Search every page" autoCapitalize="none" autoCorrect={false} returnKeyType="search" clearButtonMode="while-editing" />
     {error ? <ErrorBox message={error} onRetry={reload} /> : null}
     {searchError ? <ErrorBox message={searchError} /> : null}
