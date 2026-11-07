@@ -20,6 +20,9 @@ export function clozeToMarkdown(text, mode = 'show') {
   return String(text || '').replace(CLOZE_RE, (_m, _n, answer, hint) => (mode === 'hide' ? `**[${(hint || '…').trim()}]**` : `**${answer}**`));
 }
 
+// The Markdown parser slows down on very long attacker-written text, so a single block is cut at a length no real card or page section reaches.
+const MAX_TEXT = 20_000;
+
 const safeLink = url => {
   if (/^(https?:|mailto:)/i.test(url)) Linking.openURL(url).catch(() => {});
   return false;
@@ -51,5 +54,5 @@ export default function Rich({ text = '', cloze = 'show', size = 16, center = fa
     };
   }, [c, size, center, color]);
   const rules = useMemo(() => ({ image: () => null }), []);
-  return <Markdown style={style} rules={rules} onLinkPress={safeLink}>{clozeToMarkdown(text, cloze)}</Markdown>;
+  return <Markdown style={style} rules={rules} onLinkPress={safeLink}>{clozeToMarkdown(String(text || '').slice(0, MAX_TEXT), cloze)}</Markdown>;
 }

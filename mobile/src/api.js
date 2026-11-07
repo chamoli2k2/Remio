@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { BRAND } from '../../shared/brand.js';
+import { isSafePath } from './path';
 
 /**
  * Talking to the server from a phone.
@@ -75,6 +76,8 @@ export const getAccessToken = () => tokens.access;
 export const imageSource = id => (id ? { uri: `${API_URL}/api/media/${id}`, headers: tokens.access ? { Authorization: `Bearer ${tokens.access}` } : undefined } : null);
 
 async function send(path, { method = 'GET', body, form, auth = true, timeout = 20_000, headers: extra } = {}) {
+  // Never build a request out of an address a link could have bent (see path.js).
+  if (!isSafePath(path)) throw new ApiError('That address is not valid.', { code: 'BAD_PATH' });
   const headers = { 'X-Auth-Mode': 'token', Accept: 'application/json', ...extra };
   if (!form && body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && tokens.access) headers.Authorization = `Bearer ${tokens.access}`;
