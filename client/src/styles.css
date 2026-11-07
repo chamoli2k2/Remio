@@ -2136,3 +2136,7 @@ body.is-resizing .main-content{pointer-events:none}
 .note-history p{margin:6px 0 0;color:var(--muted);font-size:13px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 /* The print sheet is always light, whatever theme the app is in, without touching the app's theme. */
 html[data-theme=dark] .note-print-root{color-scheme:light;--accent:#6348dc;--accent-dark:#4d36bc;--ink:#272235;--muted:#736b81;--border:#e7e3f0;--bg:#fff;--surface:#fff;--surface-2:#f7f5fb;--surface-3:#efecf6;--soft:#f0ebff;--soft-2:#e2d9fb;--text-2:#594665;--text-3:#796a85;--text-4:#726a7d;color:#17141f;background:#fff}
+
+/* Search boxes show focus on their own border rather than a ring around the text; the text keeps its normal selection colour. */
+.folder-search input:focus,.global-search input:focus,.folder-search input:focus-visible,.global-search input:focus-visible{outline:none;box-shadow:none}
+.folder-search:focus-within,.global-search:focus-within{border-color:var(--accent)}

@@ -80,11 +80,18 @@ export default function Layout() {
     try { if (!isDemo) { await flushSoon(); await api('/auth/logout', { method: 'POST' }); } setUser(null); setMobile(false); navigate('/'); }
     catch (e) { reportError(e); }
   }
-  async function onSearch(value) {
-    setQuery(value);
-    if (value.trim().length < 2) { setPeople([]); return; }
-    try { const d = await api(`/users?q=${encodeURIComponent(value.trim())}`); setPeople(d.users || []); } catch { setPeople([]); }
-  }
+  // Search as the person types: a short pause after the last key looks up people and shows the matching
+  // folders, so Enter is no longer needed. The pause keeps a fast typist to one request, not one per key.
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) { setPeople([]); return undefined; }
+    let stale = false;
+    const timer = setTimeout(async () => {
+      try { const d = await api(`/users?q=${encodeURIComponent(term)}`); if (!stale) setPeople(d.users || []); } catch { if (!stale) setPeople([]); }
+      if (!stale) navigate(`/?q=${encodeURIComponent(term)}`, { replace: true });
+    }, 450);
+    return () => { stale = true; clearTimeout(timer); };
+  }, [query, navigate]);
   // On a phone the button opens the drawer; on a wider screen it hides or shows the sidebar.
   const toggleNav = () => (window.matchMedia('(max-width: 760px)').matches ? setMobile(true) : setCollapsed(v => !v));
   return <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
@@ -110,7 +117,7 @@ export default function Layout() {
       <div className="account"><Link className="account-id" to={`/u/${user?.username || ''}`} onClick={() => setMobile(false)}><Avatar user={user} small/><span><strong>{user?.name || 'Guest'}</strong><span>@{user?.username || 'guest'}</span></span></Link><button className="account-out" onClick={signOut} title={isDemo ? 'Leave preview' : 'Sign out'}><LogOut size={15}/><span>{isDemo ? 'Leave' : 'Sign out'}</span></button></div>
     </aside>
     <div className="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the sidebar" aria-valuenow={sidebar.width || SIDEBAR.default} aria-valuemin={SIDEBAR.min} aria-valuemax={SIDEBAR.max} tabIndex={0} onPointerDown={sidebar.drag} onKeyDown={sidebar.nudge} onDoubleClick={sidebar.reset}/>
-    <div className="workspace"><NoticeBanner/><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-toggle" aria-label={collapsed ? 'Show sidebar' : 'Open navigation'} aria-expanded={!collapsed} title={collapsed ? 'Show sidebar' : 'Hide sidebar'} onClick={toggleNav}><MenuIcon size={20}/></button><strong>Library</strong></div><form className="global-search" onSubmit={e => { e.preventDefault(); if (people[0]) navigate(`/u/${people[0].username}`); else navigate(`/?q=${encodeURIComponent(query)}`); }}><Search size={16}/><input aria-label="Search folders and people" placeholder="Folders or people…" value={query} onChange={e => onSearch(e.target.value)}/>{people.length > 0 && <div className="search-people">{people.map(p => <Link key={p.id} to={`/u/${p.username}`} onClick={() => { setQuery(''); setPeople([]); }}><Avatar user={p} small/><span>{p.name} <small>@{p.username}</small></span></Link>)}</div>}</form><NotificationBell/><ThemeToggle/><Link to={`/u/${user?.username || ''}`} aria-label="Your profile"><Avatar user={user} small/></Link></header>
+    <div className="workspace"><NoticeBanner/><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-toggle" aria-label={collapsed ? 'Show sidebar' : 'Open navigation'} aria-expanded={!collapsed} title={collapsed ? 'Show sidebar' : 'Hide sidebar'} onClick={toggleNav}><MenuIcon size={20}/></button><strong>Library</strong></div><form className="global-search" onSubmit={e => { e.preventDefault(); if (people[0]) navigate(`/u/${people[0].username}`); else navigate(`/?q=${encodeURIComponent(query)}`); }}><Search size={16}/><input aria-label="Search folders and people" placeholder="Folders or people…" value={query} onChange={e => setQuery(e.target.value)}/>{people.length > 0 && <div className="search-people">{people.map(p => <Link key={p.id} to={`/u/${p.username}`} onClick={() => { setQuery(''); setPeople([]); }}><Avatar user={p} small/><span>{p.name} <small>@{p.username}</small></span></Link>)}</div>}</form><NotificationBell/><ThemeToggle/><Link to={`/u/${user?.username || ''}`} aria-label="Your profile"><Avatar user={user} small/></Link></header>
       {isDemo && <div className="demo-banner"><span className="demo-pill">INTERACTIVE PREVIEW</span><span>Try the sample workspace. Changes reset on refresh; accounts and live sharing require the backend.</span></div>}
       <main className="main-content"><Outlet/></main><SiteFooter/>
     </div>

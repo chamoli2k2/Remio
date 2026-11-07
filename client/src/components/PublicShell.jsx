@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, LogIn, Search } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
@@ -15,6 +15,13 @@ import { BRAND } from '../../../shared/brand.js';
  */
 export default function PublicShell({ children, wide }) {
   const navigate = useNavigate(); const [params] = useSearchParams(); const [query, setQuery] = useState(params.get('q') || '');
+  // Searches a moment after typing stops; Enter still goes at once.
+  useEffect(() => {
+    const term = query.trim();
+    if (!term || term === (params.get('q') || '')) return undefined;
+    const timer = setTimeout(() => navigate(`/?q=${encodeURIComponent(term)}#library`, { replace: true }), 450);
+    return () => clearTimeout(timer);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
   return <div className={`public-page ${wide ? 'public-page-wide' : ''}`}>
     <NoticeBanner/>
     <header className="public-header"><Link className="brand" to="/"><img src="/favicon.svg" alt={`${BRAND.name} logo`} width="31" height="31"/><span className="brand-word">{BRAND.name}<span className="brand-period">.</span></span></Link>
