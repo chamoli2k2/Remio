@@ -1093,7 +1093,7 @@ integration('staff can see every connection and cut one off, and the cut is reco
   const staff = request.agent(app);
   const signup = await staff.post('/api/auth/signup').send({ username: 'agentstaff', name: 'Staff', email: 'agentstaff@example.test', password, country: 'India', acceptedTerms: true });
   assert.equal(signup.status, 201, JSON.stringify(signup.body));
-  await User.updateOne({ username: 'agentstaff' }, { $set: { account: 'admin', emailVerifiedAt: new Date() } });
+  await User.updateOne({ username: 'agentstaff' }, { $set: { account: 'superadmin', emailVerifiedAt: new Date() } });
 
   await owner.delete('/api/agent/grants');
   const made = await owner.post('/api/agent/grants').send({ name: 'Watched', scopes: ['collections:read'] });

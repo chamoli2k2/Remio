@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canAssign, hasPremium, hasDashboard, planById, premiumDaysLeft, premiumExpiryAfter, PREMIUM_PLANS } from '../../shared/account.js';
+import { mayActOn, canAssign, hasPremium, hasDashboard, planById, premiumDaysLeft, premiumExpiryAfter, PREMIUM_PLANS } from '../../shared/account.js';
 import { premiumOrderSchema } from '../src/middleware/validate.js';
 import { COUNTRIES, composePhone, dialFor } from '../../shared/countries.js';
 
@@ -79,4 +79,18 @@ test('buying a plan extends an unexpired subscription instead of truncating it',
   // Every plan on sale runs out; only a legacy grant with no day count has no end date.
   for (const plan of PREMIUM_PLANS) assert.ok(plan.days > 0, `${plan.id} should have a term`);
   assert.equal(premiumExpiryAfter({}, { id: 'legacy', days: null }, now), null);
+});
+
+test('rank decides who staff may act on: superadmin > admin > premium > normal', () => {
+  const [normal, premium, admin, other, superadmin] = ['normal', 'premium', 'admin', 'admin', 'superadmin'].map((account, i) => ({ id: String(i), account }));
+  assert.equal(mayActOn(admin, normal), true);
+  assert.equal(mayActOn(admin, premium), true);
+  assert.equal(mayActOn(admin, other), false, 'an admin cannot act on a peer');
+  assert.equal(mayActOn(admin, superadmin), false);
+  assert.equal(mayActOn(premium, normal), false, 'only staff act on accounts at all');
+  assert.equal(canAssign(admin, premium, 'admin'), false);
+  assert.equal(canAssign(admin, normal, 'superadmin'), false);
+  assert.equal(canAssign(admin, other, 'normal'), false);
+  assert.equal(canAssign(admin, superadmin, 'premium'), false);
+  assert.equal(mayActOn(superadmin, admin), true);
 });

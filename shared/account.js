@@ -40,6 +40,20 @@ export function premiumExpiryAfter(user, plan, now = Date.now()) {
   return new Date(Math.max(now, current) + plan.days * DAY);
 }
 
+/** superadmin > admin > premium > normal. Anything unrecognised ranks as a normal account. */
+export const RANK = { normal: 0, premium: 1, admin: 2, superadmin: 3 };
+export const rankOf = user => RANK[user?.account || 'normal'] ?? 0;
+/**
+ * Whether `actor`, as staff, may act on `target`'s account at all (change a role, settle a payment,
+ * cut off a connection). Only somebody of strictly higher rank may; a superadmin is the exception
+ * for their peers, because somebody has to be able to demote one, but never for themselves here.
+ */
+export function mayActOn(actor, target) {
+  if (!actor || !target) return false;
+  if (isSuperadmin(actor)) return true;
+  return hasDashboard(actor) && rankOf(actor) > rankOf(target);
+}
+
 /** Admin may set normal/premium. Superadmin may set any role. Nobody may change their own role here. */
 export function canAssign(actor, target, next) {
   if (!ACCOUNTS.includes(next)) return false;
@@ -47,8 +61,8 @@ export function canAssign(actor, target, next) {
   if (String(actor.id || actor._id) === String(target.id || target._id)) return false;
   if (isSuperadmin(actor)) return true;
   if (actor.account !== 'admin') return false;
-  if (['admin', 'superadmin'].includes(target.account || 'normal')) return false;
-  return next === 'normal' || next === 'premium';
+  // Only below an admin's own rank, in both directions: who they touch and what they hand out.
+  return mayActOn(actor, target) && RANK[next] < RANK.admin;
 }
 
 export const PREMIUM_FEATURES = [

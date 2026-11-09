@@ -7,7 +7,7 @@ import { messageFor, reportError } from '../services/errors';
 import { useApp, useQuery } from '../hooks/useApp';
 import { Button, Loading, ErrorState, Empty, Modal, Field } from '../components/ui';
 import Select, { optionsOf } from '../components/Select';
-import { ACCOUNTS, isSuperadmin, planById } from '../../../shared/account.js';
+import { ACCOUNTS, isSuperadmin, mayActOn, canAssign, planById } from '../../../shared/account.js';
 // Split out because between them they are most of this page's weight and neither is on the tab
 // that opens first. An admin who only ever approves payments never downloads either.
 const DashboardAnalytics = lazy(() => import('./DashboardAnalytics'));
@@ -94,7 +94,8 @@ const SECTIONS = [
     { id: 'history', label: 'Change history', Icon: History },
   ] },
 ];
-const SECTION_IDS = SECTIONS.flatMap(s => s.items.map(i => i.id));
+// An admin's dashboard is the People group; the rest is for a superadmin, and the server agrees.
+const sectionsFor = user => (isSuperadmin(user) ? SECTIONS : SECTIONS.filter(s => s.label === 'People'));
 
 function DeleteUserModal({ person, onClose, onDone }) {
   const [confirm, setConfirm] = useState(''), [note, setNote] = useState('');
@@ -138,7 +139,8 @@ export default function DashboardPage() {
   // In the address rather than in state, so a reload, the back button, or a link sent to another
   // admin lands on the same section instead of always on Users.
   const [params, setParams] = useSearchParams();
-  const tab = SECTION_IDS.includes(params.get('tab')) ? params.get('tab') : 'users';
+  const sections = sectionsFor(user);
+  const tab = sections.flatMap(s => s.items).some(i => i.id === params.get('tab')) ? params.get('tab') : 'users';
   const [settingsGroup, setSettingsGroup] = useState(params.get('group') || '');
   const setTab = (id, extra = {}) => {
     setParams({ tab: id, ...extra }, { replace: true });
@@ -149,7 +151,7 @@ export default function DashboardPage() {
   const { data, loading, error, refetch } = useQuery(`/admin/users${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`);
   const { data: orders, loading: lo, error: eo } = useQuery('/admin/orders');
   const [days, setDays] = useState(30);
-  const { data: usage, loading: lu, error: eu } = useQuery(`/admin/countries?days=${days}`, null, { enabled: tab === 'countries' });
+  const { data: usage, loading: lu, error: eu } = useQuery(`/admin/countries?days=${days}`, null, { enabled: tab === 'countries' && isSuperadmin(user) });
   // Loaded whatever tab is open, because the count belongs on the tab itself: a report sitting
   // unseen is the failure mode this whole queue exists to prevent.
   const { data: reports, loading: lr, error: er, refetch: refetchReports } = useQuery('/admin/reports?status=open');
@@ -167,12 +169,12 @@ export default function DashboardPage() {
   const people = data?.users || [];
   const pending = (orders?.orders || []).filter(o => o.status === 'pending');
   const badges = { users: people.length, orders: pending.length, reports: reports?.open, countries: usage?.totals.countries };
-  const section = SECTIONS.flatMap(s => s.items).find(i => i.id === tab);
+  const section = sections.flatMap(s => s.items).find(i => i.id === tab);
   return <>
-    <div className="page-heading"><div><span className="eyebrow">STAFF</span><h1>Dashboard</h1><p>Manage accounts, payments, assistants and settings. {isSuperadmin(user) ? 'Superadmin can assign any role.' : 'Admins can set Normal or Premium.'}</p></div></div>
+    <div className="page-heading"><div><span className="eyebrow">STAFF</span><h1>Dashboard</h1><p>{isSuperadmin(user) ? 'Manage accounts, payments, assistants and settings. A superadmin can assign any role.' : 'Manage people, Premium requests and reports. Admins can set Normal or Premium for accounts below them.'}</p></div></div>
     <div className="dash-layout">
     <nav className="dash-nav" aria-label="Dashboard sections">
-      {SECTIONS.map(s => <div key={s.label} className="dash-nav-group">
+      {sections.map(s => <div key={s.label} className="dash-nav-group">
         <span className="dash-nav-label">{s.label}</span>
         {s.items.map(({ id, label, Icon }) => <button key={id} type="button" className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>
           <Icon size={16}/><span>{label}</span>{badges[id] ? <b className={id === 'orders' || id === 'reports' ? 'is-alert' : ''}>{badges[id]}</b> : null}
@@ -187,7 +189,7 @@ export default function DashboardPage() {
       : <Reports rows={reports.reports} onDone={refetchReports}/>)}
     {tab === 'users' && <>
       <form className="folder-search dash-search" onSubmit={e => e.preventDefault()}><input aria-label="Search users" placeholder="Search name, username, email" value={q} onChange={e => setQ(e.target.value)}/></form>
-      {loading ? <Loading/> : error ? <ErrorState message={error}/> : !people.length ? <Empty title="No users" text="Try another search."/> : <div className="dash-table-wrap"><table className="dash-table"><thead><tr><th>Person</th><th>Email</th><th>Subscription</th><th>Role</th>{isSuperadmin(user) && <th aria-label="Delete"/>}</tr></thead><tbody>{people.map(p => <tr key={p.id}><td><strong>{p.name}</strong><span>@{p.username}</span></td><td>{p.email || 'Not given'}</td><td><Subscription person={p}/></td><td>{p.id === user.id ? <span className="dash-self">{p.account} · you</span> : <Select compact label={`Role for ${p.username}`} value={p.account || 'normal'} onChange={v => setAccount(p.id, v)} options={optionsOf(ACCOUNTS)}/>}</td>{isSuperadmin(user) && <td>{p.id !== user.id && !isSuperadmin(p) && <button type="button" className="icon-button dash-delete" aria-label={`Delete ${p.username}`} title={`Delete ${p.username}`} onClick={() => setDeleting(p)}><Trash2 size={15}/></button>}</td>}</tr>)}</tbody></table></div>}
+      {loading ? <Loading/> : error ? <ErrorState message={error}/> : !people.length ? <Empty title="No users" text="Try another search."/> : <div className="dash-table-wrap"><table className="dash-table"><thead><tr><th>Person</th><th>Email</th><th>Subscription</th><th>Role</th>{isSuperadmin(user) && <th aria-label="Delete"/>}</tr></thead><tbody>{people.map(p => <tr key={p.id}><td><strong>{p.name}</strong><span>@{p.username}</span></td><td>{p.email || 'Not given'}</td><td><Subscription person={p}/></td><td>{p.id === user.id ? <span className="dash-self">{p.account} · you</span> : !mayActOn(user, p) ? <span className="dash-self">{p.account || 'normal'}</span> : <Select compact label={`Role for ${p.username}`} value={p.account || 'normal'} onChange={v => setAccount(p.id, v)} options={optionsOf(ACCOUNTS.filter(a => a === (p.account || 'normal') || canAssign(user, p, a)))}/>}</td>{isSuperadmin(user) && <td>{p.id !== user.id && !isSuperadmin(p) && <button type="button" className="icon-button dash-delete" aria-label={`Delete ${p.username}`} title={`Delete ${p.username}`} onClick={() => setDeleting(p)}><Trash2 size={15}/></button>}</td>}</tr>)}</tbody></table></div>}
     </>}
     {tab === 'orders' && (lo ? <Loading/> : eo ? <ErrorState message={eo}/> : !(orders?.orders || []).length ? <Empty title="No Premium orders" text="Every purchase through the gateway appears here."/> : <ul className="order-grid">{orders.orders.map(o => <li key={o.id}>
       <button type="button" className="order-card" onClick={() => setOpen(o)}>
@@ -251,7 +253,8 @@ export default function DashboardPage() {
           <div><dt>Submitted</dt><dd>{when(open.createdAt)}</dd></div>
         </dl>
       </div>}
-      {open?.status === 'pending' ? <div className="modal-actions"><Button className="secondary" onClick={() => decide(open.id, 'declined')}>Decline</Button><Button className="primary" onClick={() => decide(open.id, 'approved')}>Approve Premium</Button></div>
+      {open?.status === 'pending' && open.user && open.user.id !== user.id && !mayActOn(user, open.user) ? <div className="modal-actions"><span className="dash-muted">Only a higher role can settle this account's payment.</span><Button className="secondary" onClick={() => setOpen(null)}>Close</Button></div>
+        : open?.status === 'pending' ? <div className="modal-actions"><Button className="secondary" onClick={() => decide(open.id, 'declined')}>Decline</Button><Button className="primary" onClick={() => decide(open.id, 'approved')}>Approve Premium</Button></div>
         : open && <div className="modal-actions"><Button className="secondary" onClick={() => setOpen(null)}>Close</Button></div>}
     </Modal>
   </>;

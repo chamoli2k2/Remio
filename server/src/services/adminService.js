@@ -1,5 +1,6 @@
+import mongoose from 'mongoose';
 import { User, PremiumOrder, Review } from '../models/index.js';
-import { canAssign, ACCOUNTS, planById, premiumDaysLeft, hasPremium } from '../../../shared/account.js';
+import { canAssign, mayActOn, ACCOUNTS, planById, premiumDaysLeft, hasPremium } from '../../../shared/account.js';
 import { fulfilOrder } from './premiumService.js';
 import { countryByName, HOME_COUNTRY } from '../../../shared/countries.js';
 import { livePricebook } from './settingsService.js';
@@ -97,10 +98,19 @@ export async function setAccount(actor, userId, account) {
     assert(left >= 1, 400, 'Keep at least one Superadmin.');
   }
   // A role granted by hand carries no end date; moving someone off Premium clears the subscription.
-  target.account = account;
-  if (account !== 'premium') { target.premiumPlan = ''; target.premiumExpiresAt = null; }
-  await target.save();
-  return publicAdmin(target);
+  // The write only lands if the role is still the one that was just checked, so a change made by
+  // somebody else a moment ago cannot slip a higher-ranked person past the check above.
+  const was = target.account || 'normal';
+  const changes = { account, ...(account !== 'premium' ? { premiumPlan: '', premiumExpiresAt: null } : {}) };
+  const roleNow = was === 'normal' ? { $in: ['normal', null] } : was;
+  const saved = await User.findOneAndUpdate({ _id: target._id, account: roleNow }, { $set: changes }, { new: true }).select('+email');
+  assert(saved, 409, 'That account was just changed by someone else. Reload and try again.');
+  if (was === 'superadmin' && account !== 'superadmin' && !(await User.exists({ account: 'superadmin' }))) {
+    // Two superadmins demoting each other at once would otherwise leave nobody in charge.
+    await User.updateOne({ _id: target._id }, { $set: { account: 'superadmin' } });
+    assert(false, 400, 'Keep at least one Superadmin.');
+  }
+  return publicAdmin(saved);
 }
 
 export async function listOrders(status) {
@@ -112,6 +122,9 @@ export async function listOrders(status) {
 /** Approving by hand and a verified gateway payment converge on the same fulfilment. */
 export async function decideOrder(actor, orderId, status) {
   assert(['approved', 'declined'].includes(status), 400, 'Use approved or declined.');
+  // An admin settles payments for ordinary accounts; a staff member's own is for a superadmin to touch.
+  const pending = mongoose.isValidObjectId(orderId) ? await PremiumOrder.findById(orderId).populate('user', 'account') : null;
+  if (pending?.user) assert(String(pending.user.id) === String(actor.id) || mayActOn(actor, pending.user), 403, 'You cannot act on that account.');
   const { order, alreadySettled } = await fulfilOrder(orderId, status, { actor });
   assert(!alreadySettled, 404, 'No pending order.');
   return order;

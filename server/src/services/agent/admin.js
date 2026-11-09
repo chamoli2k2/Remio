@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { AgentToken, AgentBatch, User } from '../../models/index.js';
 import { setting, record } from '../settingsService.js';
 import { assert } from '../../utils/errors.js';
+import { mayActOn } from '../../../../shared/account.js';
 import { presentGrant } from './tokens.js';
 
 /**
@@ -93,6 +94,9 @@ export async function overview({ page = 1, pageSize = 15, q = '' } = {}) {
  */
 export async function revoke(actor, id, note = '') {
   assert(mongoose.isValidObjectId(id), 404, 'That connection was not found.');
+  // Cutting off somebody's connection is acting on their account, so rank applies here too.
+  const owner = await AgentToken.findById(id).populate('user', 'account');
+  if (owner?.user) assert(String(owner.user.id) === String(actor.id) || mayActOn(actor, owner.user), 403, 'You cannot act on that account.');
   const grant = await AgentToken.findOneAndUpdate(
     { _id: id, revokedAt: null },
     { $set: { revokedAt: new Date() }, $unset: { accessHash: '', refreshHash: '' } },

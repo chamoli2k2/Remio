@@ -65,9 +65,10 @@ integration('nothing secret is served with the public config', async () => {
   }
 });
 
-integration('an admin can read the settings but only a superadmin can change one', async () => {
+integration('only a superadmin can read or change the settings', async () => {
   assert.equal((await punter.get('/api/admin/settings')).status, 403);
-  assert.equal((await admin.get('/api/admin/settings')).status, 200, 'reading is dashboard work');
+  assert.equal((await admin.get('/api/admin/settings')).status, 403, 'an admin sees people, orders and reports, not configuration');
+  assert.equal((await boss.get('/api/admin/settings')).status, 200);
 
   const refused = await admin.patch('/api/admin/settings').send({ values: { 'price.IN.yearly': 1 } });
   assert.equal(refused.status, 403);
@@ -139,7 +140,7 @@ integration('a country with no prices cannot be put on sale at all', async () =>
 integration('every change is recorded with who made it and what it was before', async () => {
   await boss.patch('/api/admin/settings').send({ values: { 'limits.imageMb': 8 }, note: 'people kept hitting it' });
 
-  const { body } = await admin.get('/api/admin/audit');
+  const { body } = await boss.get('/api/admin/audit');
   const entry = body.entries.find(e => e.action === 'settings.update');
   assert.ok(entry, 'the change is in the trail');
   assert.equal(entry.actor, 'theboss');
@@ -152,21 +153,21 @@ integration('the history comes in pages, newest first, and can be narrowed by ki
   for (const mb of [6, 7, 8, 9, 10, 11]) await boss.patch('/api/admin/settings').send({ values: { 'limits.imageMb': mb }, note: `step ${mb}` });
   await boss.patch('/api/admin/settings').send({ values: { 'agent.enabled': false }, note: 'quiet weekend' });
 
-  const first = (await admin.get('/api/admin/audit?page=1&pageSize=5')).body;
+  const first = (await boss.get('/api/admin/audit?page=1&pageSize=5')).body;
   assert.equal(first.total, 7);
   assert.equal(first.pages, 2);
   assert.equal(first.entries.length, 5);
   assert.equal(first.entries[0].note, 'quiet weekend', 'newest first');
-  const second = (await admin.get('/api/admin/audit?page=2&pageSize=5')).body;
+  const second = (await boss.get('/api/admin/audit?page=2&pageSize=5')).body;
   assert.equal(second.entries.length, 2);
   assert.equal(second.entries.at(-1).note, 'step 6');
 
-  const found = (await admin.get('/api/admin/audit?q=weekend')).body;
+  const found = (await boss.get('/api/admin/audit?q=weekend')).body;
   assert.equal(found.total, 1);
   // Typed into a search box, so it must be taken literally rather than as a pattern.
-  assert.equal((await admin.get(`/api/admin/audit?q=${encodeURIComponent('.*')}`)).body.total, 0);
-  assert.equal((await admin.get('/api/admin/audit?kind=account')).body.total, 0);
-  assert.equal((await admin.get('/api/admin/audit?page=99')).status, 200, 'a page past the end is not an error');
+  assert.equal((await boss.get(`/api/admin/audit?q=${encodeURIComponent('.*')}`)).body.total, 0);
+  assert.equal((await boss.get('/api/admin/audit?kind=account')).body.total, 0);
+  assert.equal((await boss.get('/api/admin/audit?page=99')).status, 200, 'a page past the end is not an error');
 });
 
 integration('saving a form nobody touched records nothing', async () => {
@@ -175,7 +176,7 @@ integration('saving a form nobody touched records nothing', async () => {
   const result = await boss.patch('/api/admin/settings').send({ values: { 'limits.imageMb': 5 } });
   assert.equal(result.status, 200);
   assert.deepEqual(result.body.changed, []);
-  assert.equal((await admin.get('/api/admin/audit')).body.entries.filter(e => e.action === 'settings.update').length, 0);
+  assert.equal((await boss.get('/api/admin/audit')).body.entries.filter(e => e.action === 'settings.update').length, 0);
 });
 
 integration('resetting an override puts the shipped value back', async () => {
@@ -191,7 +192,7 @@ integration('resetting an override puts the shipped value back', async () => {
 
 integration('the analytics are staff-only and answer with every panel', async () => {
   assert.equal((await punter.get('/api/admin/analytics')).status, 403);
-  const { status, body } = await admin.get('/api/admin/analytics?days=30&weeks=8');
+  const { status, body } = await boss.get('/api/admin/analytics?days=30&weeks=8');
   assert.equal(status, 200);
   for (const panel of ['growth', 'revenue', 'engagement', 'retention', 'health']) assert.ok(body[panel], `${panel} is missing`);
   assert.equal(body.growth.series.length, 30, 'a continuous day series, including the days nothing happened');
@@ -217,16 +218,16 @@ integration('a cohort is never reported as churned for a week that has not happe
   // The number the whole retention table hangs on. This week's cohort has had one week, so every
   // column after the first is unmeasurable, and the dashboard blanks those rather than drawing a
   // zero that reads as everybody leaving.
-  const { body } = await admin.get('/api/admin/analytics?weeks=4');
+  const { body } = await boss.get('/api/admin/analytics?weeks=4');
   const newest = body.retention.rows.at(-1);
   assert.equal(newest.measured, 1, 'the newest cohort has had exactly one week');
   assert.ok(body.retention.rows[0].measured >= 4, 'and the oldest in a four-week window is fully measured');
 });
 
 integration('a hand-typed window cannot ask for an aggregation over all of history', async () => {
-  assert.equal((await admin.get('/api/admin/analytics?days=9999&weeks=9999')).body.growth.days, 365);
-  assert.equal((await admin.get('/api/admin/analytics?days=nonsense')).body.growth.days, 30);
-  assert.equal((await admin.get('/api/admin/analytics?days=-5')).body.growth.days, 1, 'a negative window lands on the floor rather than the default');
+  assert.equal((await boss.get('/api/admin/analytics?days=9999&weeks=9999')).body.growth.days, 365);
+  assert.equal((await boss.get('/api/admin/analytics?days=nonsense')).body.growth.days, 30);
+  assert.equal((await boss.get('/api/admin/analytics?days=-5')).body.growth.days, 1, 'a negative window lands on the floor rather than the default');
 });
 
 integration('the banner is set from the dashboard and reaches every visitor', async () => {
