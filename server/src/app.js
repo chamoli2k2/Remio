@@ -20,6 +20,8 @@ import { throttle } from './middleware/throttle.js';
 import { configureProxy } from './utils/proxy.js';
 import { setting } from './services/settingsService.js';
 import { themeScriptHash } from '../../shared/themeScript.js';
+import { earlyScriptHash } from '../../shared/earlyScript.js';
+import compression from 'compression';
 import { jsonLdHash, site } from '../../shared/seo.js';
 import { isConfigured as googleConfigured } from './services/auth/googleToken.js';
 import { isConfigured as storageConfigured } from './services/storage.js';
@@ -62,6 +64,9 @@ export function createApp() {
   // The theme script is inlined into the HTML to save a blocking round trip, so the policy names
   // its hash rather than opening up inline scripts generally. HSTS is a year with subdomains, which
   // is what lets the domain be preloaded; harmless locally because browsers ignore it off HTTPS.
+  // Text answers (HTML, JSON, JS, CSS) go out compressed. Caddy does this too where it fronts the app,
+  // but a host that reaches Node directly, such as Render, does not.
+  app.use(compression());
   app.use(helmet({
     /**
      * Popups keep their handle on the page that opened them.
@@ -76,7 +81,7 @@ export function createApp() {
      */
     crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...media, ...(adNetwork.length ? ['https:'] : []), ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, jsonLdHash, ...gateway, ...googleAuth, ...adNetwork], "style-src": ["'self'", "'unsafe-inline'", ...googleAuth], "frame-src": ["'self'", ...gateway, ...googleAuth, ...adNetwork], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway, ...googleAuth, ...adNetwork] } },
+    contentSecurityPolicy: { directives: { "img-src": ["'self'", 'blob:', 'data:', ...media, ...(adNetwork.length ? ['https:'] : []), ...(gateway.length ? ['https:'] : [])], "script-src": ["'self'", themeScriptHash, earlyScriptHash, jsonLdHash, ...gateway, ...googleAuth, ...adNetwork], "style-src": ["'self'", "'unsafe-inline'", ...googleAuth], "frame-src": ["'self'", ...gateway, ...googleAuth, ...adNetwork], "connect-src": ["'self'", 'ws:', 'wss:', ...origins, ...gateway, ...googleAuth, ...adNetwork] } },
   }));
   /**
    * The assistant endpoints, ahead of both the cross-origin policy and the JSON parser.

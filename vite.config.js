@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react';
 import { BRAND } from './shared/brand.js';
 import { DEFAULT_REGIONS } from './shared/pricing.js';
 import { themeScript } from './shared/themeScript.js';
+import { earlyScript } from './shared/earlyScript.js';
 import { jsonLd, socialTags } from './shared/seo.js';
 
 /** index.html cannot import modules, so the %BRAND_*% placeholders in it are filled from the same
@@ -17,6 +18,7 @@ const brandHtml = () => ({
     .replace(/%BRAND_SHORT_NAME%/g, BRAND.name)
     .replace(/%BRAND_DESCRIPTION%/g, BRAND.description)
     .replace(/%THEME_SCRIPT%/g, `<script>${themeScript}</script>`)
+    .replace(/%EARLY_SCRIPT%/g, `<script>${earlyScript}</script>`)
     .replace(/%SOCIAL_TAGS%/g, socialTags)
     // In the head of the one HTML file the server sends, so it is there for anything that reads
     // the page without running its JavaScript — which is most crawlers and most agents.

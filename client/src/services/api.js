@@ -60,11 +60,21 @@ export async function api(path, options = {}) {
     return request(path, options);
   }
 }
+/**
+ * The response to a request the page already started from index.html, handed over once. Only a
+ * plain same-origin GET qualifies; anything else, or a second ask, makes its own request.
+ */
+function takeEarly(path, options) {
+  if (typeof window === 'undefined' || base || options.method || !window.__early?.[path]) return null;
+  const pending = window.__early[path]; delete window.__early[path];
+  return pending;
+}
 async function request(path, options) {
   const isForm = options.body instanceof FormData;
   let response;
   try {
-    response = await fetch(`${base}/api${path}`, { ...options, credentials: 'include', headers: { ...(isForm ? {} : { 'Content-Type': 'application/json' }), ...options.headers }, body: options.body && !isForm ? JSON.stringify(options.body) : options.body });
+    const early = takeEarly(path, options);
+    response = (early && await early) || await fetch(`${base}/api${path}`, { ...options, credentials: 'include', headers: { ...(isForm ? {} : { 'Content-Type': 'application/json' }), ...options.headers }, body: options.body && !isForm ? JSON.stringify(options.body) : options.body });
   } catch (cause) {
     // fetch only rejects when the request never completed: offline, DNS, CORS, or a dead server.
     throw new ApiError(`${BRAND.name} could not reach the server. Check your connection and try again.`, { code: 'NETWORK', details: { cause: cause?.message } });
