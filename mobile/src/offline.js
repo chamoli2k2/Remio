@@ -139,6 +139,13 @@ function overlay(path, data) {
  * remembered answer is used (`stale: true`); only a path never seen before fails.
  */
 export async function cachedApi(path) {
+  // A page still waiting to be created exists only on the phone; the server would answer "not found".
+  const local = path.match(/^\/notes\/([^/?]+)$/);
+  if (local && isLocal(local[1])) {
+    const data = overlay(path, null);
+    if (data) return data;
+    throw Object.assign(new Error('This page has already been sent. Go back and open it from the notebook.'), { code: 'NOT_FOUND' });
+  }
   if (!CACHEABLE.some(re => re.test(path))) return api(path);
   try {
     const data = await api(path);

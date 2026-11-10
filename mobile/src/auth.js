@@ -31,7 +31,9 @@ export function AuthProvider({ children }) {
       } catch (e) {
         // Offline at launch keeps the person signed in with what they last saw; only a refusal signs out.
         if (!live) return;
-        if (e.code === 'NETWORK' && hasSession()) {
+        // Anything short of a refusal (no signal, a deploy, a rate limit, a wifi login page) is not one.
+        const refused = e.status === 401 || e.status === 403 || e.code === 'UNAUTHENTICATED';
+        if (!refused && hasSession()) {
           // No signal at launch: carry on as the person who was signed in, with what is saved on the phone.
           const me = await recall();
           if (me && live) { bindUser(me.id); bindOffline(me.id); }

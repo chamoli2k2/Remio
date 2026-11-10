@@ -58,7 +58,7 @@ export default function QuickAdd() {
           <Txt variant="label">ADD TO</Txt>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled">
             {folders.map(f => { const on = chosen?.id === f.id;
-              return <Pressable key={f.id} onPress={() => setFolderId(f.id)} accessibilityRole="button" accessibilityState={{ selected: on }}
+              return <Pressable key={f.id} onPress={() => { if (f.id !== chosen?.id) setImage(null); setFolderId(f.id); }} accessibilityRole="button" accessibilityState={{ selected: on }}
                 style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: on ? c.accent : c.surface, borderWidth: 1, borderColor: on ? c.accent : c.border }}>
                 <Text style={{ fontFamily: FONT.medium, fontSize: 14, color: on ? '#fff' : c.text2 }} numberOfLines={1}>{f.title}</Text>
               </Pressable>; })}

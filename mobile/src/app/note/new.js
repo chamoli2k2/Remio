@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { Alert } from '../../alert';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createNote } from '../../offline';
 import { attachImage, isPending, pickImage } from '../../upload';
@@ -18,7 +18,8 @@ const MAX_PHOTOS = 6;
  */
 export default function NewNote() {
   const { notebook } = useLocalSearchParams();
-  const router = useRouter();
+  const router = useRouter(), navigation = useNavigation();
+  const done = useRef(false);
   const insets = useSafeAreaInsets();
   const { c } = useTheme();
   const [title, setTitle] = useState(''), [text, setText] = useState(''), [photos, setPhotos] = useState([]);
@@ -42,11 +43,17 @@ export default function NewNote() {
     if (saving) return;
     if (!title.trim() && !text.trim() && !photos.length) return setError('Write something or add a picture first.');
     setSaving(true); setError('');
-    try { await createNote({ notebookId: notebook, title, text, photos }); router.back(); }
+    try { await createNote({ notebookId: notebook, title, text, photos }); done.current = true; if (router.canGoBack()) router.back(); else router.replace('/notes'); }
     catch (e) { setError(e.message); setSaving(false); }
   }
 
-  const close = () => (!dirty ? router.back() : Alert.alert('Discard this page?', 'What you wrote is not saved.', [{ text: 'Keep writing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: () => router.back() }]));
+  // Android back and the iOS swipe go through here as well as the close button.
+  useEffect(() => navigation.addListener('beforeRemove', e => {
+    if (!dirty || done.current) return;
+    e.preventDefault();
+    Alert.alert('Discard this page?', 'What you wrote is not saved.', [{ text: 'Keep writing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: () => navigation.dispatch(e.data.action) }]);
+  }), [navigation, dirty]);
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/notes'));
 
   return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: insets.top + 12, paddingBottom: 10 }}>

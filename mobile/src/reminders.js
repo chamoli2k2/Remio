@@ -107,7 +107,8 @@ export function sync({ name = lastName, force = false } = {}) {
   lastName = name || '';
   if (!force && Date.now() - lastRun < 20_000) return running || Promise.resolve();
   lastRun = Date.now();
-  running = (async () => {
+  // Runs one after another: two at once would both clear the schedule and then both fill it, doubling every reminder.
+  const job = async () => {
     const prefs = await loadPrefs();
     await Notifications.cancelAllScheduledNotificationsAsync();
     if (!prefs.enabled || (await permission()) !== 'granted') return;
@@ -119,8 +120,10 @@ export function sync({ name = lastName, force = false } = {}) {
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: item.when, channelId: CHANNEL },
       });
     }
-  })().catch(() => {}).finally(() => { running = null; });
-  return running;
+  };
+  const run = (running || Promise.resolve()).then(job).catch(() => {}).finally(() => { if (running === run) running = null; });
+  running = run;
+  return run;
 }
 
 /** Remove every reminder, for signing out. */

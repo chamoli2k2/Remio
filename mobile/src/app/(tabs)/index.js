@@ -54,7 +54,8 @@ export default function Library() {
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   }, [all, tab, query]);
   const cardWidth = (Math.min(width, 640) - 40 - 12) / 2;
-  const startStudy = () => { const f = all.find(x => x.cardCount > 0); router.push(f ? `/study/${f.id}?mode=due` : '/'); };
+  // With no cards anywhere this stays put: pushing '/' would stack a second library on top of this one.
+  const startStudy = () => { const f = all.find(x => x.cardCount > 0); if (f) router.push(`/study/${f.id}?mode=due`); else router.push('/quick-add'); };
 
   return <Screen onRefresh={() => Promise.all([stats.reload(), folders.reload()])}>
     <TopBar />

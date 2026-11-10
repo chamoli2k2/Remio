@@ -87,11 +87,13 @@ async function send(path, { method = 'GET', body, form, auth = true, timeout = 2
   try {
     response = await fetch(`${API_URL}/api${path}`, { method, headers, body: form ?? (body !== undefined ? JSON.stringify(body) : undefined), signal: controller.signal });
   } catch (cause) {
+    clearTimeout(timer);
     // fetch only rejects when the request never completed: offline, DNS, a dead server or the timeout.
     throw new ApiError(`${BRAND.name} could not reach the server. Check your connection and try again.`, { code: 'NETWORK', details: { cause: cause?.message } });
-  } finally { clearTimeout(timer); }
+  }
+  // The timeout covers the body too: a reply that stalls halfway would otherwise hold every queue behind it.
   let data = null;
-  try { data = await response.json(); } catch { /* not JSON */ }
+  try { data = await response.json(); } catch { /* not JSON, or cut off by the timeout */ } finally { clearTimeout(timer); }
   if (!data) throw new ApiError(`${BRAND.name} is unavailable right now. Please try again in a moment.`, { status: response.status, code: 'NOT_JSON' });
   if (!response.ok) throw new ApiError(data.error || 'Something went wrong.', { status: response.status, code: data.code || 'ERROR', details: data.details });
   return data;
@@ -107,8 +109,8 @@ export function renewSession() {
       await setTokens(data.tokens, data.auth);
       return true;
     } catch (e) {
-      // A dropped connection says nothing about the session; only a refusal ends it.
-      if (e.code === 'NETWORK' || e.status >= 500) return false;
+      // A dropped connection, a busy server or a wifi login page says nothing about the session; only a refusal ends it.
+      if (!(e.status === 400 || e.status === 401 || e.status === 403 || e.code === 'UNAUTHENTICATED')) return false;
       await clearTokens();
       signedOutHandler?.();
       return false;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { Alert } from '../../alert';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { findCard, removeCard, saveCard } from '../../offline';
 import { FONT, useTheme } from '../../theme';
@@ -16,7 +16,9 @@ const tagsOf = text => [...new Set(text.split(/[,\n]/).map(t => t.trim().toLower
 export default function CardEditor() {
   const { id, folder } = useLocalSearchParams();
   const isNew = id === 'new';
-  const router = useRouter();
+  const router = useRouter(), navigation = useNavigation();
+  // Set once a save or delete has finished, so leaving afterwards does not ask about unsaved edits.
+  const done = useRef(false);
   const insets = useSafeAreaInsets();
   const { c } = useTheme();
   const [state, setState] = useState({ loading: !isNew, error: '', card: null });
@@ -34,14 +36,22 @@ export default function CardEditor() {
       if (!live) return;
       if (!card) return setState({ loading: false, error: 'This card no longer exists.', card: null });
       setState({ loading: false, error: '', card });
-      setFront({ text: card.front.text || '', image: card.front.image || null, drawing: card.front.drawing || null });
-      setBack({ text: card.back.text || '', image: card.back.image || null, drawing: card.back.drawing || null });
+      setFront({ text: card.front?.text || '', image: card.front?.image || null, drawing: card.front?.drawing || null });
+      setBack({ text: card.back?.text || '', image: card.back?.image || null, drawing: card.back?.drawing || null });
       setHint(card.hint || ''); setTags((card.tags || []).join(', ')); setDirty(false); setConflict(false);
     }, e => live && setState({ loading: false, error: e.message, card: null }));
     return () => { live = false; };
   }, [id, folder, isNew, attempt]);
 
   const edit = setter => value => { setter(value); setDirty(true); };
+
+  // Android back and the iOS swipe go through here as well as the close button.
+  useEffect(() => navigation.addListener('beforeRemove', e => {
+    if (!dirty || done.current) return;
+    e.preventDefault();
+    Alert.alert('Discard your changes?', 'This card has edits that are not saved.', [{ text: 'Keep editing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: () => navigation.dispatch(e.data.action) }]);
+  }), [navigation, dirty]);
+  const leave = () => { done.current = true; if (router.canGoBack()) router.back(); else router.replace('/'); };
   const filled = side => !!(side.text.trim() || side.image || side.drawing);
   const hasCloze = /\{\{c\d+::/.test(front.text);
 
@@ -64,17 +74,17 @@ export default function CardEditor() {
     try {
       // Written to the phone first and sent when there is a connection; a refusal (too long, not allowed, changed elsewhere) comes back here.
       await saveCard({ folderId: folder, cardId: isNew ? null : id, body, version: state.card?.version });
-      setDirty(false); router.back();
+      setDirty(false); leave();
     } catch (e) {
       if (e.code === 'VERSION_CONFLICT') setConflict(true); else setError(e.message);
       setSaving(false);
     }
   }
 
-  const close = () => (!dirty ? router.back() : Alert.alert('Discard your changes?', 'This card has edits that are not saved.', [{ text: 'Keep editing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: () => router.back() }]));
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const remove = () => Alert.alert('Delete this card?', 'It is removed along with its study history. This cannot be undone.', [
     { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete', style: 'destructive', onPress: async () => { try { await removeCard({ folderId: folder, cardId: id }); router.back(); } catch (e) { setError(e.message); } } },
+    { text: 'Delete', style: 'destructive', onPress: async () => { try { await removeCard({ folderId: folder, cardId: id }); leave(); } catch (e) { setError(e.message); } } },
   ]);
 
   const section = (title, side, setSide, placeholder, isFront) => <Surface style={{ gap: 12 }}>
@@ -83,7 +93,7 @@ export default function CardEditor() {
       onSelectionChange={isFront ? e => { selection.current = e.nativeEvent.selection; } : undefined}
       style={{ minHeight: 110, paddingTop: 12, textAlignVertical: 'top' }} />
     {isFront ? <Button small variant="ghost" icon="eye-off" title="Hide selected word (cloze)" onPress={makeCloze} style={{ alignSelf: 'flex-start' }} /> : null}
-    <ImageField folderId={folder} value={side.image} onChange={v => edit(setSide)({ ...side, image: v })} />
+    <ImageField folderId={folder} value={side.image} onChange={v => { setSide(s => ({ ...s, image: v })); setDirty(true); }} />
     {side.drawing ? <Txt variant="small" style={{ fontStyle: 'italic' }}>This side also has a drawing. It is kept as it is; change it on remio.in.</Txt> : null}
   </Surface>;
 

@@ -17,7 +17,7 @@ export default function Notes() {
   useEffect(() => {
     if (term.length < 2) { setHits(null); setSearchError(''); return; }
     let live = true;
-    const t = setTimeout(() => api(`/notes/search?q=${encodeURIComponent(term)}`).then(r => live && (setHits(r.notes), setSearchError('')), e => live && setSearchError(e.message)), 350);
+    const t = setTimeout(() => api(`/notes/search?q=${encodeURIComponent(term)}`).then(r => live && (setHits(r.notes), setSearchError('')), e => live && (setHits(null), setSearchError(e.message))), 350);
     return () => { live = false; clearTimeout(t); };
   }, [term]);
 

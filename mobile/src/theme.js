@@ -58,7 +58,8 @@ const ThemeContext = createContext(null);
 
 /** `system` follows the phone, like the website does until a person picks one. */
 // react-native-web has no setColorScheme; there the app's own colours already follow the preference.
-const applyScheme = pref => { if (typeof Appearance.setColorScheme === 'function') Appearance.setColorScheme(pref === 'system' ? null : pref); };
+// The native side takes a string only: null crashes Android, and 'unspecified' is what follows the phone again.
+const applyScheme = pref => { if (typeof Appearance.setColorScheme === 'function') Appearance.setColorScheme(pref === 'light' || pref === 'dark' ? pref : 'unspecified'); };
 
 export function ThemeProvider({ children }) {
   const system = useColorScheme();
@@ -70,7 +71,7 @@ export function ThemeProvider({ children }) {
     // Keeps native chrome (status bar, keyboard, alerts) in step with the choice.
     applyScheme(next);
   }, []);
-  useEffect(() => { if (preference !== 'system') applyScheme(preference); }, [preference]);
+  useEffect(() => { applyScheme(preference); }, [preference]);
 
   const dark = (preference === 'system' ? system : preference) === 'dark';
   const value = useMemo(() => {

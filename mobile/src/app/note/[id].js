@@ -53,7 +53,7 @@ export default function NoteScreen() {
 
   const removePage = () => Alert.alert('Delete this page?', 'The page and its history are removed. This cannot be undone.', [
     { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete', style: 'destructive', onPress: async () => { try { if (isLocal(id)) discardLocalNote(id); else await api(`/notes/${id}`, { method: 'DELETE' }); setEditing(false); navigation.goBack(); } catch (e) { Alert.alert('Not deleted', e.message); } } },
+    { text: 'Delete', style: 'destructive', onPress: async () => { try { if (isLocal(id)) { if (!discardLocalNote(id)) return Alert.alert('Not deleted', 'This page is being sent right now. Try again in a moment.'); } else await api(`/notes/${id}`, { method: 'DELETE' }); setEditing(false); navigation.goBack(); } catch (e) { Alert.alert('Not deleted', e.message); } } },
   ]);
 
   const reloadLatest = () => { setEditing(false); setConflict(false); setAttempt(a => a + 1); };

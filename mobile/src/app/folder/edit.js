@@ -43,21 +43,21 @@ export default function FolderEditor() {
     try {
       const body = { ...form, title: form.title.trim(), thumbnail: isNew ? null : form.thumbnail };
       if (isNew) { const r = await api('/folders', { method: 'POST', body }); router.replace(`/folder/${r.folder.id}`); }
-      else { await api(`/folders/${id}`, { method: 'PATCH', body: { ...body, version: state.folder.version } }); router.back(); }
+      else { await api(`/folders/${id}`, { method: 'PATCH', body: { ...body, version: state.folder.version } }); if (router.canGoBack()) router.back(); else router.replace(`/folder/${id}`); }
     } catch (e) { setError(e.status === 409 ? 'This folder changed somewhere else. Close this screen and open it again.' : e.message); setSaving(false); }
   }
 
   async function destroy() {
     if (typed.trim() !== state.folder.title) return setError('Type the folder name exactly to confirm.');
     setSaving(true); setError('');
-    try { await api(`/folders/${id}`, { method: 'DELETE', body: { confirm: typed.trim() } }); router.dismissAll(); router.replace('/'); }
+    try { await api(`/folders/${id}`, { method: 'DELETE', body: { confirm: typed.trim() } }); if (router.canDismiss()) router.dismissAll(); router.replace('/'); }
     catch (e) { setError(e.message); setSaving(false); }
   }
 
   const canDelete = !isNew && state.folder?.role === 'owner';
   return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: insets.top + 12, paddingBottom: 10 }}>
-      <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close"><Icon name="x" size={24} color={c.muted} /></Pressable>
+      <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close"><Icon name="x" size={24} color={c.muted} /></Pressable>
       <Text style={{ flex: 1, fontFamily: FONT.display, fontSize: 22, letterSpacing: -0.5, color: c.ink }}>{isNew ? 'New folder' : 'Edit folder'}</Text>
       <Button title={isNew ? 'Create' : 'Save'} small loading={saving && !confirming} disabled={state.loading || !!state.error} onPress={save} />
     </View>
@@ -105,7 +105,7 @@ export default function FolderEditor() {
 
         {canDelete ? <Button title={state.folder.archived ? 'Restore from archive' : 'Archive this folder'} variant="secondary" icon="archive" loading={saving && !confirming} onPress={async () => {
           setSaving(true); setError('');
-          try { await api(`/folders/${id}/archive`, { method: 'PATCH', body: { archived: !state.folder.archived } }); router.dismissAll(); router.replace(state.folder.archived ? '/' : '/archive'); }
+          try { await api(`/folders/${id}/archive`, { method: 'PATCH', body: { archived: !state.folder.archived } }); if (router.canDismiss()) router.dismissAll(); router.replace(state.folder.archived ? '/' : '/archive'); }
           catch (e) { setError(e.message); setSaving(false); }
         }} /> : null}
 

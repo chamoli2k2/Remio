@@ -25,13 +25,14 @@ function Reminders({ name }) {
   async function toggle(on) {
     setNote('');
     if (!on) return change({ enabled: false });
-    const result = await requestPermission();
+    let result;
+    try { result = await requestPermission(); } catch (e) { return setNote(e.message || 'Could not ask for permission to send notifications.'); }
     setPerm(result);
     if (result !== 'granted') return setNote(`Notifications are off for ${BRAND.name} on this phone. Allow them in Settings, then switch this on again.`);
     await change({ enabled: true });
   }
   const step = delta => { const total = (prefs.hour * 60 + prefs.minute + delta + 1440) % 1440; change({ hour: Math.floor(total / 60), minute: total % 60 }); };
-  const test = async () => { setNote(''); const s = await sendTest(name); setNote(s ? 'A test reminder arrives in a few seconds. Lock your phone or leave the app to see it.' : 'A test reminder arrives in a few seconds.'); };
+  const test = async () => { setNote(''); let s; try { s = await sendTest(name); } catch (e) { return setNote(e.message || 'Could not send a test reminder.'); } setNote(s ? 'A test reminder arrives in a few seconds. Lock your phone or leave the app to see it.' : 'A test reminder arrives in a few seconds.'); };
   const row = { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 };
 
   if (!supported) return <Surface style={{ gap: 6 }}><Txt variant="heading">Reminders</Txt><Txt variant="small">Study reminders are available in the phone app.</Txt></Surface>;
