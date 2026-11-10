@@ -24,11 +24,16 @@ export const reservedUsername = name => RESERVED.has(String(name).trim().toLower
 export const signupSchema = z.object({ username: z.preprocess(v => (v === '' || v === null ? undefined : v), usernameSchema.refine(v => !RESERVED.has(v), 'That username is reserved. Please pick another.').optional()), name: z.string().trim().min(1).max(60), email: z.email().toLowerCase(), country: z.enum(COUNTRY_NAMES, 'Choose your country from the list.'), password: z.string().min(10).max(128),
   // Refused rather than defaulted. Consent that the server supplies on the user's behalf is not
   // consent, and the timestamp it produces would be evidence of nothing.
-  acceptedTerms: z.literal(true, 'Please accept the terms and the privacy policy to continue.') });
+  acceptedTerms: z.literal(true, 'Please accept the terms and the privacy policy to continue.'),
+  // The code mailed to the address. Optional here only so the schema stays one shape; the route
+  // refuses a signup without it everywhere but the test suite.
+  emailCode: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email.').optional() });
+export const emailOnlySchema = z.object({ email: z.email().toLowerCase() });
+export const deleteByCodeSchema = z.object({ email: z.email().toLowerCase(), code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email.'), confirm: z.literal('delete my account') });
 // The current password is optional only so an account that has never had one can set its first;
 // the service refuses to skip it for anyone who does have one.
 export const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128).optional(), newPassword: z.string().min(10).max(128) });
-export const deleteAccountSchema = z.object({ password: z.string().min(1).max(128), confirm: z.literal('delete my account') });
+export const deleteAccountSchema = z.object({ password: z.string().min(1).max(128).optional(), emailCode: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email.').optional(), confirm: z.literal('delete my account') });
 export const verifyEmailSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, 'That confirmation link is not valid.') });
 // A browser sends nothing and relies on the cookie; a native app sends the token it was given.
 export const refreshSchema = z.object({ refreshToken: z.string().regex(/^[a-f\d]{64}$/i).optional() }).default({});

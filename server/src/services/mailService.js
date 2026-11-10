@@ -68,6 +68,27 @@ export function verificationEmail({ name, url }) {
   };
 }
 
+/** A code is the whole message, so it is set large and the body says what it is for and how long it lasts. */
+const codeBlock = code => `<span style="display:inline-block;font-size:32px;letter-spacing:8px;font-weight:700;color:#272235;background:#f5f3fa;border-radius:10px;padding:12px 18px">${code}</span>`;
+
+export function signupCodeEmail({ code }) {
+  const lines = [`Use this code to confirm your email and finish creating your ${BRAND.name} account.`, codeBlock(code), 'It is good for 10 minutes and works once.'];
+  return {
+    subject: `${code} is your ${BRAND.name} sign-up code`,
+    text: `Use this code to confirm your email and finish creating your ${BRAND.name} account:\n\n${code}\n\nIt is good for 10 minutes and works once. If you did not ask for it, you can ignore this message.`,
+    html: layout('Confirm your email', lines),
+  };
+}
+
+export function deleteCodeEmail({ name, code }) {
+  const lines = [`${name ? `Hello ${name}, s` : 'S'}omebody asked to delete the ${BRAND.name} account for this address. Enter this code to confirm it was you.`, codeBlock(code), 'It is good for 10 minutes and works once. Deleting an account erases it for good.', 'If this was not you, ignore this email and nothing will be deleted.'];
+  return {
+    subject: `${code} is your ${BRAND.name} account deletion code`,
+    text: `Somebody asked to delete the ${BRAND.name} account for this address. Enter this code to confirm it was you:\n\n${code}\n\nIt is good for 10 minutes and works once. Deleting an account erases it for good. If this was not you, ignore this email and nothing will be deleted.`,
+    html: layout('Confirm account deletion', lines),
+  };
+}
+
 export function passwordResetEmail({ name, url }) {
   const lines = [
     `Hello ${name}, somebody asked to reset the password on your ${BRAND.name} account. Use the link below to choose a new one.`,

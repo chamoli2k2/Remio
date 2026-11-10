@@ -21,7 +21,7 @@ const SECTIONS = [
   [/^\/folders\/[^/]+\/study/, 'Study'], [/^\/folders\//, 'Folder'],
   [/^\/u\//, 'Profile'], [/^\/settings/, 'Settings'], [/^\/progress/, 'My progress'], [/^\/premium/, 'Premium'],
   [/^\/dashboard/, 'Dashboard'], [/^\/rooms/, 'Live quiz'], [/^\/pricing/, 'Pricing'], [/^\/contact/, 'Contact'],
-  [/^\/terms/, 'Terms'], [/^\/privacy/, 'Privacy'], [/^\/refunds/, 'Refunds'],
+  [/^\/terms/, 'Terms'], [/^\/privacy/, 'Privacy'], [/^\/refunds/, 'Refunds'], [/^\/delete-account/, 'Delete your account'],
 ];
 
 /** The name the page on screen gave itself, if it has one. Cleared when that page goes away. */

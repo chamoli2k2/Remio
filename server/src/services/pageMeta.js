@@ -66,6 +66,7 @@ const STATIC = {
   '/terms': page('/terms', `Terms of Use – Plain-Language Terms for Using ${BRAND.name}`, `The agreement between you and ${BRAND.name}, written in plain language to be read: your account, your content, payments, and a refund policy you can rely on.`),
   '/privacy': page('/privacy', `Privacy Policy – What Data We Collect and Why – ${BRAND.name}`, `What ${BRAND.name} collects, why it is held, who else sees it, and how to get it all back or have it deleted. No advertising and no trackers of any kind.`),
   '/refunds': page('/refunds', `Cancellation and Refunds – ${BRAND.refundDays}-Day Full Refund – ${BRAND.name}`, `A full refund within ${BRAND.refundDays} days of payment for any reason. Nothing renews automatically, no mandate is held against your card, and double payments are refunded.`),
+  '/delete-account': page('/delete-account', `Delete Your ${BRAND.name} Account and Data – Confirmed by Email`, `How to delete your ${BRAND.name} account and data: ask for a code by email, enter it, and your collections and cards are erased. Payment records stay as law requires.`),
   '/contact': page('/contact', `Contact ${BRAND.name} – Support That Reaches a Real Person`, `Questions about ${BRAND.name}, billing, refunds or classrooms reach a person, not a queue. Email us at ${BRAND.email.general} and we answer within two working days.`),
 };
 
@@ -179,7 +180,7 @@ export function applyMeta(html, meta) {
  *
  * Cached for an hour: a crawler may ask repeatedly and this is a collection scan.
  */
-const FIXED = [['/', '1.0'], ['/pricing', '0.9'], ['/explore', '0.8'], ['/signup', '0.7'], ['/terms', '0.3'], ['/privacy', '0.3'], ['/refunds', '0.3'], ['/contact', '0.3']];
+const FIXED = [['/', '1.0'], ['/pricing', '0.9'], ['/explore', '0.8'], ['/signup', '0.7'], ['/terms', '0.3'], ['/privacy', '0.3'], ['/refunds', '0.3'], ['/delete-account', '0.3'], ['/contact', '0.3']];
 const SITEMAP_TTL = 60 * 60 * 1000;
 let cached = { xml: '', at: 0 };
 

@@ -9,6 +9,7 @@ import * as account from '../services/accountService.js';
 import { signInWithGoogle, freeUsername } from '../services/auth/googleSignIn.js';
 import { countryNameFor } from '../services/geo.js';
 import { reservedUsername } from '../middleware/validate.js';
+import { codesRequired, issueCode, assertSent, checkCode, spendCode } from '../services/emailCodeService.js';
 
 /**
  * The signed-in person as they see themselves: their address, and whether a password exists.
@@ -28,7 +29,24 @@ const signIn = async (req, res, userId) => deliverTokens(req, res, await issueTo
  * "They ticked a box" is worth very little a year later; "they accepted the terms published on
  * this date, at this moment" is the thing you would actually want to be able to show.
  */
-export const signup = async (req, res) => { const { password, acceptedTerms, ...body } = req.body; if (!body.username) body.username = await freeUsername(body.email); const user = await User.create({ ...body, termsAcceptedAt: new Date(), termsVersion: BRAND.policyUpdated, passwordHash: await bcrypt.hash(password, 12), ...(process.env.NODE_ENV === 'test' ? { account: 'premium' } : {}) }); const session = await signIn(req, res, user.id); account.sendVerification(user).catch(() => {}); res.status(201).json({ user: await self(user.id), ...session }); };
+export const signup = async (req, res) => {
+  const { password, acceptedTerms, emailCode, ...body } = req.body;
+  // An account is only made for an address its owner has just proven they can read. The code is
+  // checked first and spent last, so a taken username does not cost them the code.
+  const proof = codesRequired() ? await checkCode(body.email, 'signup', emailCode) : null;
+  if (!body.username) body.username = await freeUsername(body.email);
+  const user = await User.create({ ...body, termsAcceptedAt: new Date(), termsVersion: BRAND.policyUpdated, passwordHash: await bcrypt.hash(password, 12), ...(proof ? { emailVerifiedAt: new Date() } : {}), ...(process.env.NODE_ENV === 'test' ? { account: 'premium' } : {}) });
+  if (proof) await spendCode(proof); else account.sendVerification(user).catch(() => {});
+  const session = await signIn(req, res, user.id);
+  res.status(201).json({ user: await self(user.id), ...session });
+};
+/** Step one of signing up: mail a code to the address. Nothing is created until it comes back. */
+export const signupCode = async (req, res) => {
+  const { email } = req.body;
+  assert(!await User.exists({ email }), 409, 'There is already an account with that email. Sign in instead.', 'EMAIL_TAKEN');
+  assertSent(await issueCode(email, 'signup'));
+  res.json({ ok: true, expiresInMinutes: 10 });
+};
 /**
  * The one endpoint behind both Google buttons. Which of sign-in, linking, or sign-up it performs
  * is decided by what already exists, not by which page the click came from — the page only
@@ -101,6 +119,13 @@ export const resetPassword = async (req, res) => {
 };
 export const deleteAccount = async (req, res) => {
   const result = await account.deleteAccount(req.user, req.body);
+  clearAuthCookies(res);
+  res.json(result);
+};
+export const deleteAccountCode = async (req, res) => res.json(await account.sendDeleteCodeToSelf(req.user));
+export const deleteCodeForAddress = async (req, res) => res.json(await account.sendDeleteCodeToAddress(req.body.email));
+export const deleteByCode = async (req, res) => {
+  const result = await account.deleteAccountByCode(req.body);
   clearAuthCookies(res);
   res.json(result);
 };

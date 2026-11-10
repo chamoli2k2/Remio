@@ -166,7 +166,7 @@ const termsSections = [
   },
   {
     id: 'closing', title: 'Ending your account', body: <>
-      <p>You may stop using {COMPANY.name} whenever you like. To delete your account, open Settings, confirm with your password, and it is erased straight away. If you would rather we did it, write to {COMPANY.privacy} from the address on the account and we will action it and confirm when it is done. Section 7 of our <Link to="/privacy">Privacy Policy</Link> explains exactly what is removed and when.</p>
+      <p>You may stop using {COMPANY.name} whenever you like. To delete your account, open Settings (or the <Link to="/delete-account">delete account page</Link>), confirm with a code we email to the address on the account, and it is erased straight away. If you would rather we did it, write to {COMPANY.privacy} from the address on the account and we will action it and confirm when it is done. Section 7 of our <Link to="/privacy">Privacy Policy</Link> explains exactly what is removed and when.</p>
       <p>We may suspend or close an account that breaks these terms, that we are legally required to close, or that has been dormant for a very long time. Except in serious cases we will contact you first and give you a chance to export your material.</p>
     </>,
   },
@@ -336,7 +336,7 @@ const privacySections = [
   {
     id: 'retention', title: 'How long we keep it, and deleting it', body: <>
       <p>We keep your account and content for as long as your account is open.</p>
-      <p>You can delete everything yourself from Settings. It asks for your password, then erases your account, your collections, your cards, your uploaded images, and your study history immediately. Backups roll off on their own within 30 days. If you own a classroom that other people are still in, hand it over or close it first so their work does not go with you.</p>
+      <p>You can delete everything yourself from Settings. It asks for your password where you have one and a code emailed to you, then erases your account, your collections, your cards, your uploaded images, and your study history immediately. Backups roll off on their own within 30 days. If you own a classroom that other people are still in, hand it over or close it first so their work does not go with you.</p>
       <p>Two things outlive the deletion. Records of payments are kept for as long as Indian tax and accounting law requires, with your name, address, and phone number stripped out of them at the moment you delete. Security logs are kept briefly in a form that is not tied to your content.</p>
     </>,
   },

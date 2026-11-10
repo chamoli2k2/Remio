@@ -7,6 +7,9 @@ test('anonymous visitors see the homepage and can sign up through the UI', async
   const username = unique('ui');
   await page.getByPlaceholder('Gaurav Prakash').fill('UI Person'); await page.locator('input[name=username]').fill(username);
   await page.locator('input[name=email]').fill(`${username}@example.test`); await page.locator('input[name=password]').fill(PASSWORD);
+  // The e2e server skips checking the emailed code, but the form still asks for one in two steps.
+  await page.getByRole('button', { name: 'Email me a code' }).click();
+  await page.locator('input[name=emailCode]').fill('123456');
   await page.getByRole('button', { name: 'Create your account' }).click();
   await expect(page.getByRole('link', { name: 'My library' })).toBeVisible();
   await expect(page.getByText(`@${username}`)).toBeVisible();

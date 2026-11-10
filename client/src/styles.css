@@ -2140,3 +2140,6 @@ html[data-theme=dark] .note-print-root{color-scheme:light;--accent:#6348dc;--acc
 /* Search boxes show focus on their own border rather than a ring around the text; the text keeps its normal selection colour. */
 .folder-search input:focus,.global-search input:focus,.folder-search input:focus-visible,.global-search input:focus-visible{outline:none;box-shadow:none}
 .folder-search:focus-within,.global-search:focus-within{border-color:var(--accent)}
+
+.settings-code-row{display:flex;gap:8px;align-items:stretch}.settings-code-row input{flex:1;min-width:0;letter-spacing:4px}
+.delete-account ol,.delete-account ul{padding-left:20px;line-height:1.7}

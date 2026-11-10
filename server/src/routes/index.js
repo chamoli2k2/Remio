@@ -17,7 +17,7 @@ import * as agent from '../controllers/agentController.js';
 import * as notes from '../controllers/noteController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePremium, requireDashboard, requireSuperadmin, requireVerifiedEmail } from '../middleware/account.js';
-import { validate, refreshSchema, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, verifyEmailSchema, folderSchema, folderDeleteSchema, cardSchema, drawingSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema, reviewSchema, reviewBatchSchema, notebookSchema, noteCollectionSchema, noteSchema, notePatchSchema } from '../middleware/validate.js';
+import { validate, refreshSchema, signupSchema, passwordChangeSchema, forgotPasswordSchema, resetPasswordSchema, deleteAccountSchema, emailOnlySchema, deleteByCodeSchema, verifyEmailSchema, folderSchema, folderDeleteSchema, cardSchema, drawingSchema, usernameSchema, idSchema, projectSchema, premiumOrderSchema, teamSchema, teamInviteSchema, joinCodeSchema, assignmentSchema, seatQuoteSchema, teamOrderSchema, reportSchema, reportDecisionSchema, googleSignInSchema, deleteUserSchema, agentGrantSchema, agentConsentSchema, reviewSchema, reviewBatchSchema, notebookSchema, noteCollectionSchema, noteSchema, notePatchSchema } from '../middleware/validate.js';
 import { requireImports, requireSignupOpen } from '../middleware/config.js';
 import { throttle as rateLimit } from '../middleware/throttle.js';
 import { megabytes, setting } from '../services/settingsService.js';
@@ -46,6 +46,8 @@ function sizedUpload(key, field) {
   };
 }
 const uploadImage = sizedUpload('limits.imageMb', 'image');
+// Step one: a code to the address. The account only exists once the code comes back with the form.
+r.post('/auth/signup/code', authLimit, requireSignupOpen, validate(emailOnlySchema), a(auth.signupCode));
 r.post('/auth/signup', authLimit, requireSignupOpen, validate(signupSchema), a(auth.signup));
 r.post('/auth/login', authLimit, validate(z.object({ identifier: z.string().min(1).max(254), password: z.string().min(1).max(128) })), a(auth.login));
 // Not behind requireSignupOpen: the same endpoint signs existing people in, and closing signups
@@ -63,7 +65,11 @@ r.post('/auth/password/forgot', rateLimit({ windowMs: 15 * 60000, limit: () => M
 r.post('/auth/password/reset', authLimit, validate(resetPasswordSchema), a(auth.resetPassword));
 // A deliberate change is announced by email and needs an address we know reaches them.
 r.post('/auth/password', requireAuth, requireVerifiedEmail, authLimit, validate(passwordChangeSchema), a(auth.changePassword));
+r.post('/auth/account/code', requireAuth, authLimit, a(auth.deleteAccountCode));
 r.delete('/auth/account', requireAuth, authLimit, validate(deleteAccountSchema), a(auth.deleteAccount));
+// The public deletion page: nobody has to be signed in, because the mailbox is the proof.
+r.post('/auth/delete-account/code', authLimit, validate(emailOnlySchema), a(auth.deleteCodeForAddress));
+r.post('/auth/delete-account', authLimit, validate(deleteByCodeSchema), a(auth.deleteByCode));
 r.get('/users', a(auth.searchPeople));
 r.get('/users/:username', a(auth.publicProfile));
 r.post('/users/:username/follow', requireAuth, a(social.follow));

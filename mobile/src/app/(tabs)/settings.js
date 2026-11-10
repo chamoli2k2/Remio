@@ -99,6 +99,7 @@ export default function Settings() {
       <Txt variant="heading">Account</Txt>
       <Txt variant="small">Plan, billing, sharing and account deletion are managed on the website.</Txt>
       <Button title={`Open ${BRAND.domain}`} variant="soft" icon="external-link" onPress={() => web('/')} />
+      <Button title="Delete my account" variant="ghost" icon="trash-2" onPress={() => web('/delete-account')} />
       <Button title="Privacy policy" variant="ghost" onPress={() => web('/privacy')} />
       <Button title="Terms" variant="ghost" onPress={() => web('/terms')} />
     </Surface>

@@ -17,6 +17,7 @@ import { record } from './settingsService.js';
 import { logger } from '../utils/logger.js';
 import { isSuperadmin } from '../../../shared/account.js';
 import * as storage from './storage.js';
+import { codesRequired, issueCode, assertSent, checkCode, spendCode } from './emailCodeService.js';
 
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 /** A reset link hands out an account, so it is worth far less time than a confirmation link. */
@@ -166,13 +167,51 @@ async function blockingTeams(userId) {
  * Payment orders are the deliberate exception. They are proof of a transaction we have to be able
  * to produce, so the personal details on them are overwritten rather than the row being dropped.
  */
-export async function deleteAccount(user, { password }) {
+export async function deleteAccount(user, { password, emailCode }) {
   const withHash = await User.findById(user.id).select('+passwordHash +email');
-  // An account with no password has only ever signed in with Google, so there is nothing to
-  // compare against and no way to confirm it is really them at the keyboard.
-  assert(withHash?.passwordHash, 400, 'This account signs in with Google and has no password. Set one first, and then you can delete the account.', 'NO_PASSWORD');
-  assert(await bcrypt.compare(password, withHash.passwordHash), 400, 'That password is not correct.');
-  return eraseAccount(withHash);
+  assert(withHash, 404, 'That account no longer exists.');
+  // Two proofs for somebody with a password: the password, and a code sent to the address on file,
+  // so a stolen session alone cannot erase an account. Somebody who only ever used Google has no
+  // password, so the code is their proof.
+  if (withHash.passwordHash) assert(password && await bcrypt.compare(password, withHash.passwordHash), 400, 'That password is not correct.');
+  else assert(codesRequired(), 400, 'This account signs in with Google and has no password. Set one first, and then you can delete the account.', 'NO_PASSWORD');
+  const proof = codesRequired() ? await checkCode(withHash.email, 'delete-account', emailCode) : null;
+  const result = await eraseAccount(withHash);
+  if (proof) await spendCode(proof);
+  return result;
+}
+
+/** Mails the signed-in person a code to confirm deleting their own account. */
+export async function sendDeleteCodeToSelf(user) {
+  const withEmail = await User.findById(user.id).select('+email');
+  assert(withEmail, 404, 'That account no longer exists.');
+  assertSent(await issueCode(withEmail.email, 'delete-account', { name: withEmail.name, userId: withEmail.id }));
+  return { ok: true };
+}
+
+/**
+ * The public "delete my account" page, for somebody who may not be signed in at all, or has lost
+ * their password. Asking for a code says the same thing whether or not the address has an account,
+ * so the page cannot be used to find out who is a member. Only the mailbox can finish the deletion.
+ */
+export async function sendDeleteCodeToAddress(email) {
+  const user = await User.findOne({ email: String(email).toLowerCase().trim() }).select('+email');
+  if (!user) return { ok: true };
+  const result = await issueCode(user.email, 'delete-account', { name: user.name, userId: user.id });
+  // A throttle is worth saying; whether the address exists is not.
+  if (result.reason === 'too-soon' || result.reason === 'limit') assertSent(result);
+  return { ok: true };
+}
+
+export async function deleteAccountByCode({ email, code }) {
+  email = String(email).toLowerCase().trim();
+  const proof = await checkCode(email, 'delete-account', code);
+  const user = await User.findOne({ email }).select('+email');
+  assert(user && String(proof.user) === user.id, 400, 'That code has expired or was never sent. Ask for a new one.', 'CODE_EXPIRED');
+  assert(!isSuperadmin(user), 403, 'A superadmin account cannot be deleted from here. Write to us and we will help.', 'SUPERADMIN_TARGET');
+  const result = await eraseAccount(user);
+  await spendCode(proof);
+  return result;
 }
 
 /**

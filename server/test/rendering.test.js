@@ -29,7 +29,7 @@ test('only public routes are server-rendered', () => {
 });
 
 test('every fixed page has a title and description a result page shows whole', async () => {
-  for (const path of ['/', '/pricing', '/explore', '/signup', '/terms', '/privacy', '/refunds', '/contact']) {
+  for (const path of ['/', '/pricing', '/explore', '/signup', '/terms', '/privacy', '/refunds', '/delete-account', '/contact']) {
     const { title, description, canonical, status } = await metaFor(path);
     assert.ok(title.length >= 50 && title.length <= 60, `${path} title is ${title.length} characters: ${title}`);
     assert.ok(description.length >= 140 && description.length <= 160, `${path} description is ${description.length} characters`);
