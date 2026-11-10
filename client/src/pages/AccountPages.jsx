@@ -310,7 +310,7 @@ function DangerPanel() {
     <h2>Delete your account</h2>
     <p className="settings-lede">This erases your collections, cards, and study history for good. We cannot put it back. Records of any payment are kept with your personal details stripped out, because we have to be able to prove the transaction happened.</p>
     {!open
-      ? <Button className="danger-button" onClick={() => setOpen(true)}><Trash2 size={16}/> I want to delete my account</Button>
+      ? <Button className="danger-button" onClick={() => { setOpen(true); if (!sentCode && !sending) mailCode(); }}><Trash2 size={16}/> I want to delete my account</Button>
       : <form className="form-stack" onSubmit={async e => {
         e.preventDefault(); setBusy(true); setError('');
         try { await api('/auth/account', { method: 'DELETE', body: { ...form, ...(form.password ? {} : { password: undefined }) } }); discardReviews(); setUser(null); }
