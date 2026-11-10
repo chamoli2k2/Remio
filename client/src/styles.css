@@ -2143,3 +2143,16 @@ html[data-theme=dark] .note-print-root{color-scheme:light;--accent:#6348dc;--acc
 
 .settings-code-row{display:flex;gap:8px;align-items:stretch}.settings-code-row input{flex:1;min-width:0;letter-spacing:4px}
 .delete-account ol,.delete-account ul{padding-left:20px;line-height:1.7}
+
+/* The delete-account page has no table of contents, so its text takes the full width instead of the narrow contents column. */
+.delete-account .legal-body{grid-template-columns:minmax(0,1fr)}
+.delete-account .legal-content{max-width:720px;width:100%}
+.delete-account .legal-content ol{margin:0 0 13px;padding-left:22px;display:flex;flex-direction:column;gap:9px}
+.delete-account .legal-content ol li{font-size:14.5px;line-height:1.7;color:var(--text-3)}
+.delete-card{padding:24px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+.delete-card .form-stack{max-width:none}
+.delete-card input{width:100%}
+.delete-card p svg{vertical-align:-3px;margin-right:6px;color:var(--accent)}
+.delete-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:4px}
+.delete-actions .danger-button{margin-left:auto}
+@media(max-width:600px){.delete-card{padding:18px 16px;border-radius:14px}.delete-actions{flex-direction:column;align-items:stretch}.delete-actions>*{width:100%;justify-content:center}.delete-actions .danger-button{margin-left:0;order:-1}.delete-account .legal-head h1{font-size:30px}}

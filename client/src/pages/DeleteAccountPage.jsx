@@ -63,7 +63,7 @@ export default function DeleteAccountPage() {
         </ul>
         <p>If you run a classroom other people are still in, hand it over or close it first, so their work does not go with you. Read the full <Link to="/privacy">Privacy Policy</Link>.</p>
       </section>
-      <section>
+      <section className="delete-card">
         <h2>Delete it now</h2>
         {step === 'done'
           ? <div className="form-stack"><p><MailCheck size={18}/> Your account and its data have been deleted. We have emailed you a confirmation. Thank you for trying {BRAND.name}.</p><Link className="button secondary" to="/">Back to the home page</Link></div>
@@ -78,7 +78,7 @@ export default function DeleteAccountPage() {
               <Field label="Code from the email"><input required inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} placeholder="123456"/></Field>
               <Field label={`Type "${PHRASE}" to confirm`}><input required value={confirm} onChange={e => setConfirm(e.target.value)} placeholder={PHRASE}/></Field>
               {error && <ErrorState message={error}/>}
-              <div className="settings-danger-actions">
+              <div className="delete-actions">
                 <Button type="button" onClick={() => { setStep('email'); setCode(''); setConfirm(''); setError(''); }}>Use a different email</Button>
                 <Button type="button" onClick={sendCode} loading={busy}>Send a new code</Button>
                 <Button className="danger-button" type="submit" loading={busy} disabled={confirm !== PHRASE || code.length !== 6}><Trash2 size={16}/> Delete my account and data</Button>
