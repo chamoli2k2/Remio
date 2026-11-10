@@ -44,8 +44,9 @@ export const signup = async (req, res) => {
 export const signupCode = async (req, res) => {
   const { email } = req.body;
   assert(!await User.exists({ email }), 409, 'There is already an account with that email. Sign in instead.', 'EMAIL_TAKEN');
-  assertSent(await issueCode(email, 'signup'));
-  res.json({ ok: true, expiresInMinutes: 10 });
+  const result = await issueCode(email, 'signup');
+  assertSent(result);
+  res.json({ ok: true, expiresInMinutes: 10, retryAfter: result.retryAfter });
 };
 /**
  * The one endpoint behind both Google buttons. Which of sign-in, linking, or sign-up it performs

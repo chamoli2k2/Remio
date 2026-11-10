@@ -47,12 +47,17 @@ export async function issueCode(email, purpose, { name = '', userId = null } = {
   if (!mailed && !process.env.SMTP_HOST && process.env.NODE_ENV !== 'production') console.info(`[dev] ${purpose} code for ${email}: ${code}`);
   // Where no mail server is configured outside production, the console above is the mailbox.
   const devMailbox = !mailed && !process.env.SMTP_HOST && process.env.NODE_ENV !== 'production';
-  return { sent: mailed || devMailbox, reason: mailed || devMailbox ? 'sent' : 'mail-unavailable' };
+  if (!mailed && !devMailbox) {
+    // Nothing reached the person, so this attempt must not cost them the wait or one of their hourly sends.
+    if (existing) await EmailCode.updateOne({ email, purpose }, { $set: { codeHash: existing.codeHash, attempts: existing.attempts, sentAt: existing.sentAt, user: existing.user, windowStart: existing.windowStart, sends: existing.sends, expiresAt: existing.expiresAt } });
+    else await EmailCode.deleteOne({ email, purpose });
+  }
+  return { sent: mailed || devMailbox, reason: mailed || devMailbox ? 'sent' : 'mail-unavailable', retryAfter: GAP_MS / 1000 };
 }
 
 /** Turns an `issueCode` result into the sentence a person should read, or lets a success through. */
 export function assertSent({ sent, reason }) {
-  assert(reason !== 'too-soon', 429, 'A code was just sent. Please wait a minute before asking for another.', 'CODE_TOO_SOON');
+  assert(reason !== 'too-soon', 429, 'A code was just sent to that address. Check your inbox and spam folder, or wait a minute and ask again.', 'CODE_TOO_SOON');
   assert(reason !== 'limit', 429, 'That is enough codes for now. Try again in an hour.', 'CODE_LIMIT');
   assert(sent, 503, 'We could not send the email just now. Please try again in a moment.', 'MAIL_UNAVAILABLE');
 }

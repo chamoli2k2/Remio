@@ -5,6 +5,8 @@ import { useApp } from '../hooks/useApp';
 import { api } from '../services/api';
 import { discard as discardReviews } from '../services/reviewSync';
 import { Button, Field, ErrorState } from '../components/ui';
+import SendCodeButton from '../components/SendCodeButton';
+import { useCooldown, maskEmail } from '../hooks/useCooldown';
 import { BRAND } from '../../../shared/brand.js';
 
 const PHRASE = 'delete my account';
@@ -21,12 +23,12 @@ const PHRASE = 'delete my account';
 export default function DeleteAccountPage() {
   const { user, setUser } = useApp();
   const [email, setEmail] = useState(user?.email || ''), [code, setCode] = useState(''), [confirm, setConfirm] = useState('');
-  const [step, setStep] = useState('email'), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [step, setStep] = useState('email'), [busy, setBusy] = useState(false), [error, setError] = useState(''), [wait, startWait] = useCooldown();
 
   async function sendCode(e) {
     e?.preventDefault(); setBusy(true); setError('');
-    try { await api('/auth/delete-account/code', { method: 'POST', body: { email } }); setStep('code'); }
-    catch (err) { setError(err.message); } finally { setBusy(false); }
+    try { const d = await api('/auth/delete-account/code', { method: 'POST', body: { email } }); setStep('code'); startWait(d.retryAfter || 60); }
+    catch (err) { if (err.code === 'CODE_TOO_SOON') { setStep('code'); startWait(60); } setError(err.message); } finally { setBusy(false); }
   }
   async function erase(e) {
     e.preventDefault(); setBusy(true); setError('');
@@ -74,13 +76,13 @@ export default function DeleteAccountPage() {
               <Button className="danger-button" type="submit" loading={busy}><ShieldCheck size={16}/> Email me a code</Button>
             </form>
             : <form className="form-stack" onSubmit={erase}>
-              <p>If <strong>{email}</strong> has an account, a 6-digit code is on its way.</p>
+              <p>If <strong>{maskEmail(email)}</strong> has an account, a 6-digit code is on its way. It lasts 10 minutes. Check your spam folder if it does not arrive.</p>
               <Field label="Code from the email"><input required inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} placeholder="123456"/></Field>
               <Field label={`Type "${PHRASE}" to confirm`}><input required value={confirm} onChange={e => setConfirm(e.target.value)} placeholder={PHRASE}/></Field>
               {error && <ErrorState message={error}/>}
               <div className="delete-actions">
                 <Button type="button" onClick={() => { setStep('email'); setCode(''); setConfirm(''); setError(''); }}>Use a different email</Button>
-                <Button type="button" onClick={sendCode} loading={busy}>Send a new code</Button>
+                <SendCodeButton busy={busy} left={wait} sent onClick={sendCode} sentLabel="Send a new code"/>
                 <Button className="danger-button" type="submit" loading={busy} disabled={confirm !== PHRASE || code.length !== 6}><Trash2 size={16}/> Delete my account and data</Button>
               </div>
             </form>}

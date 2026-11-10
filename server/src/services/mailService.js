@@ -23,6 +23,14 @@ function getTransport() {
   return transport;
 }
 
+/** Said once at startup: without these, every signup code and deletion code silently goes nowhere. */
+export function configWarnings() {
+  if (process.env.NODE_ENV !== 'production') return [];
+  if (!process.env.SMTP_HOST) return ['SMTP_HOST is not set, so email codes for signup and account deletion cannot be sent. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and MAIL_FROM in the server .env.'];
+  if (process.env.SMTP_USER && !process.env.SMTP_PASS) return ['SMTP_USER is set without SMTP_PASS, so email will be refused.'];
+  return [];
+}
+
 /** Exported for tests, which swap in a recorder rather than opening a socket. */
 export const _setTransport = t => { transport = t; };
 

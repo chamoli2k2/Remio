@@ -59,6 +59,7 @@
           "defaultChannel": "reminders"
         }
       ],
+      "./plugins/withKotlinPackageFix.js",
       [
         "expo-widgets",
         {

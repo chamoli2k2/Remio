@@ -185,8 +185,9 @@ export async function deleteAccount(user, { password, emailCode }) {
 export async function sendDeleteCodeToSelf(user) {
   const withEmail = await User.findById(user.id).select('+email');
   assert(withEmail, 404, 'That account no longer exists.');
-  assertSent(await issueCode(withEmail.email, 'delete-account', { name: withEmail.name, userId: withEmail.id }));
-  return { ok: true };
+  const result = await issueCode(withEmail.email, 'delete-account', { name: withEmail.name, userId: withEmail.id });
+  assertSent(result);
+  return { ok: true, retryAfter: result.retryAfter };
 }
 
 /**
@@ -196,11 +197,11 @@ export async function sendDeleteCodeToSelf(user) {
  */
 export async function sendDeleteCodeToAddress(email) {
   const user = await User.findOne({ email: String(email).toLowerCase().trim() }).select('+email');
-  if (!user) return { ok: true };
+  if (!user) return { ok: true, retryAfter: 60 };
   const result = await issueCode(user.email, 'delete-account', { name: user.name, userId: user.id });
   // A throttle is worth saying; whether the address exists is not.
   if (result.reason === 'too-soon' || result.reason === 'limit') assertSent(result);
-  return { ok: true };
+  return { ok: true, retryAfter: result.retryAfter ?? 60 };
 }
 
 export async function deleteAccountByCode({ email, code }) {
