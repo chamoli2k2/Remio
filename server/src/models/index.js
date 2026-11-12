@@ -1,344 +1,77 @@
-import mongoose from 'mongoose';
-import { COUNTRY_NAMES, HOME_COUNTRY } from '../../../shared/countries.js';
-const { Schema, model } = mongoose;
-const ref = (name, required = true) => ({ type: Schema.Types.ObjectId, ref: name, required });
-const options = { timestamps: true, toJSON: { transform: (_doc, ret) => { ret.id = ret._id.toString(); delete ret._id; delete ret.__v; delete ret.clientId; return ret; } } };
 /**
- * How a person likes an assistant to write their answers; see shared/answerStyle.js. Every field is
- * optional, and an unset one falls through to the default. Kept on the account, with an optional
- * override per collection, rather than on the collection itself: it is one person's preference,
- * and a collaborator on the same collection may want something else.
+ * Every model, one file each. Import from here; the files themselves hold only their own schema,
+ * indexes and the notes on why. Names a model refers to are strings (see `ref` in _shared.js), so
+ * model files never import one another.
  */
-const answerStyle = new Schema({ detail: String, format: String, include: { type: [String], default: undefined }, audience: String, custom: String }, { _id: false });
-const user = new Schema({ answerStyle: { type: answerStyle, default: undefined, select: false }, collectionStyles: { type: [{ folder: ref('Folder'), style: answerStyle, _id: false }], default: undefined, select: false }, username: { type: String, required: true, unique: true, lowercase: true }, email: { type: String, required: true, unique: true, lowercase: true, select: false }, emailVerifiedAt: { type: Date, default: null }, passwordHash: { type: String, select: false }, googleId: { type: String, select: false }, name: { type: String, required: true }, bio: { type: String, default: '' }, country: { type: String, enum: COUNTRY_NAMES, default: HOME_COUNTRY }, dailyGoal: { type: Number, default: 20 }, desiredRetention: { type: Number, default: 0.9, min: 0.7, max: 0.97 }, termsAcceptedAt: { type: Date, default: null }, termsVersion: { type: String, default: '' }, tokenVersion: { type: Number, default: 0, select: false }, account: { type: String, enum: ['normal', 'premium', 'admin', 'superadmin'], default: 'normal' }, premiumPlan: { type: String, default: '' }, premiumExpiresAt: { type: Date, default: null }, savedFolders: [ref('Folder')], followers: { type: Number, default: 0 }, following: { type: Number, default: 0 }, friends: { type: Number, default: 0 } }, options);
-// Sparse and unique: one Google account can only ever be one account here.
-user.index({ googleId: 1 }, { unique: true, sparse: true });
-// One row per signed-in device. The refresh token rotates on every use; the last few hashes are kept
-// so a replayed old token can be recognised as theft and the whole device signed out.
-const refreshToken = new Schema({ tokenHash: { type: String, required: true, unique: true }, previousHashes: { type: [String], default: [], index: true }, rotatedAt: { type: Date, default: null }, user: ref('User'), expiresAt: { type: Date, required: true, expires: 0 } }, options);
-// Emailed links are bearer credentials, so only the hash is stored and `expires: 0` lets Mongo
-// retire them on its own. `purpose` keeps one collection usable for password resets later.
-const authToken = new Schema({ tokenHash: { type: String, required: true, unique: true }, user: ref('User'), purpose: { type: String, enum: ['verify-email', 'reset-password'], required: true }, expiresAt: { type: Date, required: true, expires: 0 }, usedAt: { type: Date, default: null } }, options);
-authToken.index({ user: 1, purpose: 1 });
-/**
- * One assistant's standing permission to act for one user.
- *
- * A grant, not a token: the row is the thing a person revokes, and the secrets hanging off it are
- * implementation. That distinction is what lets the settings page list "Claude — added in March,
- * last used an hour ago" rather than a pile of opaque credentials, and it means rotating a token
- * during a refresh does not look to the user like anything happened.
- *
- * Both secrets are stored only as SHA-256, the same way sessions and team join codes are, so the
- * database cannot hand anyone a working credential. `accessExpiresAt` is deliberately not a Mongo
- * TTL: an expired grant still has to be listed, and still has to be revocable, and a row that
- * deletes itself would take its own audit trail with it.
- */
-const agentToken = new Schema({
-  user: ref('User'),
-  // What the user sees in the list. Their own words for a personal token, the client's self-declared
-  // name for one issued through OAuth — which is why it is never trusted as anything but a label.
-  name: { type: String, default: '' },
-  scopes: { type: [String], default: [] },
-  accessHash: { type: String },
-  accessExpiresAt: { type: Date },
-  // Absent on a personal token. Refresh exists for OAuth clients, which expect to hold a
-  // long-running connection without asking the user again.
-  refreshHash: { type: String },
-  client: { type: String, default: '' },
-  createdVia: { type: String, enum: ['personal', 'oauth'], default: 'personal' },
-  lastUsedAt: { type: Date, default: null },
-  revokedAt: { type: Date, default: null },
-}, options);
-// Sparse because a rotated grant briefly has no access secret, and a personal one never has a
-// refresh secret — and a present-but-null field is indexed like any other value, so every such row
-// would collide on the same key.
-agentToken.index({ accessHash: 1 }, { unique: true, sparse: true });
-agentToken.index({ refreshHash: 1 }, { unique: true, sparse: true });
-agentToken.index({ user: 1, createdAt: -1 });
+export { EmailCode } from './EmailCode.js';
+export { NoteCollection } from './NoteCollection.js';
+export { Notebook } from './Notebook.js';
+export { Note } from './Note.js';
+export { NoteRevision } from './NoteRevision.js';
+export { User } from './User.js';
+export { RefreshToken } from './RefreshToken.js';
+export { AuthToken } from './AuthToken.js';
+export { Folder } from './Folder.js';
+export { Card } from './Card.js';
+export { Media } from './Media.js';
+export { Progress } from './Progress.js';
+export { Review } from './Review.js';
+export { GameProfile } from './GameProfile.js';
+export { Activity } from './Activity.js';
+export { Revision } from './Revision.js';
+export { DomainEvent } from './DomainEvent.js';
+export { CardDoc } from './CardDoc.js';
+export { Relationship } from './Relationship.js';
+export { Project } from './Project.js';
+export { PremiumOrder } from './PremiumOrder.js';
+export { Notification } from './Notification.js';
+export { Team } from './Team.js';
+export { TeamMember } from './TeamMember.js';
+export { TeamInvite } from './TeamInvite.js';
+export { Assignment } from './Assignment.js';
+export { Setting } from './Setting.js';
+export { AuditEntry } from './AuditEntry.js';
+export { ContentReport } from './ContentReport.js';
+export { AgentToken } from './AgentToken.js';
+export { AgentBatch } from './AgentBatch.js';
+export { OAuthClient } from './OAuthClient.js';
+export { OAuthGrant } from './OAuthGrant.js';
+export { Blob } from './Blob.js';
 
-/**
- * What an assistant did, in one reviewable unit.
- *
- * Every write an assistant makes belongs to a batch, and a batch can be undone whole. This is not
- * really a security control — the tools that write batches are additive, so nothing here can destroy anything — it is
- * an admission that a model will sometimes produce forty cards of confident nonsense, and the cost
- * of that should be one click rather than forty.
- *
- * `cards` is the list actually inserted, so undoing removes exactly what this batch added and
- * nothing a person wrote afterwards. `requestId` is the idempotency key: MCP clients retry on
- * timeout, and without this a slow call that succeeded would be replayed into duplicates.
- */
-const agentBatch = new Schema({
-  user: ref('User'),
-  token: ref('AgentToken', false),
-  // Denormalised, because the point of the review screen is to say which assistant did this, and
-  // the most likely reason to be reading it is that the grant has just been revoked.
-  tokenName: { type: String, default: '' },
-  // Notes batches have a notebook instead of a collection, so this one is optional.
-  folder: ref('Folder', false),
-  folderTitle: { type: String, default: '' },
-  // What a notes batch wrote: the notebook, the pages it created, and whether the notebook itself
-  // came from the batch (so undoing can take it away if nobody has added anything since).
-  notebook: ref('Notebook', false),
-  notebookTitle: { type: String, default: '' },
-  notes: [ref('Note', false)],
-  pageCount: { type: Number, default: 0 },
-  createdNotebook: { type: Boolean, default: false },
-  cards: [ref('Card', false)],
-  cardCount: { type: Number, default: 0 },
-  /**
-   * Images this batch caused to be fetched and stored.
-   *
-   * Recorded as ids rather than bucket keys on purpose. Resized copies are made lazily, long
-   * after the batch was written, so a list of keys captured here would be missing whichever
-   * sizes were generated since — and undoing would leave them behind, paying rent forever. The
-   * rows know their own variants at the moment they are read.
-   *
-   * Only images this batch created appear here. One reused from an earlier batch is left alone,
-   * or undoing the second batch would break the first one's cards.
-   */
-  media: [ref('Media', false)],
-  imageCount: { type: Number, default: 0 },
-  // Whether the collection itself came from this batch, so undoing can take it with them.
-  createdFolder: { type: Boolean, default: false },
-  // The cover this batch set, and what was there before, so undoing puts it back rather than
-  // leaving a collection pointing at an image that has just been deleted.
-  coverMedia: ref('Media', false),
-  previousCover: { type: String, default: '' },
-  requestId: { type: String, required: true },
-  /**
-   * What wrote this batch. `edit` rows exist only to count the pictures an edit fetched against the
-   * daily allowance: an edit is undone from the card's own history, so undo refuses them and the
-   * review list leaves them out. Older rows have no kind and are card or cover batches.
-   */
-  kind: { type: String, enum: ['cards', 'cover', 'edit', 'notes', 'noteedit'], default: undefined },
-  // A digest of the request, so a request id reused for different cards is refused rather than
-  // answered with the result of the first. Older rows have none and are replayed as before.
-  fingerprint: { type: String, default: undefined },
-  // The reply already sent for this request id, replayed verbatim on a retry.
-  result: Schema.Types.Mixed,
-  undoneAt: { type: Date, default: null },
-}, options);
-agentBatch.index({ user: 1, requestId: 1 }, { unique: true });
-agentBatch.index({ user: 1, createdAt: -1 });
+import { EmailCode } from './EmailCode.js';
+import { NoteCollection } from './NoteCollection.js';
+import { Notebook } from './Notebook.js';
+import { Note } from './Note.js';
+import { NoteRevision } from './NoteRevision.js';
+import { User } from './User.js';
+import { RefreshToken } from './RefreshToken.js';
+import { AuthToken } from './AuthToken.js';
+import { Folder } from './Folder.js';
+import { Card } from './Card.js';
+import { Media } from './Media.js';
+import { Progress } from './Progress.js';
+import { Review } from './Review.js';
+import { GameProfile } from './GameProfile.js';
+import { Activity } from './Activity.js';
+import { Revision } from './Revision.js';
+import { DomainEvent } from './DomainEvent.js';
+import { CardDoc } from './CardDoc.js';
+import { Relationship } from './Relationship.js';
+import { Project } from './Project.js';
+import { PremiumOrder } from './PremiumOrder.js';
+import { Notification } from './Notification.js';
+import { Team } from './Team.js';
+import { TeamMember } from './TeamMember.js';
+import { TeamInvite } from './TeamInvite.js';
+import { Assignment } from './Assignment.js';
+import { Setting } from './Setting.js';
+import { AuditEntry } from './AuditEntry.js';
+import { ContentReport } from './ContentReport.js';
+import { AgentToken } from './AgentToken.js';
+import { AgentBatch } from './AgentBatch.js';
+import { OAuthClient } from './OAuthClient.js';
+import { OAuthGrant } from './OAuthGrant.js';
+import { Blob } from './Blob.js';
 
-/**
- * An OAuth client that registered itself.
- *
- * Nobody pre-configures these. The assistant discovers this server, registers under RFC 7591, and
- * gets back an id it uses from then on — which is the whole reason a user can paste one URL into
- * their assistant and be done. It also means anyone can create a row here, so a client record is
- * treated as an untrusted claim: the name is shown to the user as "an application calling itself
- * X", and the redirect URIs are the only field that is security-relevant, matched exactly.
- */
-const oauthClient = new Schema({
-  clientId: { type: String, required: true, unique: true },
-  // Absent for a public client, which is the normal case: a desktop assistant cannot keep a secret,
-  // which is exactly why PKCE exists and why it is required here whether or not a secret is set.
-  secretHash: { type: String },
-  name: { type: String, default: '' },
-  uri: { type: String, default: '' },
-  redirectUris: { type: [String], default: [] },
-}, options);
-
-/**
- * An authorization code in flight, and the PKCE challenge that binds it to whoever asked.
- *
- * Short-lived and single-use. `expires: 0` retires them without a sweeper, and `usedAt` is what
- * makes a replay detectable in the window before Mongo gets round to it — the code is marked used
- * in the same conditional update that redeems it, so two simultaneous redemptions cannot both win.
- */
-const oauthGrant = new Schema({
-  codeHash: { type: String, required: true, unique: true },
-  clientId: { type: String, required: true },
-  user: ref('User'),
-  redirectUri: { type: String, required: true },
-  codeChallenge: { type: String, required: true },
-  scopes: { type: [String], default: [] },
-  // RFC 8707. Recorded at authorization and stamped into the grant, so a code minted for this
-  // server cannot be redeemed to reach a different one.
-  resource: { type: String, default: '' },
-  expiresAt: { type: Date, required: true, expires: 0 },
-  usedAt: { type: Date, default: null },
-}, options);
-
-const folder = new Schema({ title: { type: String, required: true }, description: { type: String, default: '' }, color: { type: String, default: 'violet' }, icon: { type: String, default: 'layers' }, visibility: { type: String, enum: ['private', 'global'], default: 'private' }, owner: ref('User'), members: [{ user: ref('User'), role: { type: String, enum: ['viewer', 'editor'], required: true }, _id: false }], version: { type: Number, default: 0 }, writeEpoch: { type: Number, default: 0 }, archived: { type: Boolean, default: false }, copiedFrom: ref('Folder', false), originalCreator: { type: String, default: '' }, thumbnail: ref('Media', false), likeCount: { type: Number, default: 0 }, copyCount: { type: Number, default: 0 }, team: ref('Team', false) }, options);
-folder.index({ owner: 1, updatedAt: -1 }); folder.index({ 'members.user': 1 }); folder.index({ visibility: 1, archived: 1 }); folder.index({ team: 1, updatedAt: -1 });
-// `drawing` is a plain string id, not a reference: the drawing lives in object storage, keyed by
-// folder and this id, so nothing about it depends on this database (see shared/drawing.js).
-const side = { text: { type: String, default: '' }, image: ref('Media', false), drawing: { type: String, default: null } };
-const card = new Schema({ folder: ref('Folder'), front: side, back: side, tags: [String], hint: { type: String, default: '' }, source: { type: String, default: '' }, version: { type: Number, default: 0 }, createdBy: ref('User'), updatedBy: ref('User'),
-  // Sent by the phone app when it creates offline, so a retry after a lost reply returns the card instead of making a second one.
-  clientId: { type: String, select: false } }, options);
-card.index({ folder: 1, createdBy: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: 'string' } } });
-card.index({ folder: 1, createdAt: 1 }); card.index({ folder: 1, tags: 1 });
-// `width` is the original's own width, so no resized copy wider than the picture is ever offered.
-// `variants` records which widths have been generated, which is cheaper than asking the bucket: the
-// row is already loaded to check permission, and a listing would be a second network call per image.
-// Exactly one of `folder` and `notebook` is set: an image belongs to a collection or to a notebook,
-// and permission to see it is read from whichever that is.
-const media = new Schema({ folder: ref('Folder', false), notebook: ref('Notebook', false), uploadedBy: ref('User'), data: { type: Buffer, select: false }, key: { type: String, default: '' }, contentType: { type: String, default: 'image/webp' }, name: String, width: { type: Number, default: 0 }, height: { type: Number, default: 0 }, variants: { type: [Number], default: [] },
-  // A fingerprint of the stored bytes, so the same picture arriving twice is recognised and
-  // stored once. See `mediaService.store`.
-  sha256: { type: String, default: '' },
-  bytes: { type: Number, default: 0 },
-  // Where it came from, when it was fetched rather than uploaded. Kept so a reported image can be
-  // traced back to the address that supplied it, which an uploaded file does not need because the
-  // account that chose the file is already recorded.
-  sourceUrl: { type: String, default: '' },
-}, options);
-/**
- * Duplicate lookup, scoped to the collection rather than the account.
- *
- * Tempting to dedupe across everything a user owns and wrong to: permission to see an image is
- * derived from the collection it belongs to, so handing back a row from another collection would
- * either fail the access check or quietly widen it. Within a collection — an assistant putting
- * the same diagram on eight cards — is where the duplicates actually are.
- *
- * Not unique. Images stored before this field existed, and ones copied from a folder that had
- * them, can share the empty default, and a constraint would refuse the second of those for no
- * benefit — the lookup always searches for a real hash, which an empty string never matches.
- */
-media.index({ folder: 1, sha256: 1 });
-media.index({ notebook: 1, sha256: 1 }, { sparse: true });
-/**
- * Notes live apart from flashcard collections on purpose: nothing that lists, studies, publishes
- * or counts collections can pick a notebook up by accident, because it is not one. Sharing works
- * the same way — an owner and members with viewer or editor roles — and is free.
- */
-const members = () => [{ user: ref('User'), role: { type: String, enum: ['viewer', 'editor'], required: true }, _id: false }];
-/**
- * A collection of notebooks, shown as "Collection" on the Notes tab. Sharing one shares every
- * notebook in it; a notebook inside is always owned by the collection's owner, so deleting either
- * the collection or that account takes everything inside with it.
- */
-const noteCollection = new Schema({ title: { type: String, required: true }, description: { type: String, default: '' }, color: { type: String, default: 'violet' }, icon: { type: String, default: 'layers' }, owner: ref('User'), members: members(), version: { type: Number, default: 0 } }, options);
-noteCollection.index({ owner: 1, updatedAt: -1 }); noteCollection.index({ 'members.user': 1 });
-const notebook = new Schema({ title: { type: String, required: true }, description: { type: String, default: '' }, color: { type: String, default: 'violet' }, icon: { type: String, default: 'book' }, owner: ref('User'), noteCollection: ref('NoteCollection', false), members: members(), version: { type: Number, default: 0 }, archived: { type: Boolean, default: false } }, options);
-notebook.index({ owner: 1, updatedAt: -1 }); notebook.index({ 'members.user': 1 }); notebook.index({ noteCollection: 1, updatedAt: -1 });
-const note = new Schema({ notebook: ref('Notebook'), title: { type: String, default: '' }, body: { type: String, default: '' }, tags: [String], pinned: { type: Boolean, default: false }, version: { type: Number, default: 0 }, createdBy: ref('User'), updatedBy: ref('User'), clientId: { type: String, select: false } }, options);
-note.index({ notebook: 1, createdBy: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: 'string' } } });
-note.index({ notebook: 1, pinned: -1, updatedAt: -1 });
-/**
- * What a page said before a change, so a bad edit, a bad autosave or an assistant's rewrite can be
- * undone by the person. Kept to the last few per page (see noteService) so history is bounded.
- */
-const noteRevision = new Schema({ note: ref('Note'), notebook: ref('Notebook'), title: { type: String, default: '' }, body: { type: String, default: '' }, tags: [String], version: { type: Number, default: 0 }, by: ref('User', false), via: { type: String, enum: ['app', 'assistant'], default: 'app' }, byName: { type: String, default: '' } }, options);
-noteRevision.index({ note: 1, createdAt: -1 });
-noteRevision.index({ notebook: 1 });
-// FSRS memory state (stability, difficulty, state) plus the legacy SM-2 fields (interval, repetitions, ease) kept for compatibility.
-const progress = new Schema({ user: ref('User'), card: ref('Card'), repetitions: { type: Number, default: 0 }, interval: { type: Number, default: 0 }, ease: { type: Number, default: 2.5 }, stability: { type: Number, default: 0 }, difficulty: { type: Number, default: 0 }, state: { type: String, enum: ['new', 'learning', 'review', 'relearning'], default: 'new' }, reps: { type: Number, default: 0 }, lapses: { type: Number, default: 0 }, elapsedDays: { type: Number, default: 0 }, scheduledDays: { type: Number, default: 0 }, dueAt: { type: Date, default: Date.now }, lastReviewedAt: Date, version: { type: Number, default: 0 }, bookmarked: { type: Boolean, default: false } }, options);
-progress.index({ user: 1, card: 1 }, { unique: true }); progress.index({ user: 1, dueAt: 1 });
-const review = new Schema({ user: ref('User'), card: ref('Card'), folder: ref('Folder', false), requestId: { type: String, required: true }, rating: { type: String, enum: ['again', 'hard', 'good', 'easy'] }, mode: { type: String, default: 'classic' }, elapsedDays: Number, result: Schema.Types.Mixed, game: Schema.Types.Mixed }, options);
-review.index({ user: 1, requestId: 1 }, { unique: true }); review.index({ user: 1, createdAt: -1 });
-/**
- * Experience and badges, one row per learner, updated in the same transaction as the review that
- * earned them. Counters rather than queries over the review log, because a badge check runs on
- * every answer and has to cost a single read. Day keys are UTC, like the daily goal and streaks.
- */
-const counter = { type: Number, default: 0 };
-const gameProfile = new Schema({
-  user: { ...ref('User'), unique: true },
-  xp: counter, reviews: counter,
-  correct: { classic: counter, mcq: counter, truefalse: counter, type: counter, voice: counter, match: counter },
-  modesTried: { type: [String], default: [] },
-  combo: counter, bestCombo: counter,
-  // A finished board is only counted once at least that many match reviews have arrived since the last one.
-  matchSinceBoard: counter, boards: counter, flawless: counter, comebacks: counter, night: counter, dawn: counter, doubleGoal: counter, deepRoots: counter,
-  lastDay: { type: String, default: '' }, dayStreak: counter, bestDayStreak: counter,
-  // Only ever needs to reach the largest "different collections" target, so it stops growing there.
-  folders: { type: [Schema.Types.ObjectId], default: [] },
-  today: { day: { type: String, default: '' }, reviews: counter, xp: counter, goalMet: { type: Boolean, default: false } },
-  badges: { type: [{ _id: false, id: String, at: Date }], default: [] },
-}, options);
-const activity = new Schema({ folder: ref('Folder'), actor: ref('User'), action: String, detail: String }, options);
-activity.index({ folder: 1, createdAt: -1 });
-const revision = new Schema({ card: ref('Card'), folder: ref('Folder'), editor: ref('User'), version: Number, snapshot: Schema.Types.Mixed }, options);
-revision.index({ card: 1, version: 1 }, { unique: true });
-// Durable domain events are the future integration boundary. No AI calls or indexing run in v1.
-const event = new Schema({ type: String, aggregateId: String, payload: Schema.Types.Mixed, processedAt: Date }, options);
-event.index({ processedAt: 1, createdAt: 1 });
-// Persisted Yjs CRDT state for live co-editing. The Card document remains the authoritative, versioned text.
-const cardDoc = new Schema({ card: { ...ref('Card'), unique: true }, state: { type: Buffer, required: true, select: false } }, options);
-const relationship = new Schema({ from: ref('User'), to: ref('User'), kind: { type: String, enum: ['follow', 'connect'], required: true }, status: { type: String, enum: ['active', 'pending'], required: true } }, options);
-relationship.index({ from: 1, to: 1, kind: 1 }, { unique: true });
-relationship.index({ to: 1, kind: 1, status: 1 });
-relationship.index({ from: 1, kind: 1, status: 1 });
-const project = new Schema({ title: { type: String, required: true }, description: { type: String, default: '' }, visibility: { type: String, enum: ['private', 'global'], default: 'private' }, owner: ref('User'), folders: [ref('Folder', false)], version: { type: Number, default: 0 }, archived: { type: Boolean, default: false } }, options);
-project.index({ owner: 1, updatedAt: -1 }); project.index({ folders: 1 });
-// One order shape covers both products. `team` set means the payment buys seats rather than a
-// personal subscription, so neither payment method needed new code to start selling teams.
-const premiumOrder = new Schema({ user: ref('User'), plan: { type: String, required: true }, team: ref('Team', false), seats: { type: Number, default: 0 }, kind: { type: String, enum: ['personal', 'team-new', 'team-renew', 'team-seats'], default: 'personal' }, method: { type: String, enum: ['manual', 'razorpay'], default: 'razorpay' }, amount: { type: Number, default: 0 }, currency: { type: String, default: 'INR' }, gatewayOrderId: { type: String }, gatewayPaymentId: { type: String }, name: { type: String, required: true }, email: { type: String, required: true }, phone: { type: String, required: true }, country: { type: String, required: true }, address: { type: String, required: true }, status: { type: String, enum: ['pending', 'approved', 'declined'], default: 'pending' }, reviewedBy: ref('User', false) }, options);
-premiumOrder.index({ user: 1, createdAt: -1 });
-// Sparse and unique: a gateway payment can only ever be credited to one order, however many times
-// its webhook fires. Both fields are deliberately left unset until the gateway supplies them, never
-// defaulted to null, because sparse only skips an absent field — a field that is present and null
-// is indexed like any other value, and every unpaid order would then be fighting for the same key.
-premiumOrder.index({ gatewayOrderId: 1 }, { unique: true, sparse: true });
-premiumOrder.index({ gatewayPaymentId: 1 }, { unique: true, sparse: true });
-const notification = new Schema({ user: ref('User'), type: { type: String, required: true }, actor: ref('User', false), data: { type: Schema.Types.Mixed, default: {} }, readAt: { type: Date, default: null } }, options);
-notification.index({ user: 1, createdAt: -1 }); notification.index({ user: 1, readAt: 1 });
-// `memberCount` is denormalised so the seat check is one read; it is only ever written in the same
-// transaction as the membership it counts, which is what keeps a full team from overselling a seat.
-const team = new Schema({ name: { type: String, required: true }, kind: { type: String, enum: ['classroom', 'team'], default: 'classroom' }, description: { type: String, default: '' }, owner: ref('User'), plan: { type: String, default: '' }, seats: { type: Number, default: 0 }, memberCount: { type: Number, default: 1 }, expiresAt: { type: Date, default: null }, version: { type: Number, default: 0 }, archived: { type: Boolean, default: false } }, options);
-team.index({ owner: 1, updatedAt: -1 });
-const teamMember = new Schema({ team: ref('Team'), user: ref('User'), role: { type: String, enum: ['owner', 'teacher', 'student'], required: true }, invitedBy: ref('User', false) }, options);
-teamMember.index({ team: 1, user: 1 }, { unique: true }); teamMember.index({ user: 1 }); teamMember.index({ team: 1, role: 1 });
-// A join code is a bearer credential, so it is stored hashed and only ever shown once, at creation.
-const teamInvite = new Schema({ team: ref('Team'), codeHash: { type: String, required: true, unique: true }, role: { type: String, enum: ['teacher', 'student'], default: 'student' }, createdBy: ref('User'), expiresAt: { type: Date, default: null }, maxUses: { type: Number, default: 0 }, uses: { type: Number, default: 0 }, revokedAt: { type: Date, default: null } }, options);
-teamInvite.index({ team: 1, createdAt: -1 });
-const assignment = new Schema({ team: ref('Team'), folder: ref('Folder'), createdBy: ref('User'), title: { type: String, default: '' }, instructions: { type: String, default: '' }, dueAt: { type: Date, default: null }, archived: { type: Boolean, default: false } }, options);
-assignment.index({ team: 1, dueAt: 1 }); assignment.index({ folder: 1 });
-// A stored setting is an override, not a value: only keys an operator has actually changed live
-// here, and everything else falls back to the declaration in shared/settings.js. Which means an
-// empty collection is a valid, working configuration, and deleting a row is how you undo.
-const setting = new Schema({ key: { type: String, required: true, unique: true }, value: Schema.Types.Mixed, updatedBy: ref('User', false) }, options);
-// Every change to configuration, kept whether or not anything went wrong. Editable settings without
-// a record of who moved them is a liability the first time a number looks wrong at midnight.
-const auditEntry = new Schema({ actor: ref('User', false), actorName: { type: String, default: '' }, action: { type: String, required: true }, target: { type: String, default: '' }, before: Schema.Types.Mixed, after: Schema.Types.Mixed, note: { type: String, default: '' } }, options);
-auditEntry.index({ createdAt: -1 }); auditEntry.index({ target: 1, createdAt: -1 });
-/**
- * A notice that something published here should not be.
- *
- * The Digital Services Act requires a hosting service to let anyone flag content they believe is
- * illegal, to act on it, and to tell the person who reported it what happened. That obligation
- * does not wait for the platform to be large, so this exists from the start.
- *
- * `reporter` is optional on purpose. Public folders can be read without an account, so the person
- * best placed to notice a problem may not have one, and requiring them to register first would
- * put a barrier in front of the report. An address is asked for instead so the outcome can be
- * sent back, and that too is optional.
- */
-const contentReport = new Schema({
-  folder: ref('Folder'),
-  reporter: ref('User', false),
-  email: { type: String, default: '' },
-  reason: { type: String, enum: ['illegal', 'infringement', 'privacy', 'harmful', 'spam', 'other'], required: true },
-  detail: { type: String, default: '' },
-  status: { type: String, enum: ['open', 'upheld', 'rejected'], default: 'open' },
-  // What was decided and why, kept because a decision a reviewer cannot explain later is not a
-  // decision anyone can appeal against.
-  outcome: { type: String, default: '' },
-  reviewedBy: ref('User', false),
-  reviewedAt: { type: Date, default: null },
-}, options);
-// The queue is read newest-first, and a folder's own history is read when judging a repeat report.
-contentReport.index({ status: 1, createdAt: -1 });
-contentReport.index({ folder: 1, createdAt: -1 });
-
-/**
- * Whole documents by string key, used only when object storage is not configured. The same shape
- * as a bucket object or a key–value table row, so it has no relationship to anything else here.
- */
-const blob = new Schema({ _id: { type: String }, body: { type: Buffer, required: true }, contentType: { type: String, default: 'application/json' }, bytes: { type: Number, default: 0 } }, { timestamps: true });
-export const Blob = model('Blob', blob);
-
-export const AgentToken = model('AgentToken', agentToken), AgentBatch = model('AgentBatch', agentBatch), OAuthClient = model('OAuthClient', oauthClient), OAuthGrant = model('OAuthGrant', oauthGrant);
-export const User = model('User', user), RefreshToken = model('RefreshToken', refreshToken), AuthToken = model('AuthToken', authToken), Folder = model('Folder', folder), Card = model('Card', card), Media = model('Media', media), Progress = model('Progress', progress), Review = model('Review', review), GameProfile = model('GameProfile', gameProfile), Activity = model('Activity', activity), Revision = model('Revision', revision), DomainEvent = model('DomainEvent', event), CardDoc = model('CardDoc', cardDoc), Relationship = model('Relationship', relationship), Project = model('Project', project), PremiumOrder = model('PremiumOrder', premiumOrder), Notification = model('Notification', notification), Team = model('Team', team), TeamMember = model('TeamMember', teamMember), TeamInvite = model('TeamInvite', teamInvite), Assignment = model('Assignment', assignment), Setting = model('Setting', setting), AuditEntry = model('AuditEntry', auditEntry), ContentReport = model('ContentReport', contentReport);
-export const NoteCollection = model('NoteCollection', noteCollection), Notebook = model('Notebook', notebook), Note = model('Note', note), NoteRevision = model('NoteRevision', noteRevision);
-// A six-digit code mailed to an address, to prove its owner is at the keyboard: when an account is made
-// and when one is deleted. One row per address and purpose, so asking again replaces the last code.
-const emailCode = new Schema({ email: { type: String, required: true, lowercase: true }, purpose: { type: String, enum: ['signup', 'delete-account'], required: true }, user: ref('User', false), codeHash: { type: String, required: true }, attempts: { type: Number, default: 0 }, sentAt: { type: Date, default: Date.now }, windowStart: { type: Date, default: Date.now }, sends: { type: Number, default: 1 }, expiresAt: { type: Date, required: true, expires: 0 } }, options);
-emailCode.index({ email: 1, purpose: 1 }, { unique: true });
-export const EmailCode = model('EmailCode', emailCode);
+/** Every model, in the order their indexes are built at startup. */
 export const allModels = [EmailCode, NoteCollection, Notebook, Note, NoteRevision, User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];

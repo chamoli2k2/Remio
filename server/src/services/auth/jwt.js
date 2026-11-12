@@ -1,3 +1,4 @@
+import { ACCESS_TOKEN_TTL_S, REFRESH_TOKEN_TTL_MS, REFRESH_REUSE_GRACE_MS, REFRESH_KEEP_PREVIOUS } from '../../constants/index.js';
 import crypto from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { RefreshToken, User } from '../../models/index.js';
@@ -24,10 +25,10 @@ import { BRAND } from '../../../../shared/brand.js';
  * again means two parties hold the same device's credential, so that device is signed out, except
  * within a few seconds of the rotation, where it is far more likely two tabs refreshed at once.
  */
-export const ACCESS_TTL_S = 15 * 60;
-export const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const REUSE_GRACE_MS = 30_000;
-const KEEP_PREVIOUS = 5;
+export const ACCESS_TTL_S = ACCESS_TOKEN_TTL_S;
+export const REFRESH_TTL_MS = REFRESH_TOKEN_TTL_MS;
+const REUSE_GRACE_MS = REFRESH_REUSE_GRACE_MS;
+const KEEP_PREVIOUS = REFRESH_KEEP_PREVIOUS;
 const ISSUER = BRAND.slug;
 const AUDIENCE = `${BRAND.slug}-api`;
 

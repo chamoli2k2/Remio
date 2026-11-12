@@ -1,3 +1,4 @@
+import { MAX_FETCHED_IMAGE_BYTES } from '../constants/index.js';
 import dns from 'node:dns/promises';
 import https from 'node:https';
 import net from 'node:net';
@@ -47,7 +48,7 @@ const MAX_REDIRECTS = 2;
  * Generous for a real picture even so. A three megabyte JPEG is a large photograph, and it
  * leaves here as a few hundred kilobytes of WebP.
  */
-export const MAX_FETCH_BYTES = 3 * 1024 * 1024;
+export const MAX_FETCH_BYTES = MAX_FETCHED_IMAGE_BYTES;
 
 /**
  * Ranges that are not somewhere on the public internet.

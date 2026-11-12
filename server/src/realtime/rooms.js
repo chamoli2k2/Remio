@@ -1,3 +1,4 @@
+import { ROOM_LIMITS, ROOM_SCORE } from '../constants/index.js';
 import { randomInt } from 'node:crypto';
 import { hasCloze, renderCloze } from '../../../shared/cloze.js';
 import { answerParts } from '../../../shared/answers.js';
@@ -7,8 +8,8 @@ import { answerParts } from '../../../shared/answers.js';
  * pure apart from an injectable scheduler, which keeps the timing logic unit-testable.
  */
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
-export const LIMITS = { minCards: 2, maxCards: 30, minSeconds: 5, maxSeconds: 60, maxPlayers: 50 };
-export const SCORE = { base: 1000, floor: 0.5, streakBonus: 100, streakCap: 500 };
+export const LIMITS = ROOM_LIMITS;
+export const SCORE = ROOM_SCORE;
 const shuffle = (arr, rand) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 // The short form of the answer: the bold key term of a long explanation, or a cloze card's hidden text.
 const answerOf = card => answerParts(card)?.display || '';

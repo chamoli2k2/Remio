@@ -1,3 +1,4 @@
+import { VERIFY_LINK_TTL_MS, RESET_LINK_TTL_MS, LINK_RESEND_GAP_MS } from '../constants/index.js';
 import crypto from 'node:crypto';
 import * as drawings from './drawingService.js';
 import * as notes from './noteService.js';
@@ -19,11 +20,11 @@ import { isSuperadmin } from '../../../shared/account.js';
 import * as storage from './storage.js';
 import { codesRequired, issueCode, assertSent, checkCode, spendCode } from './emailCodeService.js';
 
-const VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
+const VERIFY_TTL_MS = VERIFY_LINK_TTL_MS;
 /** A reset link hands out an account, so it is worth far less time than a confirmation link. */
-const RESET_TTL_MS = 60 * 60 * 1000;
+const RESET_TTL_MS = RESET_LINK_TTL_MS;
 /** Resending is rate limited at the route; this stops a second link being minted needlessly. */
-const RESEND_GAP_MS = 60 * 1000;
+const RESEND_GAP_MS = LINK_RESEND_GAP_MS;
 
 const origin = publicOrigin;
 

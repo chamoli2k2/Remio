@@ -1,3 +1,4 @@
+import { OAUTH_CODE_TTL_MS } from '../../constants/index.js';
 import crypto from 'node:crypto';
 import { AgentToken, OAuthClient, OAuthGrant } from '../../models/index.js';
 import { hashToken } from '../../utils/hash.js';
@@ -29,7 +30,7 @@ import { issueForClient, refreshForClient, requireAgentsEnabled, requireAgentEnt
  *    host, because that is the fact that actually matters and the only one we can vouch for.
  */
 
-const CODE_TTL_MS = 5 * 60_000;
+const CODE_TTL_MS = OAUTH_CODE_TTL_MS;
 
 /** OAuth has its own error shape, and clients parse it. A thrown AppError would come out as the wrong JSON. */
 export class OAuthError extends Error {

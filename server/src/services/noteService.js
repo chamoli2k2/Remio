@@ -1,3 +1,4 @@
+import { REVISIONS_KEPT, REVISION_GAP_MS } from '../constants/index.js';
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { NoteCollection, Notebook, Note, NoteRevision, Media, User } from '../models/index.js';
@@ -354,8 +355,7 @@ export async function updateNote(id, user, { version, ...body }) {
 
 /* History */
 
-export const REVISIONS_KEPT = 20;
-const REVISION_GAP_MS = 5 * 60_000;
+export { REVISIONS_KEPT };
 
 /**
  * Remember what a page said before it is changed.

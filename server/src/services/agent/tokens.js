@@ -1,3 +1,4 @@
+import { AGENT_TOKEN_TOUCH_AFTER_MS } from '../../constants/index.js';
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { AgentToken, AgentBatch, User } from '../../models/index.js';
@@ -29,7 +30,7 @@ const lifetime = () => days(setting('agent.tokenDays'));
  * Updated at most once a minute, because the truth of it to the nearest minute is worth exactly
  * nothing and a write on every tool call is not.
  */
-const TOUCH_AFTER_MS = 60_000;
+const TOUCH_AFTER_MS = AGENT_TOKEN_TOUCH_AFTER_MS;
 
 /** The whole set of reasons a grant is not usable, in one place so no caller can check only some of them. */
 function usable(grant) {

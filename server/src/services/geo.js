@@ -1,3 +1,4 @@
+import { GEO_CACHE_MAX, GEO_CACHE_TTL_MS } from '../constants/index.js';
 import { countryByCode, HOME_COUNTRY } from '../../../shared/countries.js';
 import { logger } from '../utils/logger.js';
 
@@ -41,8 +42,8 @@ const token = () => process.env.IPINFO_TOKEN || '';
  * Keyed on the address and capped, because an unbounded map keyed on user input is a slow memory
  * leak. The cap evicts oldest-first, which for this is the same as least-recently-seen.
  */
-const CACHE_MAX = 5000;
-const CACHE_TTL = 6 * 60 * 60 * 1000;
+const CACHE_MAX = GEO_CACHE_MAX;
+const CACHE_TTL = GEO_CACHE_TTL_MS;
 const cache = new Map();
 
 const remember = (ip, code) => {

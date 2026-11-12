@@ -1,3 +1,4 @@
+import { COVER_COLORS, COVER_ICONS } from '../constants/index.js';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { BRAND } from '../../../shared/brand.js';
@@ -234,8 +235,8 @@ export function buildServer({ user, grant }) {
     inputSchema: {
       title: z.string().describe('Short and specific, e.g. "Organic Chemistry — Reaction Mechanisms".'),
       description: z.string().default('').describe('Optional one sentence on what it covers.'),
-      color: z.enum(['violet', 'blue', 'orange', 'green', 'pink', 'slate']).default('violet').describe('Cover colour.'),
-      icon: z.enum(['layers', 'code', 'globe', 'brain', 'book', 'flask', 'terminal', 'palette']).default('layers')
+      color: z.enum(COVER_COLORS).default('violet').describe('Cover colour.'),
+      icon: z.enum(COVER_ICONS).default('layers')
         .describe('flask science, code/terminal programming, globe geography/languages, book humanities, brain medicine/psychology, palette art, layers anything else.'),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
@@ -330,8 +331,8 @@ export function buildServer({ user, grant }) {
         title: z.string().describe('Short and specific, e.g. "Organic Chemistry — Lecture Notes".'),
         description: z.string().default('').describe('Optional one sentence on what it covers.'),
         collectionId: z.string().optional().describe('Optional; from the collections list_notebooks returns.'),
-        color: z.enum(['violet', 'blue', 'orange', 'green', 'pink', 'slate']).default('violet').describe('Cover colour.'),
-        icon: z.enum(['layers', 'code', 'globe', 'brain', 'book', 'flask', 'terminal', 'palette']).default('book').describe('flask science, code/terminal programming, globe geography/languages, brain medicine/psychology, palette art, book anything else.'),
+        color: z.enum(COVER_COLORS).default('violet').describe('Cover colour.'),
+        icon: z.enum(COVER_ICONS).default('book').describe('flask science, code/terminal programming, globe geography/languages, brain medicine/psychology, palette art, book anything else.'),
         requestId: requestIdField,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },

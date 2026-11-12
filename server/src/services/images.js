@@ -1,3 +1,4 @@
+import { MAX_STORED_IMAGE_BYTES } from '../constants/index.js';
 import crypto from 'node:crypto';
 import sharp from 'sharp';
 import { assert } from '../utils/errors.js';
@@ -46,7 +47,7 @@ const MAX_PIXELS = 25_000_000;
 /** The longest edge kept. A card or a cover is never displayed larger than this. */
 const MAX_EDGE = 1600;
 /** What may be written to the bucket, after everything above has had its say. */
-export const MAX_STORED_BYTES = 3 * 1024 * 1024;
+export const MAX_STORED_BYTES = MAX_STORED_IMAGE_BYTES;
 
 /**
  * Decode, check, re-encode, and describe.

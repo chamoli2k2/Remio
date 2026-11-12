@@ -1,3 +1,4 @@
+import { SSR_CACHE_TTL_MS, SSR_CACHE_MAX_ENTRIES } from '../constants/index.js';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { logger } from '../utils/logger.js';
@@ -61,8 +62,8 @@ async function serverEntry(root) {
  * be given as much garbage as somebody cares to send. Oldest out first, which for a Map is simply
  * insertion order.
  */
-const TTL_MS = 60_000;
-const MAX_ENTRIES = 200;
+const TTL_MS = SSR_CACHE_TTL_MS;
+const MAX_ENTRIES = SSR_CACHE_MAX_ENTRIES;
 const cache = new Map();
 
 const cached = key => {

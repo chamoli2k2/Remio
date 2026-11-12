@@ -1,3 +1,4 @@
+import { COVER_COLORS, COVER_ICONS, VISIBILITY, TEAM_KINDS, TEAM_INVITE_ROLES, REPORT_REASONS, REPORT_DECISIONS, RATINGS } from '../constants/index.js';
 import { z } from 'zod';
 import { hasCloze } from '../../../shared/cloze.js';
 import { PLAN_IDS } from '../../../shared/account.js';
@@ -39,10 +40,10 @@ export const verifyEmailSchema = z.object({ token: z.string().regex(/^[a-f\d]{64
 export const refreshSchema = z.object({ refreshToken: z.string().regex(/^[a-f\d]{64}$/i).optional() }).default({});
 export const forgotPasswordSchema = z.object({ email: z.email().toLowerCase() });
 export const resetPasswordSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, 'That reset link is not valid.'), newPassword: z.string().min(10).max(128) });
-export const folderSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), color: z.enum(['violet', 'blue', 'orange', 'green', 'pink', 'slate']).default('violet'), icon: z.enum(['layers', 'code', 'globe', 'brain', 'book', 'flask', 'terminal', 'palette']).default('layers'), visibility: z.enum(['private', 'global']).default('private'), thumbnail: idSchema.nullable().optional() });
+export const folderSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), color: z.enum(COVER_COLORS).default('violet'), icon: z.enum(COVER_ICONS).default('layers'), visibility: z.enum(VISIBILITY).default('private'), thumbnail: idSchema.nullable().optional() });
 /** The title as stored, typed back. The service re-checks it against the live name. */
 export const folderDeleteSchema = z.object({ confirm: z.string().min(1).max(80) });
-export const projectSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), visibility: z.enum(['private', 'global']).default('private') });
+export const projectSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), visibility: z.enum(VISIBILITY).default('private') });
 /**
  * The billing fields are shared, because seats and a personal plan are bought through one pipeline.
  * There is no email here on purpose: the receipt has to go to the confirmed address on the account,
@@ -59,8 +60,8 @@ export const premiumOrderSchema = billing.extend({ plan: z.enum(PLAN_IDS) });
 const seats = z.coerce.number().int().min(SEATS.min).max(SEATS.max);
 export const seatQuoteSchema = z.object({ plan: z.enum(TEAM_PLAN_IDS), seats });
 export const teamOrderSchema = billing.extend({ plan: z.enum(TEAM_PLAN_IDS), seats });
-export const teamSchema = z.object({ name: z.string().trim().min(2).max(60), kind: z.enum(['classroom', 'team']).default('classroom'), description: z.string().max(300).default('') });
-export const teamInviteSchema = z.object({ role: z.enum(['teacher', 'student']).default('student'), maxUses: z.number().int().min(0).max(500).default(0), expiresInDays: z.number().int().min(1).max(90).optional() });
+export const teamSchema = z.object({ name: z.string().trim().min(2).max(60), kind: z.enum(TEAM_KINDS).default('classroom'), description: z.string().max(300).default('') });
+export const teamInviteSchema = z.object({ role: z.enum(TEAM_INVITE_ROLES).default('student'), maxUses: z.number().int().min(0).max(500).default(0), expiresInDays: z.number().int().min(1).max(90).optional() });
 export const joinCodeSchema = z.object({ code: z.string().trim().min(6).max(16) });
 export const assignmentSchema = z.object({ folderId: idSchema, title: z.string().trim().max(80).default(''), instructions: z.string().max(500).default(''), dueAt: z.iso.datetime().nullish() });
 export const drawingIdSchema = z.string().regex(DRAWING_ID, 'Invalid drawing');
@@ -114,7 +115,7 @@ export const drawingSchema = z.object({
 // Shared with the assistant's card schema below, which no longer pipes through this one and so
 // would otherwise quietly stop deduplicating tags.
 const tagList = z.array(z.string().trim().toLowerCase().min(1).max(30)).max(10).default([]).transform(v => [...new Set(v)]);
-export const notebookSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), color: z.enum(['violet', 'blue', 'orange', 'green', 'pink', 'slate']).default('violet'), icon: z.enum(['layers', 'code', 'globe', 'brain', 'book', 'flask', 'terminal', 'palette']).default('book') });
+export const notebookSchema = z.object({ title: z.string().trim().min(1).max(80), description: z.string().max(500).default(''), color: z.enum(COVER_COLORS).default('violet'), icon: z.enum(COVER_ICONS).default('book') });
 export const noteCollectionSchema = notebookSchema.extend({ icon: notebookSchema.shape.icon.removeDefault().default('layers') });
 export const noteSchema = z.object({ title: z.string().trim().max(NOTE_LIMITS.title).default(''), body: z.string().max(NOTE_LIMITS.body, `A page can hold up to ${NOTE_LIMITS.body.toLocaleString('en')} characters. Split it into two pages.`).default(''), tags: z.array(z.string().trim().toLowerCase().min(1).max(30)).max(NOTE_LIMITS.tags).default([]).transform(v => [...new Set(v)]), pinned: z.boolean().default(false) }).strict();
 // A save sends only what changed, so nothing here has a default that would quietly overwrite a field.
@@ -248,14 +249,14 @@ export const agentConsentSchema = z.object({
  * has to stand on its own without a session behind it.
  */
 export const reportSchema = z.object({
-  reason: z.enum(['illegal', 'infringement', 'privacy', 'harmful', 'spam', 'other'], 'Choose what is wrong with it.'),
+  reason: z.enum(REPORT_REASONS, 'Choose what is wrong with it.'),
   detail: z.string().trim().max(1000).optional().default(''),
   // Optional, and only used to tell the reporter what was decided.
   email: z.union([z.email(), z.literal('')]).optional().default(''),
 });
 
 export const reportDecisionSchema = z.object({
-  status: z.enum(['upheld', 'rejected']),
+  status: z.enum(REPORT_DECISIONS),
   outcome: z.string().trim().max(500).optional().default(''),
 });
 
@@ -283,7 +284,7 @@ export const deleteUserSchema = z.object({
  * definition was not remembered, so it can only be rated "again".
  */
 const reviewItem = z.object({
-  cardId: idSchema, rating: z.enum(['again', 'hard', 'good', 'easy']), requestId: z.uuid(), version: z.number().int().min(0),
+  cardId: idSchema, rating: z.enum(RATINGS), requestId: z.uuid(), version: z.number().int().min(0),
   mode: z.enum(MODE_IDS).default('classic'),
   reply: z.string().max(4000).optional(),
   echo: z.boolean().optional(),

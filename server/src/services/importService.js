@@ -1,9 +1,10 @@
+import { MAX_IMPORT_CARDS, MAX_IMPORT_TEXT } from '../constants/index.js';
 import { unzipSync, strFromU8 } from 'fflate';
 import { createRequire } from 'node:module';
 import { hasCloze } from '../../../shared/cloze.js';
 // Parsers for bringing cards in from other tools. Every parser is a pure function that returns normalised
 // { front, back, tags, hint, source } objects; validation against the card schema happens in the service.
-export const MAX_CARDS = 2000, MAX_TEXT = 10000;
+export const MAX_CARDS = MAX_IMPORT_CARDS, MAX_TEXT = MAX_IMPORT_TEXT;
 const clean = s => String(s ?? '').replace(/\r\n?/g, '\n').trim().slice(0, MAX_TEXT);
 const normaliseTags = tags => [...new Set((Array.isArray(tags) ? tags : String(tags || '').split(/[\s,;]+/)).map(t => String(t).trim().toLowerCase().replace(/^#/, '').slice(0, 30)).filter(Boolean))].slice(0, 10);
 export const makeCard = ({ front, back, tags = [], hint = '', source = '' }) => ({ front: { text: clean(front), image: null }, back: { text: clean(back), image: null }, tags: normaliseTags(tags), hint: clean(hint).slice(0, 1000), source: /^https?:\/\/\S+$/.test(String(source || '').trim()) ? String(source).trim() : '' });

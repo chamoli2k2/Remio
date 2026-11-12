@@ -1,3 +1,4 @@
+import { MAX_STUDY_BATCH, STUDY_BACKDATE_MS, STUDY_ATTEMPTS } from '../constants/index.js';
 import mongoose from 'mongoose';
 import { Card, Progress, Review } from '../models/index.js';
 import { accessFolder } from './accessService.js';
@@ -8,11 +9,11 @@ import { loadProfile, saveProfile, applyReview } from './gameService.js';
 export const schedule = (previous, rating, now = new Date(), options) => fsrsSchedule(previous, rating, now, options);
 export const previewSchedule = (previous, retention = DEFAULT_RETENTION, now = new Date()) => preview(previous, now, { retention });
 
-export const MAX_BATCH = 100;
+export const MAX_BATCH = MAX_STUDY_BATCH;
 // A review queued on a device that then went offline is still honoured when it syncs, as long as it
 // is no older than this. Older ones are scheduled as if answered now.
-const BACKDATE_MS = 7 * 86400000;
-const ATTEMPTS = 3;
+const BACKDATE_MS = STUDY_BACKDATE_MS;
+const ATTEMPTS = STUDY_ATTEMPTS;
 
 const failed = (requestId, status, code, error, extra) => ({ requestId, ok: false, status, code, error, ...extra });
 

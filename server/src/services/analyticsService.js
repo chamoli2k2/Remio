@@ -1,9 +1,10 @@
+import { DAY_MS } from '../constants/index.js';
 import mongoose from 'mongoose';
 import { User, Card, Review, Folder, PremiumOrder, DomainEvent } from '../models/index.js';
 import { minorUnitsIn } from '../../../shared/pricing.js';
 import { planById } from '../../../shared/account.js';
 
-const DAY = 86400000;
+const DAY = DAY_MS;
 const WEEK = 7 * DAY;
 const startOfUtcDay = d => { const s = new Date(d); s.setUTCHours(0, 0, 0, 0); return s; };
 // Days are bucketed in UTC everywhere below, so a window starts at a day boundary rather than at

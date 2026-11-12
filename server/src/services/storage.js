@@ -1,3 +1,4 @@
+import { SIGNED_SECONDS, REDIRECT_CACHE_SECONDS, PUBLIC_SIGNED_SECONDS, PUBLIC_REDIRECT_CACHE_SECONDS } from '../constants/index.js';
 import crypto from 'node:crypto';
 import { S3Client, PutObjectCommand, GetObjectCommand, CopyObjectCommand, DeleteObjectsCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { IMAGE_WIDTHS } from '../../../shared/images.js';
@@ -180,8 +181,7 @@ export async function remove(keys) {
  * The cache window is deliberately shorter than the signature. A browser that cached the redirect
  * for as long as the link is valid would, at the boundary, follow one that had just expired.
  */
-export const SIGNED_SECONDS = 600;
-export const REDIRECT_CACHE_SECONDS = 240;
+export { SIGNED_SECONDS, REDIRECT_CACHE_SECONDS };
 
 /**
  * The same two numbers for an image in a published collection, where the brevity above buys
@@ -195,8 +195,7 @@ export const REDIRECT_CACHE_SECONDS = 240;
  * Six days, not seven: signature v4 refuses anything beyond a week, and the cache window has to
  * stay inside the signature so a cached redirect cannot outlive the link it points at.
  */
-export const PUBLIC_SIGNED_SECONDS = 6 * 24 * 60 * 60;
-export const PUBLIC_REDIRECT_CACHE_SECONDS = 5 * 24 * 60 * 60;
+export { PUBLIC_SIGNED_SECONDS, PUBLIC_REDIRECT_CACHE_SECONDS };
 
 export const signedUrl = (key, seconds = SIGNED_SECONDS) =>
   getSignedUrl(s3(), new GetObjectCommand({ Bucket: bucket(), Key: key }), { expiresIn: seconds });

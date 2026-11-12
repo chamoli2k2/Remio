@@ -1,3 +1,4 @@
+import { MEMBER_ROLE_CHANGES, TEAM_INVITE_ROLES, ACCOUNT_TYPES, ORDER_DECISIONS } from '../constants/index.js';
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
@@ -93,7 +94,7 @@ r.get('/folders/archived', requireAuth, a(folders.archived));
 r.post('/folders', requireAuth, validate(folderSchema), a(folders.create));
 r.get('/folders/:id', a(folders.get));
 r.patch('/folders/:id', requireAuth, validate(folderSchema.extend({ version: z.number().int().min(0) })), a(folders.update));
-r.post('/folders/:id/members', requireAuth, validate(z.object({ username: usernameSchema, role: z.enum(['viewer', 'editor', 'remove']) })), a(folders.member));
+r.post('/folders/:id/members', requireAuth, validate(z.object({ username: usernameSchema, role: z.enum(MEMBER_ROLE_CHANGES) })), a(folders.member));
 r.post('/folders/:id/copy', requireAuth, a(folders.copy));
 r.patch('/folders/:id/archive', requireAuth, validate(z.object({ archived: z.boolean() })), a(folders.archive));
 r.delete('/folders/:id', requireAuth, validate(folderDeleteSchema), a(folders.remove));
@@ -124,7 +125,7 @@ r.patch('/teams/:id/archive', requireAuth, a(teams.archive));
 r.get('/teams/:id/invites', requireAuth, a(teams.invites));
 r.post('/teams/:id/invites', requireAuth, validate(teamInviteSchema), a(teams.invite));
 r.delete('/teams/:id/invites/:inviteId', requireAuth, a(teams.revokeInvite));
-r.patch('/teams/:id/members/:userId', requireAuth, validate(z.object({ role: z.enum(['teacher', 'student']) })), a(teams.setRole));
+r.patch('/teams/:id/members/:userId', requireAuth, validate(z.object({ role: z.enum(TEAM_INVITE_ROLES) })), a(teams.setRole));
 r.delete('/teams/:id/members/:userId', requireAuth, a(teams.removeMember));
 r.post('/teams/:id/folders', requireAuth, validate(folderSchema), a(teams.createFolder));
 r.post('/teams/:id/assignments', requireAuth, validate(assignmentSchema), a(teams.createAssignment));
@@ -145,7 +146,7 @@ r.get('/admin/users', requireAuth, requireDashboard, a(admin.users));
 // Superadmin rather than admin, and rate-limited: an admin moves people between roles all day,
 // but erasing somebody's work is the one action here with nothing to undo it.
 r.delete('/admin/users/:id', requireAuth, requireSuperadmin, authLimit, validate(deleteUserSchema), a(admin.deleteUser));
-r.patch('/admin/users/:id', requireAuth, requireDashboard, validate(z.object({ account: z.enum(['normal', 'premium', 'admin', 'superadmin']) })), a(admin.setAccount));
+r.patch('/admin/users/:id', requireAuth, requireDashboard, validate(z.object({ account: z.enum(ACCOUNT_TYPES) })), a(admin.setAccount));
 // Prices and switches, read by every visitor so the page can quote the right currency.
 r.get('/config', a(config.publicConfig));
 // An admin's dashboard is people, Premium requests and reports. Configuration, analytics, the audit
@@ -159,7 +160,7 @@ r.delete('/admin/assistants/:id', requireAuth, requireSuperadmin, authLimit, val
 r.get('/admin/countries', requireAuth, requireSuperadmin, a(admin.countries));
 r.get('/admin/analytics', requireAuth, requireSuperadmin, a(admin.analytics));
 r.get('/admin/orders', requireAuth, requireDashboard, a(admin.orders));
-r.patch('/admin/orders/:id', requireAuth, requireDashboard, validate(z.object({ status: z.enum(['approved', 'declined']) })), a(admin.decide));
+r.patch('/admin/orders/:id', requireAuth, requireDashboard, validate(z.object({ status: z.enum(ORDER_DECISIONS) })), a(admin.decide));
 r.patch('/cards/:id', requireAuth, validate(cardSchema.extend({ version: z.number().int().min(0) })), a(cards.update));
 r.delete('/cards/:id', requireAuth, a(cards.remove)); r.get('/cards/:id/revisions', requireAuth, a(cards.revisions));
 r.patch('/cards/:id/bookmark', requireAuth, validate(z.object({ bookmarked: z.boolean() })), a(cards.bookmark));
@@ -194,7 +195,7 @@ r.get('/media/:id', a(cards.image));
  */
 const noteSaves = rateLimit({ windowMs: 60000, limit: 120 });
 const uploadLimit = rateLimit({ windowMs: 60000, limit: () => setting('throttle.uploadsPerMinute') });
-const memberSchema = z.object({ username: usernameSchema, role: z.enum(['viewer', 'editor', 'remove']) });
+const memberSchema = z.object({ username: usernameSchema, role: z.enum(MEMBER_ROLE_CHANGES) });
 r.get('/note-collections', requireAuth, a(notes.listCollections));
 r.post('/note-collections', requireAuth, validate(noteCollectionSchema), a(notes.createCollection));
 r.get('/note-collections/:id', requireAuth, a(notes.getCollection));

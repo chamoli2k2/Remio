@@ -2,10 +2,11 @@
 // Memory is modelled with two variables per card: stability S (days until recall probability drops to 90%)
 // and difficulty D (1–10). Retrievability R is the predicted probability of recalling the card right now.
 // Reference: https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-Algorithm (FSRS-5 formulas and defaults).
+import { DAY_MS } from '../constants/index.js';
 export const DEFAULT_WEIGHTS = [0.40255, 1.18385, 3.173, 15.69105, 7.1949, 0.5345, 1.4604, 0.0046, 1.54575, 0.1192, 1.01925, 1.9395, 0.11, 0.29605, 2.2698, 0.2315, 2.9898, 0.51655, 0.6621];
 export const DEFAULT_RETENTION = 0.9;
 export const GRADES = { again: 1, hard: 2, good: 3, easy: 4 };
-const DECAY = -0.5, FACTOR = 19 / 81, DAY = 86400000, RELEARN_MINUTES = 10, MAX_INTERVAL = 36500;
+const DECAY = -0.5, FACTOR = 19 / 81, DAY = DAY_MS, RELEARN_MINUTES = 10, MAX_INTERVAL = 36500;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 /** Probability of recall after `elapsedDays` for a card with stability `stability`. */
 export const retrievability = (elapsedDays, stability) => stability > 0 ? Math.pow(1 + FACTOR * (Math.max(0, elapsedDays) / stability), DECAY) : 0;

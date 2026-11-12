@@ -1,3 +1,4 @@
+import { DAY_MS } from '../constants/index.js';
 import { GameProfile } from '../models/index.js';
 import { XP, BADGES, isCorrect, isSkip, xpForReview, levelOf, metricOf } from '../../../shared/game.js';
 import { compareAnswer } from '../../../shared/answers.js';
@@ -19,7 +20,7 @@ import { compareAnswer } from '../../../shared/answers.js';
  * only if it covers the answer.
  */
 
-const DAY = 86400000;
+const DAY = DAY_MS;
 const dayKey = d => d.toISOString().slice(0, 10);
 const previousDay = key => dayKey(new Date(Date.parse(`${key}T00:00:00Z`) - DAY));
 const MAX_FOLDERS = Math.max(...BADGES.filter(b => b.metric === 'folders').map(b => b.target));

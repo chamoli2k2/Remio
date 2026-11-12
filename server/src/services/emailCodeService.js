@@ -1,3 +1,4 @@
+import { EMAIL_CODE_TTL_MS, EMAIL_CODE_RESEND_GAP_MS, HOUR_MS, EMAIL_CODE_MAX_SENDS_PER_HOUR, EMAIL_CODE_MAX_ATTEMPTS } from '../constants/index.js';
 import crypto from 'node:crypto';
 import { EmailCode } from '../models/index.js';
 import { assert } from '../utils/errors.js';
@@ -10,11 +11,10 @@ import { send, signupCodeEmail, deleteCodeEmail } from './mailService.js';
  * minutes, it is spent on first use, five wrong guesses burn it, and a person may be sent only so
  * many of them an hour.
  */
-const TTL_MS = 10 * 60 * 1000;
-const GAP_MS = 60 * 1000;
-const HOUR_MS = 60 * 60 * 1000;
-const MAX_SENDS_PER_HOUR = 5;
-const MAX_ATTEMPTS = 5;
+const TTL_MS = EMAIL_CODE_TTL_MS;
+const GAP_MS = EMAIL_CODE_RESEND_GAP_MS;
+const MAX_SENDS_PER_HOUR = EMAIL_CODE_MAX_SENDS_PER_HOUR;
+const MAX_ATTEMPTS = EMAIL_CODE_MAX_ATTEMPTS;
 
 /**
  * Whether signing up and deleting from Settings ask for a code. Always, except that the test scripts

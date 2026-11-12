@@ -1,9 +1,10 @@
+import { MAX_FOLDERS_PER_PROJECT } from '../constants/index.js';
 import { Project, Folder } from '../models/index.js';
 import { accessFolder, roleOf } from './accessService.js';
 import { presentFolder } from './folderService.js';
 import { assert } from '../utils/errors.js';
 
-const MAX_FOLDERS = 40;
+const MAX_FOLDERS = MAX_FOLDERS_PER_PROJECT;
 export async function presentProject(project, user) {
   const json = project.toJSON();
   const folders = [];

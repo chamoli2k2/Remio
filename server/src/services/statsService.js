@@ -1,8 +1,9 @@
+import { DAY_MS } from '../constants/index.js';
 import { Folder, Card, Progress, Review } from '../models/index.js';
 import { currentRetrievability, DEFAULT_RETENTION } from './fsrs.js';
 import { stripCloze } from '../../../shared/cloze.js';
 import { gameSummary } from './gameService.js';
-const DAY = 86400000;
+const DAY = DAY_MS;
 const startOfUtcDay = d => { const s = new Date(d); s.setUTCHours(0, 0, 0, 0); return s; };
 /** Folders the user can study: own, shared with them, or saved public collections. */
 export async function accessibleFolderIds(user) {
