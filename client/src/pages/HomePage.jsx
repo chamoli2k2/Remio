@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, RotateCcw, Layers, Users, Brain, Globe2, LockKeyhole, Sparkles, Search, ChevronDown, GraduationCap, Swords, Check } from 'lucide-react';
+import { ArrowRight, RotateCcw, Layers, Users, Brain, Globe2, LockKeyhole, Sparkles, Search, ChevronDown, GraduationCap, Swords, Check, Smartphone, Tablet, Laptop, WifiOff, PenLine, Bot, Timer, Share2 } from 'lucide-react';
 import { api } from '../services/api';
 import { useQuery } from '../hooks/useApp';
 import Img from '../components/Img';
 import { FolderIcon, Loading, Avatar, Empty } from '../components/ui';
 import { BRAND } from '../../../shared/brand.js';
+import HomeDemo from '../components/HomeDemo';
+import Reveal from '../components/Reveal';
+import './home.css';
 function matchesFolder(folder, query) {
   if (!query) return true;
   const hay = `${folder.title} ${folder.description} ${folder.tags?.join(' ') || ''} ${folder.owner?.username || ''}`.toLowerCase();
@@ -149,6 +152,23 @@ function Guide() {
     </p>
   </section>;
 }
+const MARQUEE = [[Layers, 'Folders & cards'], [Brain, 'FSRS scheduling'], [Bot, 'AI assistant'], [PenLine, 'Notes & drawing'], [Users, 'Teams & classrooms'], [Swords, 'Live quiz rooms'], [WifiOff, 'Works offline'], [Share2, 'Share & publish'], [Timer, 'Daily goals']];
+function Devices() {
+  const row = (n) => Array.from({ length: n }, (_, i) => <i key={i} style={{ animationDelay: `${i * 140}ms` }}/>);
+  return <Reveal as="section" className="home-devices">
+    <div className="home-devices-head">
+      <span className="eyebrow">EVERYWHERE YOU STUDY</span>
+      <h2>One library on your laptop, tablet, and phone</h2>
+      <p>The layout adapts to the screen in your hand, your cards sync as you go, and the mobile app keeps working when the connection drops.</p>
+    </div>
+    <div className="home-devices-stage" aria-hidden="true">
+      <div className="dev dev-laptop"><div className="dev-screen"><b/>{row(5)}</div><em/></div>
+      <div className="dev dev-tablet"><div className="dev-screen"><b/>{row(4)}</div></div>
+      <div className="dev dev-phone"><div className="dev-screen"><b/>{row(4)}</div></div>
+    </div>
+    <ul className="home-devices-tags"><li><Laptop size={14}/> Web</li><li><Tablet size={14}/> Tablet</li><li><Smartphone size={14}/> Android app</li></ul>
+  </Reveal>;
+}
 function PublicFolderCard({ folder }) {
   return <Link className={`home-folder ${folder.color}`} to={`/folders/${folder.id}`}>
     <div className="home-folder-cover">{folder.thumbnail ? <Img className="tile-thumb" id={folder.thumbnail} alt={`${folder.title} flashcard collection`} sizes="(max-width: 900px) 100vw, 320px" max={folder.thumbnailWidth}/> : <span className="folder-icon"><FolderIcon name={folder.icon} size={26}/></span>}<span className="visibility-badge"><Globe2 size={11}/> Public</span></div>
@@ -171,27 +191,38 @@ export default function HomePage() {
   const visible = query ? folders : folders.slice(0, HOME_FOLDERS);
   return <div className="home">
     <section className="home-hero">
+      <div className="home-hero-bg" aria-hidden="true"><i/><i/><i/></div>
       <div className="home-hero-copy">
-        <span className="eyebrow"><Sparkles size={12}/> A SPACE FOR YOUR CURIOSITY</span>
-        <h1>Learn a little.<br/>Remember a lot.</h1>
+        <span className="eyebrow"><Sparkles size={12}/> SPACED REPETITION, MADE EFFORTLESS</span>
+        <h1>Learn a little.<br/><span className="grad">Remember a lot.</span></h1>
         <p>{BRAND.name} turns what you read, hear, and wonder about into flashcards you actually revisit. Build collections, study with spaced repetition, and learn alongside people you trust.</p>
-        <div className="home-hero-actions"><Link className="button primary" to="/signup">Start for free <ArrowRight size={17}/></Link><Link className="button secondary" to="/explore">Browse public collections</Link></div>
+        <div className="home-hero-actions"><Link className="button primary glow" to="/signup">Start for free <ArrowRight size={17}/></Link><Link className="button secondary" to="/explore">Browse public collections</Link></div>
         <div className="home-hero-notes"><span><LockKeyhole size={13}/> Private by default</span><span><Users size={13}/> Share by username</span><span><Brain size={13}/> Smart review scheduling</span></div>
       </div>
-      <HeroCard/>
+      <HomeDemo/>
     </section>
+    <div className="home-marquee" aria-hidden="true"><div>{[0, 1].map(k => <ul key={k}>{MARQUEE.map(([Icon, label]) => <li key={label}><Icon size={15}/> {label}</li>)}</ul>)}</div></div>
     <section className="home-steps" aria-label={`How ${BRAND.name} works`}>
-      {[[Layers, 'Collect', 'Create folders for anything worth remembering. Add two-sided text or image cards, tags, hints, and sources.'], [Brain, 'Recall', `Study what is due. Rate each answer honestly and ${BRAND.name} brings difficult cards back sooner.`], [Users, 'Share', 'Invite collaborators as viewers or editors, publish a collection to the world, or keep it just for you.']].map(([Icon, title, text], i) => <div className="home-step" key={title}><span className="home-step-index" aria-hidden="true">0{i + 1}</span><span className="home-step-icon"><Icon size={20}/></span><h2>{title}</h2><p>{text}</p></div>)}
+      {[[Layers, 'Collect', 'Create folders for anything worth remembering. Add two-sided text or image cards, tags, hints, and sources.'], [Brain, 'Recall', `Study what is due. Rate each answer honestly and ${BRAND.name} brings difficult cards back sooner.`], [Users, 'Share', 'Invite collaborators as viewers or editors, publish a collection to the world, or keep it just for you.']].map(([Icon, title, text], i) => <Reveal className="home-step" key={title} delay={i * 110}><span className="home-step-index" aria-hidden="true">0{i + 1}</span><span className="home-step-icon"><Icon size={20}/></span><h2>{title}</h2><p>{text}</p></Reveal>)}
     </section>
+    <Reveal as="section" className="home-try">
+      <div className="home-try-copy">
+        <span className="eyebrow">TRY IT NOW</span>
+        <h2>Flip a card. Feel how it works.</h2>
+        <p>No account needed. Tap the card to reveal the answer, rate how well you knew it, and watch the next one arrive. This is the whole loop, and it takes a few minutes a day.</p>
+      </div>
+      <HeroCard/>
+    </Reveal>
+    <Devices/>
     <Guide/>
-    <section className="home-community" id="library">
+    <Reveal as="section" className="home-community" id="library">
       <div className="library-section-heading"><div><span className="eyebrow">THE COMMUNITY LIBRARY</span><h2>Public collections, ready to study</h2></div><Link to="/explore" className="text-button">Explore all <ArrowRight size={15}/></Link></div>
       <form className="home-search folder-search" onSubmit={e => e.preventDefault()}><Search size={16}/><input aria-label="Search public collections and people" placeholder="Search collections or people…" value={query} onChange={e => setParams(e.target.value ? { q: e.target.value } : {})}/></form>
       {people?.users?.length > 0 && <div className="people-hits">{people.users.map(p => <Link key={p.id} className="person-chip" to={`/u/${p.username}`}><Avatar user={p} small/> {p.name} <small>@{p.username}</small></Link>)}</div>}
       {loading ? <Loading/> : !folders.length ? query ? <Empty title="No matching collections" text="Try another word. Titles, descriptions, tags, and authors are all searchable without an account."/> : <div className="home-empty"><Globe2 size={22}/><p>No public collections yet. Be the first: create an account and publish a folder.</p></div> : <div className="home-folder-grid">{visible.map(f => <PublicFolderCard folder={f} key={f.id}/>)}</div>}
       {folders.length > visible.length && <div className="home-folder-more"><Link className="button secondary" to="/explore">Explore more collections <ArrowRight size={16}/></Link></div>}
       <p className="home-community-note">Anyone can read and flip public cards. To save a collection, make a private copy, track progress, or create your own, you’ll need an account, which takes a few seconds.</p>
-    </section>
+    </Reveal>
     <Faq/>
     <section className="home-cta">
       <div><span className="banner-label"><i className="tiny-line"/> ONE CARD AT A TIME</span><h2>Your future self will thank you.</h2><p>Free to use. No credit card, no email verification, no noise.</p></div>
