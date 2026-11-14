@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, RotateCcw, Layers, Users, Brain, Globe2, LockKeyhole, Sparkles, Search, ChevronDown, GraduationCap, Swords, Check, Smartphone, Tablet, Laptop, WifiOff, PenLine, Bot, Timer, Share2 } from 'lucide-react';
+import { ArrowRight, Layers, Users, Brain, Globe2, LockKeyhole, Search, ChevronDown, GraduationCap, Swords, Check, WifiOff, Bot, Share2, Flame, Plus, Quote } from 'lucide-react';
 import { api } from '../services/api';
 import { useQuery } from '../hooks/useApp';
 import Img from '../components/Img';
@@ -8,26 +8,15 @@ import { FolderIcon, Loading, Avatar, Empty } from '../components/ui';
 import { BRAND } from '../../../shared/brand.js';
 import HomeDemo from '../components/HomeDemo';
 import Reveal from '../components/Reveal';
+import CountUp from '../components/CountUp';
 import './home.css';
+
 function matchesFolder(folder, query) {
   if (!query) return true;
   const hay = `${folder.title} ${folder.description} ${folder.tags?.join(' ') || ''} ${folder.owner?.username || ''}`.toLowerCase();
   return hay.includes(query.toLowerCase());
 }
-const sample = [
-  { front: 'What is spaced repetition?', back: 'Reviewing material at increasing intervals, right before you would forget it. Hard cards come back sooner; easy cards drift further out.', tag: 'learning' },
-  { front: 'Why does active recall beat re-reading?', back: 'Retrieving an answer from memory strengthens the memory trace far more than passively recognising it on a page.', tag: 'memory' },
-  { front: 'What does “optimistic concurrency” mean?', back: 'Proceed without locks and check a version number at save time. If someone else changed it first, you get a conflict instead of a silent overwrite.', tag: 'engineering' }
-];
-function HeroCard() {
-  const [index, setIndex] = useState(0), [flipped, setFlipped] = useState(false); const card = sample[index];
-  const next = () => { setFlipped(false); setIndex(i => (i + 1) % sample.length); };
-  return <div className="home-hero-card-wrap"><div className="home-hero-card-shadow"/><article className={`home-hero-card ${flipped ? 'answer-visible' : ''}`}>
-    <div className="home-hero-card-top"><span>{String(index + 1).padStart(2, '0')} / {flipped ? 'ANSWER' : 'QUESTION'}</span><span className="tag">{card.tag}</span></div>
-    <button type="button" className="home-hero-card-body" data-face={flipped ? 'back' : 'front'} aria-label={flipped ? 'Show question' : 'Reveal answer'} onClick={() => setFlipped(f => !f)}><p>{flipped ? card.back : card.front}</p><small>{flipped ? 'Tap to see the question' : 'Tap to reveal the answer'}</small></button>
-    <div className="home-hero-card-actions">{flipped ? <><button type="button" className="rating again" onClick={next}><span>Again</span></button><button type="button" className="rating good" onClick={next}><span>Good</span></button><button type="button" className="rating easy" onClick={next}><span>Easy</span></button></> : <button type="button" className="text-button" onClick={() => setFlipped(true)}><RotateCcw size={14}/> Flip the card</button>}</div>
-  </article></div>;
-}
+
 const FAQS = [
   [`Is ${BRAND.name} actually free?`,
     'Yes, and the free tier is the whole product rather than a teaser. Accounts, collections, cards, spaced repetition, publishing to the community, and your own progress all cost nothing, and we never ask for a card. Premium adds projects, deck import and export, folder covers, live quiz hosting, and editor invites.'],
@@ -46,22 +35,6 @@ const FAQS = [
   ['Does it work on my phone?',
     `Yes. ${BRAND.name} runs in any modern browser and the layout adapts to phones and tablets, so you can review on the bus and write cards properly on a laptop later. It is one library either way.`],
 ];
-function Faq() {
-  return <section className="home-faq" id="faq">
-    <div className="home-faq-head">
-      <span className="eyebrow">GOOD QUESTIONS</span>
-      <h2>The things people ask before they start</h2>
-      <p>Short answers, honestly given. If yours is not here, we would like to hear it.</p>
-      <p className="home-faq-foot">Something we did not cover? <Link to="/contact">Ask us directly</Link>, and a person will read it.</p>
-    </div>
-    <div className="faq-list">
-      {FAQS.map(([question, answer]) => <details className="faq-item" key={question}>
-        <summary>{question}<ChevronDown className="faq-chevron" size={18}/></summary>
-        <div className="faq-answer"><p>{answer}</p></div>
-      </details>)}
-    </div>
-  </section>;
-}
 /**
  * What the product actually does, written out rather than hinted at.
  *
@@ -152,23 +125,6 @@ function Guide() {
     </p>
   </section>;
 }
-const MARQUEE = [[Layers, 'Folders & cards'], [Brain, 'FSRS scheduling'], [Bot, 'AI assistant'], [PenLine, 'Notes & drawing'], [Users, 'Teams & classrooms'], [Swords, 'Live quiz rooms'], [WifiOff, 'Works offline'], [Share2, 'Share & publish'], [Timer, 'Daily goals']];
-function Devices() {
-  const row = (n) => Array.from({ length: n }, (_, i) => <i key={i} style={{ animationDelay: `${i * 140}ms` }}/>);
-  return <Reveal as="section" className="home-devices">
-    <div className="home-devices-head">
-      <span className="eyebrow">EVERYWHERE YOU STUDY</span>
-      <h2>One library on your laptop, tablet, and phone</h2>
-      <p>The layout adapts to the screen in your hand, your cards sync as you go, and the mobile app keeps working when the connection drops.</p>
-    </div>
-    <div className="home-devices-stage" aria-hidden="true">
-      <div className="dev dev-laptop"><div className="dev-screen"><b/>{row(5)}</div><em/></div>
-      <div className="dev dev-tablet"><div className="dev-screen"><b/>{row(4)}</div></div>
-      <div className="dev dev-phone"><div className="dev-screen"><b/>{row(4)}</div></div>
-    </div>
-    <ul className="home-devices-tags"><li><Laptop size={14}/> Web</li><li><Tablet size={14}/> Tablet</li><li><Smartphone size={14}/> Android app</li></ul>
-  </Reveal>;
-}
 function PublicFolderCard({ folder }) {
   return <Link className={`home-folder ${folder.color}`} to={`/folders/${folder.id}`}>
     <div className="home-folder-cover">{folder.thumbnail ? <Img className="tile-thumb" id={folder.thumbnail} alt={`${folder.title} flashcard collection`} sizes="(max-width: 900px) 100vw, 320px" max={folder.thumbnailWidth}/> : <span className="folder-icon"><FolderIcon name={folder.icon} size={26}/></span>}<span className="visibility-badge"><Globe2 size={11}/> Public</span></div>
@@ -176,6 +132,103 @@ function PublicFolderCard({ folder }) {
       <div className="home-folder-meta"><span><Avatar user={folder.owner} small/> @{folder.owner?.username}</span><span>{folder.cardCount} cards · {folder.likeCount || 0} likes · {folder.copyCount || 0} copies</span></div></div>
   </Link>;
 }
+
+/** Questions a flashcard app can ask about flashcards. Each answer is a result from published research. */
+const FACTS = [
+  { q: 'How much do we forget in a day?', a: 'Without review, roughly half to two thirds of new material is gone within 24 hours. Hermann Ebbinghaus charted this curve in 1885, and later replications found the same shape.', src: 'Ebbinghaus, 1885' },
+  { q: 'Testing yourself or rereading: which sticks?', a: 'In a well-known study, students who practised recalling a text remembered 61% of it a week later. Students who simply reread it remembered 40%.', src: 'Roediger & Karpicke, 2006' },
+  { q: 'Does spacing really beat cramming?', a: 'A review of 317 experiments found that spreading study over time beats massing it into one sitting. The gap that works best grows with how long you need to remember.', src: 'Cepeda et al., 2006' },
+  { q: 'Which study habits do researchers rate highest?', a: 'A major review of ten popular techniques rated practice testing and spaced practice as high-utility, and rated highlighting and rereading as low-utility.', src: 'Dunlosky et al., 2013' },
+  { q: 'Who invented the flashcard box?', a: 'Sebastian Leitner, in the 1970s. Cards you answer correctly move up a box and come back less often. Spaced repetition software automates the same idea.', src: 'Leitner, 1972' },
+];
+
+function FactDeck() {
+  const [open, setOpen] = useState(0), [touched, setTouched] = useState(false);
+  // Turns the pages itself until somebody takes over, so a visitor who only watches still sees them all.
+  useEffect(() => {
+    if (touched || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const t = setInterval(() => setOpen((o) => (o + 1) % FACTS.length), 7000);
+    return () => clearInterval(t);
+  }, [touched]);
+  const pick = (i) => { setOpen(i); setTouched(true); };
+  return <div className="facts-deck">
+    <ul className="facts-tabs" role="tablist" aria-label="Facts about flashcards">
+      {FACTS.map((f, i) => <li key={f.q}><button type="button" role="tab" aria-selected={open === i} className={open === i ? 'is-on' : ''} onClick={() => pick(i)}><span>{String(i + 1).padStart(2, '0')}</span>{f.q}</button></li>)}
+    </ul>
+    <div className="facts-card" key={open}>
+      <small className="facts-label"><Quote size={13}/> THE ANSWER</small>
+      <p>{FACTS[open].a}</p>
+      <footer>{FACTS[open].src}</footer>
+    </div>
+  </div>;
+}
+
+function HeroStack() {
+  const cards = [['How long until we forget half?', 'About a day, without review.'], ['What is active recall?', 'Pulling an answer from memory instead of rereading it.'], ['What is a spaced interval?', 'A gap that grows each time you remember.']];
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const t = setInterval(() => setStep((s) => s + 1), 1700);
+    return () => clearInterval(t);
+  }, []);
+  const round = Math.floor(step / 2), flipped = step % 2 === 1;
+  return <div className="hero-stack" aria-hidden="true">
+    {cards.map(([q, a], i) => {
+      const pos = (i - round % cards.length + cards.length) % cards.length;
+      return <div key={q} className={`hs-card pos-${pos} ${pos === 0 && flipped ? 'is-flipped' : ''}`}>
+        <div className="hs-in"><div className="hs-face"><small>QUESTION</small><p>{q}</p></div><div className="hs-face hs-back"><small>ANSWER</small><p>{a}</p></div></div>
+      </div>;
+    })}
+    <span className="hs-chip hs-chip-a"><Flame size={13}/> 7 day streak</span>
+    <span className="hs-chip hs-chip-b"><Check size={13}/> 18 cards due today</span>
+  </div>;
+}
+
+/** Small looping pictures for the feature tiles. Pure CSS: each one is a few spans that move. */
+const Curve = () => <svg className="viz-curve" viewBox="0 0 220 90" aria-hidden="true"><path className="c1" d="M4 8 C 40 10, 50 70, 90 78 S 160 84, 216 84"/><path className="c2" d="M4 8 C 30 8, 40 30, 60 30 C 70 8, 90 12, 110 24 C 125 8, 150 10, 216 14"/><circle cx="60" cy="30" r="3.5"/><circle cx="110" cy="24" r="3.5"/></svg>;
+const Heat = () => <div className="viz-heat" aria-hidden="true">{Array.from({ length: 42 }, (_, i) => <i key={i} data-l={[0, 1, 2, 3, 1, 0, 2, 3, 2, 1, 3, 3, 0, 2][i % 14]} style={{ animationDelay: `${(i % 14) * 60 + Math.floor(i / 14) * 150}ms` }}/>)}</div>;
+const Race = () => <div className="viz-race" aria-hidden="true">{[['Mia', 92], ['Dev', 78], ['You', 66], ['Zoe', 40]].map(([n, w], i) => <div key={n}><span>{n}</span><i style={{ '--w': `${w}%`, animationDelay: `${i * 160}ms` }}/></div>)}</div>;
+const Chat = () => <div className="viz-chat" aria-hidden="true"><p className="u">Make 12 cards from my chapter on cells</p><p className="b"><i/><i/><i/></p><span><Check size={12}/> 12 cards added</span></div>;
+const Avatars = () => <div className="viz-people" aria-hidden="true">{['A', 'M', 'D', 'Z'].map((n, i) => <i key={n} style={{ animationDelay: `${i * 220}ms` }}>{n}</i>)}<span><Plus size={12}/> Invite by username</span></div>;
+const Offline = () => <div className="viz-offline" aria-hidden="true"><span className="off"><WifiOff size={13}/> Offline</span><div><i/><i/><i/></div><span className="sync"><Check size={12}/> Synced</span></div>;
+
+function Features() {
+  const tiles = [
+    ['wide', Brain, 'Scheduling that learns you', 'FSRS, the algorithm behind modern Anki, tracks how well you know each card and brings it back just before you would forget.', <Curve key="a"/>],
+    ['', Bot, 'An assistant that writes cards', 'Connect your own AI assistant and turn a chapter or a transcript into a deck.', <Chat key="b"/>],
+    ['', Flame, 'A habit, not a streak trap', 'A daily goal you set. Miss a week and nothing breaks.', <Heat key="c"/>],
+    ['', Users, 'Share by username', 'Invite viewers or live co-editors, or publish a collection for anyone to study.', <Avatars key="d"/>],
+    ['', WifiOff, 'Works offline', 'Study on the train. Reviews sync when you are back online.', <Offline key="f"/>],
+    ['wide', Swords, 'Live quiz rooms', 'Turn any folder into a timed game. Players join with a six-letter code, no account needed.', <Race key="e"/>],
+  ];
+  return <section className="features" id="features">
+    <Reveal className="sec-head"><span className="kicker">What you get</span><h2>Everything a serious study habit needs</h2></Reveal>
+    <div className="features-grid">
+      {tiles.map(([cls, Icon, title, text, viz], i) => <Reveal key={title} className={`feat ${cls}`} delay={(i % 3) * 90}>
+        <div className="feat-viz">{viz}</div>
+        <div className="feat-copy"><span className="feat-icon"><Icon size={16}/></span><h3>{title}</h3><p>{text}</p></div>
+      </Reveal>)}
+    </div>
+  </section>;
+}
+
+function Steps() {
+  const steps = [[Layers, 'Collect', `Make a folder for anything worth remembering. Add two-sided text or image cards, with tags, hints, and sources.`], [Brain, 'Recall', `Study what is due. Rate each answer honestly and ${BRAND.name} brings difficult cards back sooner.`], [Users, 'Share', 'Invite people as viewers or editors, publish to the community, or keep it entirely to yourself.']];
+  return <section className="steps" aria-label={`How ${BRAND.name} works`}>
+    {steps.map(([Icon, title, text], i) => <Reveal key={title} className="step" delay={i * 110}><span className="step-n">{`0${i + 1}`}</span><h3><Icon size={18}/> {title}</h3><p>{text}</p></Reveal>)}
+  </section>;
+}
+
+const Faq = () => <section className="faq" id="faq">
+  <Reveal className="sec-head"><span className="kicker">Good questions</span><h2>The things people ask before they start</h2><p>Short answers, honestly given. If yours is not here, <Link to="/contact">ask us directly</Link> and a person will read it.</p></Reveal>
+  <div className="faq-list">
+    {FAQS.map(([question, answer]) => <details className="faq-item" key={question}>
+      <summary>{question}<ChevronDown className="faq-chevron" size={18}/></summary>
+      <div className="faq-answer"><p>{answer}</p></div>
+    </details>)}
+  </div>
+</section>;
+
 /** Three full rows of the grid. The rest of the library lives behind Explore. */
 const HOME_FOLDERS = 9;
 
@@ -190,43 +243,51 @@ export default function HomePage() {
   // rather than a shortened list.
   const visible = query ? folders : folders.slice(0, HOME_FOLDERS);
   return <div className="home">
-    <section className="home-hero">
-      <div className="home-hero-bg" aria-hidden="true"><i/><i/><i/></div>
-      <div className="home-hero-copy">
-        <span className="eyebrow"><Sparkles size={12}/> SPACED REPETITION, MADE EFFORTLESS</span>
-        <h1>Learn a little.<br/><span className="grad">Remember a lot.</span></h1>
+    <section className="hero">
+      <div className="hero-copy">
+        <span className="kicker">Flashcards, done properly</span>
+        <h1>Learn a little.<br/><mark><span>Remember a lot.</span></mark></h1>
         <p>{BRAND.name} turns what you read, hear, and wonder about into flashcards you actually revisit. Build collections, study with spaced repetition, and learn alongside people you trust.</p>
-        <div className="home-hero-actions"><Link className="button primary glow" to="/signup">Start for free <ArrowRight size={17}/></Link><Link className="button secondary" to="/explore">Browse public collections</Link></div>
-        <div className="home-hero-notes"><span><LockKeyhole size={13}/> Private by default</span><span><Users size={13}/> Share by username</span><span><Brain size={13}/> Smart review scheduling</span></div>
+        <div className="hero-actions"><Link className="button primary" to="/signup">Start for free <ArrowRight size={17}/></Link><Link className="button secondary" to="/explore">Browse public collections</Link></div>
+        <ul className="hero-notes"><li><LockKeyhole size={13}/> Private by default</li><li><Users size={13}/> Share by username</li><li><Brain size={13}/> Smart scheduling</li></ul>
       </div>
+      <HeroStack/>
+    </section>
+
+    <section className="showcase" aria-label={`A look inside ${BRAND.name}`}>
+      <Reveal className="sec-head"><span className="kicker">See it in action</span><h2>This is the actual workspace</h2><p>Make a folder, add cards, study them. Three minutes from sign-up to your first review.</p></Reveal>
       <HomeDemo/>
     </section>
-    <div className="home-marquee" aria-hidden="true"><div>{[0, 1].map(k => <ul key={k}>{MARQUEE.map(([Icon, label]) => <li key={label}><Icon size={15}/> {label}</li>)}</ul>)}</div></div>
-    <section className="home-steps" aria-label={`How ${BRAND.name} works`}>
-      {[[Layers, 'Collect', 'Create folders for anything worth remembering. Add two-sided text or image cards, tags, hints, and sources.'], [Brain, 'Recall', `Study what is due. Rate each answer honestly and ${BRAND.name} brings difficult cards back sooner.`], [Users, 'Share', 'Invite collaborators as viewers or editors, publish a collection to the world, or keep it just for you.']].map(([Icon, title, text], i) => <Reveal className="home-step" key={title} delay={i * 110}><span className="home-step-index" aria-hidden="true">0{i + 1}</span><span className="home-step-icon"><Icon size={20}/></span><h2>{title}</h2><p>{text}</p></Reveal>)}
+
+    <section className="facts" id="facts">
+      <Reveal className="sec-head on-dark"><span className="kicker">Why it works</span><h2>Memory has rules. Flashcards follow them.</h2><p>Decades of research agree on a few simple things. {BRAND.name} is built around them.</p></Reveal>
+      <Reveal className="facts-stats">
+        <div><b><CountUp to={61} suffix="%"/></b><span>recalled after a week by students who tested themselves</span></div>
+        <div><b><CountUp to={40} suffix="%"/></b><span>recalled by students who only reread</span></div>
+        <div><b><CountUp to={317}/></b><span>experiments in the largest review of the spacing effect</span></div>
+      </Reveal>
+      <Reveal><FactDeck/></Reveal>
     </section>
-    <Reveal as="section" className="home-try">
-      <div className="home-try-copy">
-        <span className="eyebrow">TRY IT NOW</span>
-        <h2>Flip a card. Feel how it works.</h2>
-        <p>No account needed. Tap the card to reveal the answer, rate how well you knew it, and watch the next one arrive. This is the whole loop, and it takes a few minutes a day.</p>
-      </div>
-      <HeroCard/>
-    </Reveal>
-    <Devices/>
+
+    <Features/>
+    <Steps/>
     <Guide/>
-    <Reveal as="section" className="home-community" id="library">
-      <div className="library-section-heading"><div><span className="eyebrow">THE COMMUNITY LIBRARY</span><h2>Public collections, ready to study</h2></div><Link to="/explore" className="text-button">Explore all <ArrowRight size={15}/></Link></div>
+
+    <Reveal as="section" className="community" id="library">
+      <div className="community-head"><div><span className="kicker">The community library</span><h2>Public collections, ready to study</h2></div><Link to="/explore" className="text-button">Explore all <ArrowRight size={15}/></Link></div>
       <form className="home-search folder-search" onSubmit={e => e.preventDefault()}><Search size={16}/><input aria-label="Search public collections and people" placeholder="Search collections or people…" value={query} onChange={e => setParams(e.target.value ? { q: e.target.value } : {})}/></form>
       {people?.users?.length > 0 && <div className="people-hits">{people.users.map(p => <Link key={p.id} className="person-chip" to={`/u/${p.username}`}><Avatar user={p} small/> {p.name} <small>@{p.username}</small></Link>)}</div>}
       {loading ? <Loading/> : !folders.length ? query ? <Empty title="No matching collections" text="Try another word. Titles, descriptions, tags, and authors are all searchable without an account."/> : <div className="home-empty"><Globe2 size={22}/><p>No public collections yet. Be the first: create an account and publish a folder.</p></div> : <div className="home-folder-grid">{visible.map(f => <PublicFolderCard folder={f} key={f.id}/>)}</div>}
       {folders.length > visible.length && <div className="home-folder-more"><Link className="button secondary" to="/explore">Explore more collections <ArrowRight size={16}/></Link></div>}
-      <p className="home-community-note">Anyone can read and flip public cards. To save a collection, make a private copy, track progress, or create your own, you’ll need an account, which takes a few seconds.</p>
+      <p className="community-note">Anyone can read and flip public cards. To save a collection, make a private copy, track progress, or create your own, you’ll need an account, which takes a few seconds.</p>
     </Reveal>
+
     <Faq/>
-    <section className="home-cta">
-      <div><span className="banner-label"><i className="tiny-line"/> ONE CARD AT A TIME</span><h2>Your future self will thank you.</h2><p>Free to use. No credit card, no email verification, no noise.</p></div>
-      <div className="home-cta-actions"><Link className="button white-button" to="/signup">Create your account</Link><Link className="text-button" to="/login">I already have one <ArrowRight size={15}/></Link></div>
+
+    <section className="cta">
+      <h2>Your future self will thank you.</h2>
+      <p>Free to use. No credit card, no noise.</p>
+      <Link className="button cta-btn" to="/signup">Create your account <ArrowRight size={17}/></Link>
     </section>
   </div>;
 }
