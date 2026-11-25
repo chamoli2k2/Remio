@@ -1,3 +1,4 @@
+import { redeem as redeemReferral } from '../services/referralService.js';
 import bcrypt from 'bcryptjs';
 import { User } from '../models/index.js';
 import { clearAuthCookies, deliverTokens, refreshTokenOf, wantsTokens } from '../middleware/auth.js';
@@ -30,13 +31,15 @@ const signIn = async (req, res, userId) => deliverTokens(req, res, await issueTo
  * this date, at this moment" is the thing you would actually want to be able to show.
  */
 export const signup = async (req, res) => {
-  const { password, acceptedTerms, emailCode, ...body } = req.body;
+  const { password, acceptedTerms, emailCode, referralCode, ...body } = req.body;
   // An account is only made for an address its owner has just proven they can read. The code is
   // checked first and spent last, so a taken username does not cost them the code.
   const proof = codesRequired() ? await checkCode(body.email, 'signup', emailCode) : null;
   if (!body.username) body.username = await freeUsername(body.email);
   const user = await User.create({ ...body, termsAcceptedAt: new Date(), termsVersion: BRAND.policyUpdated, passwordHash: await bcrypt.hash(password, 12), ...(proof ? { emailVerifiedAt: new Date() } : {}), ...(process.env.NODE_ENV === 'test' ? { account: 'premium' } : {}) });
   if (proof) await spendCode(proof); else account.sendVerification(user).catch(() => {});
+  // A code that does not apply never costs somebody their account.
+  if (referralCode) await redeemReferral(user, referralCode).catch(() => {});
   const session = await signIn(req, res, user.id);
   res.status(201).json({ user: await self(user.id), ...session });
 };
@@ -54,7 +57,9 @@ export const signupCode = async (req, res) => {
  * decides whether the country and consent are sent with it.
  */
 export const google = async (req, res) => {
-  const { user, created } = await signInWithGoogle(req.body, { detectCountry: () => countryNameFor(req) });
+  const { referralCode, ...credentials } = req.body;
+  const { user, created } = await signInWithGoogle(credentials, { detectCountry: () => countryNameFor(req) });
+  if (created && referralCode) await redeemReferral(user, referralCode).catch(() => {});
   const session = await signIn(req, res, user.id);
   res.status(created ? 201 : 200).json({ user: await self(user.id), created, ...session });
 };

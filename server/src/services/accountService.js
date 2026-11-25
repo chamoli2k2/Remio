@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
 import {
   User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision,
   CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment,
-  AgentToken, AgentBatch,
+  AgentToken, AgentBatch, Referral,
 } from '../models/index.js';
 import { assert } from '../utils/errors.js';
 import { hashToken } from '../utils/hash.js';
@@ -302,6 +302,8 @@ async function eraseAccount(withHash) {
     await GameProfile.deleteMany({ user: id }, opts);
     await Notification.deleteMany({ $or: [{ user: id }, { actor: id }] }, opts);
     await Relationship.deleteMany({ $or: [{ from: id }, { to: id }] }, opts);
+    await Referral.deleteMany({ $or: [{ referrer: id }, { referee: id }] }, opts);
+    await User.updateMany({ referredBy: id }, { $unset: { referredBy: 1 } }, opts);
     await Project.deleteMany({ owner: id }, opts);
     await Activity.deleteMany({ actor: id }, opts);
     await Media.deleteMany({ uploadedBy: id }, opts);

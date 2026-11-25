@@ -1,7 +1,7 @@
 import { planById } from './account.js';
 import { teamPlanById } from './teams.js';
 
-export const NOTIFICATION_TYPES = ['follow', 'connect.request', 'connect.accepted', 'premium.requested', 'premium.approved', 'premium.declined', 'team.joined', 'team.removed', 'team.assignment', 'team.seats'];
+export const NOTIFICATION_TYPES = ['follow', 'connect.request', 'connect.accepted', 'premium.requested', 'premium.approved', 'premium.declined', 'team.joined', 'team.removed', 'team.assignment', 'team.seats', 'referral.joined', 'referral.qualified', 'referral.reward'];
 
 const who = n => n.actor?.name || n.actor?.username || 'Someone';
 const planLabel = n => planById(n.data?.plan)?.label || teamPlanById(n.data?.plan)?.label || 'Premium';
@@ -30,6 +30,12 @@ export function describeNotification(n) {
       return { icon: 'assignment', title: `New assignment: ${n.data?.title || 'study set'}`, body: n.data?.dueAt ? `Due ${day(n.data.dueAt)} in ${n.data?.teamName || 'your team'}.` : `Set in ${n.data?.teamName || 'your team'}.`, href: n.data?.folderId ? `/folders/${n.data.folderId}` : '/teams' };
     case 'team.seats':
       return { icon: 'team', title: `${n.data?.seats || ''} seats are ready`.trim(), body: n.data?.expiresAt ? `Your team plan runs to ${day(n.data.expiresAt)}.` : 'Invite people from the team page.', href: '/teams' };
+    case 'referral.joined':
+      return { icon: 'friends', title: `${who(n)} joined with your invite`, body: 'You are both rewarded once they have studied on 7 different days.', href: '/invite' };
+    case 'referral.qualified':
+      return { icon: 'premium', title: `${who(n)} stuck with it`, body: n.data?.days ? `You earned ${n.data.days} days of Premium. ${n.data?.qualified || ''} study partner${n.data?.qualified === 1 ? '' : 's'} so far.`.replace('  ', ' ') : 'Your invite reward limit has been reached, but they are doing great.', href: '/invite' };
+    case 'referral.reward':
+      return { icon: 'premium', title: `You earned ${n.data?.days || ''} days of Premium`.replace('  ', ' '), body: 'Thank you for studying on 7 different days. Enjoy it.', href: '/premium' };
     default:
       return { icon: 'bell', title: 'Something happened', body: '', href: '/' };
   }

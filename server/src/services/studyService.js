@@ -1,3 +1,4 @@
+import { evaluate as evaluateReferral } from './referralService.js';
 import { MAX_STUDY_BATCH, STUDY_BACKDATE_MS, STUDY_ATTEMPTS } from '../constants/index.js';
 import mongoose from 'mongoose';
 import { Card, Progress, Review } from '../models/index.js';
@@ -41,7 +42,10 @@ export async function reviewCards(user, items, now = new Date()) {
 
   for (let attempt = 1; ; attempt++) {
     try {
-      return await mongoose.connection.transaction(session => applyAll(user, items, { cards, folders, retention, now }, session));
+      const results = await mongoose.connection.transaction(session => applyAll(user, items, { cards, folders, retention, now }, session));
+      // An invited person's seventh study day pays out the invite. Never allowed to fail a review.
+      evaluateReferral(user.id).catch(() => {});
+      return results;
     } catch (e) {
       // Two devices syncing the same new card at once both try to insert its first progress or
       // review row; the loser's retry then finds the winner's and answers from it.

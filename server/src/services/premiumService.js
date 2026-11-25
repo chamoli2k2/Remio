@@ -1,3 +1,4 @@
+import { REFERRAL_PLAN_ID, REFERRAL_PLAN_LABEL } from '../../../shared/referrals.js';
 import { PremiumOrder, User, Team } from '../models/index.js';
 import { hasPremium, hasDashboard, planById, premiumDaysLeft, premiumExpiryAfter } from '../../../shared/account.js';
 import { teamPlanById, teamPrice, seatTopUpPrice, teamActive, teamExpiryAfter, clampSeats } from '../../../shared/teams.js';
@@ -52,7 +53,7 @@ async function applyToTeam(order) {
 export const mySubscription = user => ({
   account: user.account || 'normal',
   plan: user.premiumPlan || '',
-  planLabel: planById(user.premiumPlan)?.label || '',
+  planLabel: planById(user.premiumPlan)?.label || (user.premiumPlan === REFERRAL_PLAN_ID ? REFERRAL_PLAN_LABEL : ''),
   expiresAt: user.premiumExpiresAt || null,
   daysLeft: premiumDaysLeft(user),
   active: hasPremium(user),

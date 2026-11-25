@@ -3,12 +3,14 @@ import AdSlot from '../components/AdSlot';
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { preload } from 'react-dom';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { X, ArrowRight, RotateCcw, Lightbulb, Check, ExternalLink, Flame, Trophy, Zap, Sparkles, Pencil } from 'lucide-react';
+import { X, ArrowRight, RotateCcw, Lightbulb, Check, ExternalLink, Flame, Trophy, Zap, Sparkles, Pencil, Gift } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useApp } from '../hooks/useApp';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { api, imageUrl } from '../services/api';
 import { enqueue, flush, flushSoon, subscribe, versionFor, pendingCards, pendingCount } from '../services/reviewSync';
+import { shareInvite } from '../services/shareInvite';
+import { BRAND } from '../../../shared/brand.js';
 import Img from '../components/Img';
 import DrawingView from '../components/DrawingView';
 import { Loading, ErrorState, Tag, FolderIcon, Empty, Button } from '../components/ui';
@@ -165,6 +167,11 @@ export default function StudyPage() {
     setParams({ mode: 'all' });
   }
 
+  async function shareGoal() {
+    const { code } = await api('/referrals');
+    shareInvite({ code, goal: `I just reviewed ${ratings.length} cards on ${BRAND.name} and remembered ${ratings.filter(r => r !== 'again').length}. Think you can beat that?` });
+  }
+
   if (finished) {
     const remembered = ratings.filter(r => r !== 'again').length;
     return <div className="study-page">{header}<div className="study-complete">
@@ -179,6 +186,7 @@ export default function StudyPage() {
       {session.level && <div className="complete-level"><LevelBar level={session.level}/></div>}
       {session.badges.length > 0 && <div className="complete-badges"><span className="eyebrow">BADGES UNLOCKED</span><div>{session.badges.map(b => <div key={b} className="complete-badge"><BadgeMedal id={b} size={56}/><strong>{badgeById[b]?.name}</strong></div>)}</div></div>}
       <div className="complete-actions"><Link to={`/folders/${id}`} className="button primary">Back to collection <ArrowRight size={17}/></Link><Button className="secondary" onClick={anotherMode}>Practise again in a mode</Button><Link to="/progress" className="button secondary">See your badges</Link></div>
+      <div className="invite-nudge"><Gift size={18}/><p>Studying is easier with a partner. Challenge a friend to review {ratings.length > 1 ? 'as many cards' : 'a few cards'} this week.</p><Button className="secondary" onClick={shareGoal}>Invite a friend</Button></div>
       <AdSlot placement="afterStudy"/>
     </div></div>;
   }

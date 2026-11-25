@@ -37,6 +37,7 @@ export { AgentBatch } from './AgentBatch.js';
 export { OAuthClient } from './OAuthClient.js';
 export { OAuthGrant } from './OAuthGrant.js';
 export { Blob } from './Blob.js';
+export { Referral } from './Referral.js';
 
 import { EmailCode } from './EmailCode.js';
 import { NoteCollection } from './NoteCollection.js';
@@ -72,6 +73,7 @@ import { AgentBatch } from './AgentBatch.js';
 import { OAuthClient } from './OAuthClient.js';
 import { OAuthGrant } from './OAuthGrant.js';
 import { Blob } from './Blob.js';
+import { Referral } from './Referral.js';
 
 /** Every model, in the order their indexes are built at startup. */
-export const allModels = [EmailCode, NoteCollection, Notebook, Note, NoteRevision, User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob];
+export const allModels = [EmailCode, NoteCollection, Notebook, Note, NoteRevision, User, RefreshToken, AuthToken, Folder, Card, Media, Progress, Review, GameProfile, Activity, Revision, DomainEvent, CardDoc, Relationship, Project, PremiumOrder, Notification, Team, TeamMember, TeamInvite, Assignment, Setting, AuditEntry, ContentReport, AgentToken, AgentBatch, OAuthClient, OAuthGrant, Blob, Referral];

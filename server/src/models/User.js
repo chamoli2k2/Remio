@@ -49,6 +49,11 @@ const user = new Schema(
     account: { type: String, enum: ACCOUNT_TYPES, default: "normal" },
     premiumPlan: { type: String, default: "" },
     premiumExpiresAt: { type: Date, default: null },
+    // Invite programme: the code others sign up with, who invited this account, and how many of its
+    // invitees have qualified (an atomic counter, so two qualifying at once cannot share a milestone).
+    referralCode: { type: String, uppercase: true },
+    referredBy: ref("User", false),
+    referralQualified: { type: Number, default: 0 },
     savedFolders: [ref("Folder")],
     followers: { type: Number, default: 0 },
     following: { type: Number, default: 0 },
@@ -58,4 +63,5 @@ const user = new Schema(
 );
 // Sparse and unique: one Google account can only ever be one account here.
 user.index({ googleId: 1 }, { unique: true, sparse: true });
+user.index({ referralCode: 1 }, { unique: true, sparse: true });
 export const User = model("User", user);

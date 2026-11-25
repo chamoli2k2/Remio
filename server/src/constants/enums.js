@@ -48,3 +48,6 @@ export const REPORT_DECISIONS = ['upheld', 'rejected'];
 export const AGENT_TOKEN_ORIGINS = ['personal', 'oauth'];
 export const AGENT_BATCH_KINDS = ['cards', 'cover', 'edit', 'notes', 'noteedit'];
 export const NOTE_REVISION_SOURCES = ['app', 'assistant'];
+
+/* Invites */
+export const REFERRAL_STATUSES = ['joined', 'qualified'];

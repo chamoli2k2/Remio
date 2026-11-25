@@ -1,3 +1,4 @@
+import { REFERRAL_PLAN_ID, REFERRAL_PLAN_LABEL } from '../../../shared/referrals.js';
 import mongoose from 'mongoose';
 import { User, PremiumOrder, Review } from '../models/index.js';
 import { canAssign, mayActOn, ACCOUNTS, planById, premiumDaysLeft, hasPremium } from '../../../shared/account.js';
@@ -10,7 +11,7 @@ import { assert } from '../utils/errors.js';
 const publicAdmin = u => ({
   id: u.id, username: u.username, name: u.name, email: u.email,
   account: u.account || 'normal', createdAt: u.createdAt,
-  plan: u.premiumPlan || '', planLabel: planById(u.premiumPlan)?.label || '',
+  plan: u.premiumPlan || '', planLabel: planById(u.premiumPlan)?.label || (u.premiumPlan === REFERRAL_PLAN_ID ? REFERRAL_PLAN_LABEL : ''),
   expiresAt: u.premiumExpiresAt || null, daysLeft: premiumDaysLeft(u), premiumActive: hasPremium(u),
 });
 

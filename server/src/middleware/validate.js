@@ -28,7 +28,9 @@ export const signupSchema = z.object({ username: z.preprocess(v => (v === '' || 
   acceptedTerms: z.literal(true, 'Please accept the terms and the privacy policy to continue.'),
   // The code mailed to the address. Optional here only so the schema stays one shape; the route
   // refuses a signup without it everywhere but the test suite.
-  emailCode: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email.').optional() });
+  emailCode: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email.').optional(),
+  // An invite code is optional and never blocks a sign-up: a wrong one is simply not applied.
+  referralCode: z.string().trim().max(40).optional() });
 export const emailOnlySchema = z.object({ email: z.email().toLowerCase() });
 export const deleteByCodeSchema = z.object({ email: z.email().toLowerCase(), code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email.'), confirm: z.literal('delete my account') });
 // The current password is optional only so an account that has never had one can set its first;
@@ -268,7 +270,10 @@ export const googleSignInSchema = z.object({
   credential: z.string().min(20).max(8192),
   country: z.enum(COUNTRY_NAMES).optional(),
   acceptedTerms: z.boolean().optional(),
+  referralCode: z.string().trim().max(40).optional(),
 });
+
+export const referralCodeSchema = z.object({ code: z.string().trim().min(1).max(40) });
 
 /** The username, typed back, plus an optional reason that lands in the audit trail. */
 export const deleteUserSchema = z.object({

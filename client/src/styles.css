@@ -2156,3 +2156,28 @@ html[data-theme=dark] .note-print-root{color-scheme:light;--accent:#6348dc;--acc
 .delete-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:4px}
 .delete-actions .danger-button{margin-left:auto}
 @media(max-width:600px){.delete-card{padding:18px 16px;border-radius:14px}.delete-actions{flex-direction:column;align-items:stretch}.delete-actions>*{width:100%;justify-content:center}.delete-actions .danger-button{margin-left:0;order:-1}.delete-account .legal-head h1{font-size:30px}}
+/* Invite friends */
+.invite-page{max-width:980px}
+.invite-hero{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;padding:26px 28px;border-radius:15px;background:var(--accent);color:#fff;margin-bottom:20px}
+.invite-label{font-size:10px;letter-spacing:1.6px;font-weight:700;color:#e4dcff}
+.invite-code{display:flex;align-items:center;gap:6px;margin:6px 0 4px}.invite-code strong{font-family:'Manrope Variable',sans-serif;font-size:38px;letter-spacing:2px;font-weight:800}.invite-code .icon-button{color:#e4dcff}.invite-code .icon-button:hover{background:#ffffff22;color:#fff}
+.invite-link{font-size:12px;color:#e4dcff;overflow-wrap:anywhere;max-width:420px}
+.invite-problem{font-size:13px;color:#ffd9de;margin-top:6px}
+.invite-actions{display:flex;gap:10px;flex-wrap:wrap}.invite-actions .secondary{background:#ffffff1f;border-color:#ffffff40;color:#fff}.invite-actions .secondary:hover{background:#ffffff33}.invite-actions .primary{background:#fff;color:var(--accent-dark)}.invite-actions .primary:hover{background:#f2eefe}
+.invite-edit{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}.invite-edit input{text-transform:uppercase;letter-spacing:1.5px;font-weight:700;width:220px;color:var(--ink)}.invite-hero .text-button{color:#e4dcff}
+.invite-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-bottom:20px}
+.invite-card{background:#fff;border:1px solid var(--border);border-radius:15px;padding:22px 24px;margin-bottom:0}.invite-grid+.invite-card,.invite-card+.invite-card{margin-top:20px}
+.invite-card h2{font-size:18px;display:flex;align-items:center;gap:8px;margin-bottom:6px}.invite-card>.muted{margin-bottom:14px}
+.invite-ladder,.invite-people{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.invite-ladder li,.invite-people li{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid var(--border);border-radius:11px}
+.invite-ladder li div,.invite-people li div{flex:1;min-width:0}.invite-ladder strong,.invite-people strong{display:block;font-size:14px}.invite-ladder small,.invite-people small{color:var(--muted);font-size:12px}
+.invite-step{width:26px;height:26px;border-radius:50%;background:#eeebf6;color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.is-reached .invite-step{background:var(--accent);color:#fff}.is-reached{border-color:var(--accent)!important}
+.invite-days{font-weight:700;font-size:13px;color:var(--accent)}
+.invite-total{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;margin-top:14px;color:var(--ink)}.invite-total svg{color:var(--accent)}
+.invite-badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);background:#f2f0f8;padding:4px 9px;border-radius:20px}.invite-badge.is-done{background:#e5f6ec;color:#1f7a4a}
+.invite-empty{display:flex;gap:10px;align-items:flex-start}
+.invite-bar{height:8px;background:#eeebf6;border-radius:20px;overflow:hidden}.invite-bar span{display:block;height:100%;background:var(--accent);border-radius:20px;transition:width .3s}
+.invite-nudge{display:flex;align-items:center;gap:12px;text-align:left;max-width:560px;margin:22px auto 0;padding:14px 16px;border:1px dashed var(--border);border-radius:12px}.invite-nudge svg{color:var(--accent);flex-shrink:0}.invite-nudge p{flex:1;font-size:13px;color:var(--muted)}
+html[data-theme=dark] .invite-card{background:var(--surface);border-color:var(--border)}html[data-theme=dark] .invite-step,html[data-theme=dark] .invite-badge,html[data-theme=dark] .invite-bar{background:var(--surface-3)}html[data-theme=dark] .invite-badge.is-done{background:#1f3d2e;color:#7fe0aa}
+@media(max-width:760px){.invite-grid{grid-template-columns:1fr}.invite-hero{padding:20px}.invite-code strong{font-size:30px}.invite-nudge{flex-direction:column;text-align:center}}

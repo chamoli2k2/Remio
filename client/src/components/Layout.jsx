@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import NoticeBanner from './NoticeBanner';
 import { NavLink, Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useSectionTitle } from '../hooks/usePageTitle';
-import { LibraryBig, Compass, Users, ChartNoAxesCombined, Plus, Settings2, Menu as MenuIcon, Search, Archive, LogOut, Swords, FolderOpen, UserPlus, LayoutDashboard, Crown, GraduationCap, NotebookPen } from 'lucide-react';
+import { LibraryBig, Compass, Users, ChartNoAxesCombined, Plus, Settings2, Menu as MenuIcon, Search, Archive, LogOut, Swords, FolderOpen, UserPlus, LayoutDashboard, Crown, GraduationCap, NotebookPen, Gift } from 'lucide-react';
 import { Avatar, Button } from './ui';
 import { useApp, useQuery } from '../hooks/useApp';
 import { api } from '../services/api';
@@ -117,6 +117,7 @@ export default function Layout() {
         </div>
         <div className="sidebar-bottom">
           {hasDashboard(user) && <NavLink to="/dashboard" onClick={() => setMobile(false)} className="nav-link"><LayoutDashboard size={18}/> Dashboard</NavLink>}
+          <NavLink to="/invite" onClick={() => setMobile(false)} className="nav-link"><Gift size={18}/> Invite friends</NavLink>
           <NavLink to="/premium" onClick={() => setMobile(false)} className="nav-link"><Crown size={18}/> {hasPremium(user) ? 'Premium' : 'Buy Premium'}</NavLink>
           <NavLink to="/settings" onClick={() => setMobile(false)} className="nav-link"><Settings2 size={18}/> Settings</NavLink>
         </div>
