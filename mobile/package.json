@@ -44,5 +44,6 @@
     "lint": "expo lint",
     "doctor": "expo-doctor"
   },
-  "private": true
+  "private": true,
+  "license": "UNLICENSED"
 }

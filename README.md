@@ -183,3 +183,7 @@ npm run build && NODE_ENV=production npm start
 ```
 
 API surface: [docs/API.md](docs/API.md). Test details: [TESTING.md](TESTING.md).
+
+## License
+
+Copyright (c) 2026 Gaurav Prakash. All rights reserved. This is proprietary software: you may not use, copy, modify or distribute it without written permission. See [LICENSE](LICENSE).
